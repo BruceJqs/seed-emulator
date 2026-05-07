@@ -37,6 +37,13 @@ bundles:
     source_family: A
     output_dir: examples/basic/A13_exabgp_control_plane/output
     live_readiness: conditional_go
+  - id: Z30
+    slug: Z30_b30_mini_internet_exabgp_ix
+    title: B30 Mini Internet ExaBGP IX Tool Discovery
+    source_example: B30_mini_internet_exabgp_ix
+    source_family: B
+    output_dir: examples/internet/B30_mini_internet_exabgp_ix/output
+    live_readiness: conditional_go
   - id: Z14
     slug: Z14_a14_bgp_event_looking_glass
     title: A14 BGP Event Looking Glass

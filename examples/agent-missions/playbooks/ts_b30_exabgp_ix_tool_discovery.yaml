@@ -1,0 +1,47 @@
+version: 1
+name: ts_b30_exabgp_ix_tool_discovery
+defaults:
+  timeout_seconds: 30
+  parallelism: 12
+  max_output_chars: 10000
+steps:
+  - action: workspace_refresh
+    id: refresh
+    save_as: refresh
+  - action: inventory_list_nodes
+    id: inventory
+    save_as: inventory
+  - action: routing_protocol_summary
+    id: route_server_protocols
+    selector:
+      role: [Route Server, BorderRouter, Router]
+    save_as: route_server_protocols
+  - action: routing_looking_glass
+    id: route_server_state
+    selector:
+      role: [Route Server]
+    save_as: route_server_state
+    on_error: continue
+  - action: ops_logs
+    id: exabgp_candidate_logs
+    selector:
+      role: [Host, Router, Route Server, BorderRouter]
+    tail: 120
+    save_as: exabgp_candidate_logs
+    on_error: continue
+  - action: ops_exec
+    id: read_only_exabgp_ix_probe
+    selector:
+      role: [Host, Router, Route Server, BorderRouter]
+    command: >-
+      sh -lc 'echo ===NODE===; hostname;
+      echo ===PROC===; ps aux | grep -Ei "exabgp|bird|bgpd|frr|route.?server" | grep -v grep || true;
+      echo ===LISTEN===; ss -tulpn 2>/dev/null | grep -Ei "179|5000|exabgp|bird|bgpd|frr" || true;
+      echo ===EXABGP_CONF===; find /etc /usr/local/etc -maxdepth 4 -type f \( -iname "*exabgp*" -o -path "*/exabgp/*" \) -print -exec sed -n "1,160p" {} \; 2>/dev/null || true;
+      echo ===EXABGP_LOGS===; find /var/log -maxdepth 4 -type f -iname "*exabgp*" -print -exec tail -n 80 {} \; 2>/dev/null || true;
+      echo ===BIRD_PROTOCOLS===; birdc show protocols all 2>/dev/null || true;
+      echo ===BIRD_ROUTES===; birdc show route 2>/dev/null | head -n 200 || true;
+      echo ===FRR_SUMMARY===; vtysh -c "show bgp summary" 2>/dev/null || true;
+      echo ===FRR_ROUTES===; vtysh -c "show bgp ipv4 unicast" 2>/dev/null | head -n 200 || true'
+    save_as: read_only_exabgp_ix_probe
+    on_error: continue

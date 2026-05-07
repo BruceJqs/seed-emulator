@@ -1,0 +1,49 @@
+task_id: TS_B30_EXABGP_IX_TOOL_DISCOVERY
+title: B30 ExaBGP IX Tool Discovery
+track: troubleshooting
+baseline: B30
+scenario_class: Control Plane Tooling
+objective_template: locate ExaBGP and IX route-server evidence surfaces without changing configuration
+required_inputs:
+  - id: attach_output_dir
+    question: Provide B30 mini-internet ExaBGP IX output directory for attach.
+    required: true
+    reason: Runtime workspace attachment is required.
+stages: [observe, analyze, verify]
+policy_by_stage:
+  observe: read_only
+  analyze: read_only
+  verify: read_only
+canonical_request_templates:
+  - >
+    Attach to {attach_output_dir}; identify ExaBGP and IX route-server nodes, summarize
+    BGP peers, configured or observed announcements, route-server state, logs, listener
+    surfaces, and available artifacts. Collect evidence only and do not change any
+    configuration, route announcement, service state, or Docker state.
+fallback_playbooks:
+  - examples/agent-missions/playbooks/ts_b30_exabgp_ix_tool_discovery.yaml
+scale_hints: [medium]
+rollback_required: false
+evidence_requirements:
+  - node identity evidence
+  - IX route-server evidence
+  - ExaBGP peer evidence
+  - announcement or route-state evidence
+  - log, listener, or artifact evidence
+skill_patterns:
+  - attach-and-scan
+  - control-plane-inspection
+  - ix-route-server-inspection
+  - evidence-collection
+acceptance_checks:
+  - status == ok
+  - report identifies ExaBGP or explains why it was not found
+  - report identifies IX route-server evidence
+  - report confirms no configuration or route-state changes were made
+report_template: |
+  ExaBGP IX tool report for {task_id}:
+  - objective: {objective}
+  - ExaBGP surfaces: {exabgp_surfaces}
+  - IX route-server evidence: {ix_route_server_evidence}
+  - peer and announcement summary: {peer_announcement_summary}
+  - read-only confirmation: {read_only_confirmation}
