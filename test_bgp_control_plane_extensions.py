@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 
+from seedemu.compiler import Docker, Platform
 from seedemu.core import Binding, Emulator, Filter
 from seedemu.layers import Base, Ebgp, FrrBgp, Ibgp, Ospf, PeerRelationship, Routing
 from seedemu.services import BgpLookingGlassService, ExaBgpService
@@ -16,6 +17,26 @@ def _file_content(node, path: str) -> str:
         if file_path == path:
             return content
     return ""
+
+
+def _attach_exabgp_peer(server, router_name: str, *, router_asn: int):
+    for method_name in ("addPeer", "addRouterPeer", "attachToRouter"):
+        if not hasattr(server, method_name):
+            continue
+        method = getattr(server, method_name)
+        try:
+            return method(router_name, router_asn=router_asn)
+        except TypeError:
+            return method(router_name, router_asn)
+    raise AssertionError("ExaBGP server does not expose a router peer attachment API")
+
+
+def _compiled_output_text(output_dir: Path) -> str:
+    chunks = []
+    for path in output_dir.rglob("*"):
+        if path.is_file():
+            chunks.append(path.read_text(encoding="utf-8", errors="replace"))
+    return "\n".join(chunks)
 
 
 def test_frr_bgp_layer_renders_frr_config_for_selected_router():
@@ -116,7 +137,8 @@ def test_exabgp_service_renders_dashboard_and_router_peer():
     bird_conf = _file_content(router, "/etc/bird/bird.conf")
     assert "exabgp_65010" in bird_conf
     assert "peer table t_bgp" in bird_conf
-    assert "bgp_large_community.add(LOCAL_COMM)" in bird_conf
+    assert "bgp_large_community.add(CUSTOMER_COMM)" in bird_conf
+    assert "bgp_local_pref = 30" in bird_conf
 
 
 def test_exabgp_service_renders_frr_peer_without_bird_config():
@@ -161,6 +183,101 @@ def test_exabgp_service_renders_frr_peer_without_bird_config():
     exabgp_conf = _file_content(observer, "/etc/exabgp/exabgp.conf")
     assert "198.51.100.0/24" in exabgp_conf
     assert "peer-as 2" in exabgp_conf
+
+
+def test_exabgp_service_renders_multi_peer_external_router_config():
+    emu = Emulator()
+    base = Base()
+    routing = Routing()
+    ebgp = Ebgp()
+    exabgp = ExaBgpService()
+
+    base.createInternetExchange(100)
+    as2 = base.createAutonomousSystem(2)
+    as2.createRouter("r100").joinNetwork("ix100")
+    as3 = base.createAutonomousSystem(3)
+    as3.createRouter("r100").joinNetwork("ix100")
+    speaker_as = base.createAutonomousSystem(65030)
+    speaker_router = speaker_as.createRouter("route_speaker")
+    speaker_router.joinNetwork("ix100", address="10.100.0.230")
+
+    speaker = exabgp.install("external_route_speaker")
+    speaker.claimRouterSpeaker(speaker_router).setLocalAsn(65030).addAnnouncement("203.0.113.0/24").enableDashboard(5000)
+    _attach_exabgp_peer(speaker, "r100", router_asn=2)
+    _attach_exabgp_peer(speaker, "r100", router_asn=3)
+    emu.addBinding(Binding("external_route_speaker", filter=Filter(nodeName="route_speaker", asn=65030)))
+
+    emu.addLayer(base)
+    emu.addLayer(routing)
+    emu.addLayer(ebgp)
+    emu.addLayer(exabgp)
+    emu.render()
+
+    reg = emu.getRegistry()
+    route_speaker = reg.get("65030", "rnode", "route_speaker")
+    as2_router = reg.get("2", "rnode", "r100")
+    as3_router = reg.get("3", "rnode", "r100")
+
+    exabgp_conf = _file_content(route_speaker, "/etc/exabgp/exabgp.conf")
+    assert exabgp_conf.count("neighbor ") == 2
+    assert "peer-as 2" in exabgp_conf
+    assert "peer-as 3" in exabgp_conf
+    assert "203.0.113.0/24" in exabgp_conf
+    assert "process exabgp_json_sink" in exabgp_conf
+    assert _file_content(route_speaker, "/etc/bird/bird.conf") == ""
+    assert not any(cmd == "bird -d" for cmd, _ in route_speaker.getStartCommands())
+
+    as2_conf = _file_content(as2_router, "/etc/bird/bird.conf")
+    as3_conf = _file_content(as3_router, "/etc/bird/bird.conf")
+    assert "exabgp_65030" in as2_conf
+    assert "exabgp_65030" in as3_conf
+    assert "neighbor 10.100.0.230 as 65030" in as2_conf
+    assert "neighbor 10.100.0.230 as 65030" in as3_conf
+    assert "bgp_large_community.add(CUSTOMER_COMM)" in as2_conf
+    assert "bgp_large_community.add(CUSTOMER_COMM)" in as3_conf
+    assert "bgp_local_pref = 30" in as2_conf
+    assert "bgp_local_pref = 30" in as3_conf
+
+
+def test_exabgp_service_renders_external_router_speaker_peer():
+    emu = Emulator()
+    base = Base()
+    routing = Routing()
+    ebgp = Ebgp()
+    exabgp = ExaBgpService()
+
+    base.createInternetExchange(100)
+    as2 = base.createAutonomousSystem(2)
+    as2.createRouter("r100").joinNetwork("ix100")
+    speaker_as = base.createAutonomousSystem(65030)
+    speaker_router = speaker_as.createRouter("external_speaker")
+    speaker_router.joinNetwork("ix100", address="10.100.0.230")
+
+    speaker = exabgp.install("external_route_speaker")
+    speaker.claimRouterSpeaker(speaker_router).setLocalAsn(65030).addAnnouncement("203.0.113.0/24")
+    _attach_exabgp_peer(speaker, "r100", router_asn=2)
+    emu.addBinding(Binding("external_route_speaker", filter=Filter(nodeName="external_speaker", asn=65030)))
+
+    emu.addLayer(base)
+    emu.addLayer(routing)
+    emu.addLayer(ebgp)
+    emu.addLayer(exabgp)
+    emu.render()
+
+    reg = emu.getRegistry()
+    external_speaker = reg.get("65030", "rnode", "external_speaker")
+    as2_router = reg.get("2", "rnode", "r100")
+
+    exabgp_conf = _file_content(external_speaker, "/etc/exabgp/exabgp.conf")
+    assert "local-as 65030" in exabgp_conf
+    assert "peer-as 2" in exabgp_conf
+    assert "203.0.113.0/24" in exabgp_conf
+    assert _file_content(external_speaker, "/etc/bird/bird.conf") == ""
+    assert not any(cmd == "bird -d" for cmd, _ in external_speaker.getStartCommands())
+
+    bird_conf = _file_content(as2_router, "/etc/bird/bird.conf")
+    assert "exabgp_65030" in bird_conf
+    assert "neighbor 10.100.0.230 as 65030" in bird_conf
 
 
 def test_frr_bgp_respects_ospf_stub_intent():
@@ -256,3 +373,49 @@ def test_new_bgp_examples_compile_outputs_exist():
     assert "5001:5000/tcp" in a13_compose
     assert "5002:5000/tcp" in a14_compose
     assert "5003:5000/tcp" in a14_compose
+
+
+def test_b30_mini_internet_exabgp_ix_compile_assertions():
+    repo_root = Path(__file__).resolve().parent
+    script = repo_root / "examples" / "internet" / "B30_mini_internet_exabgp_ix" / "mini_internet_exabgp_ix.py"
+    output_dir = script.parent / "output"
+
+    env = dict(**os.environ)
+    env["PYTHONPATH"] = str(repo_root)
+    env["SEED_B30_EXABGP_PORT"] = "5130"
+    result = subprocess.run(
+        [sys.executable, str(script), "amd"],
+        cwd=script.parent,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert output_dir.exists()
+
+    compose = (output_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    output_text = compose + "\n" + _compiled_output_text(output_dir)
+    assert "5130:5000/tcp" in compose
+    assert "203.0.113.0/24" in output_text
+    assert "peer-as 2" in output_text
+    assert "peer-as 3" in output_text
+    assert "neighbor 10.100.0.180 as 180" in output_text
+    assert "bgp_large_community.add(CUSTOMER_COMM)" in output_text
+    assert "bgp_local_pref = 30" in output_text
+    assert "process exabgp_json_sink" in output_text
+    assert "dashboard.py" in output_text
+
+
+def test_b30_mini_internet_exabgp_ix_emulator_compiles_from_builder():
+    from examples.internet.B30_mini_internet_exabgp_ix import mini_internet_exabgp_ix
+
+    emu = mini_internet_exabgp_ix.build_emulator()
+    emu.render()
+    output_dir = Path("/tmp/seedemu-b30-static-compile")
+    emu.compile(Docker(selfManagedNetwork=True, platform=Platform.AMD64), str(output_dir), override=True)
+
+    output_text = _compiled_output_text(output_dir)
+    assert "203.0.113.0/24" in output_text
+    assert "peer-as 2" in output_text
+    assert "peer-as 3" in output_text
