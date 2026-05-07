@@ -98,9 +98,10 @@ class Routing(Layer):
             node.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
 
     def _configure_rs(self, rs_node: Node):
-        if get_bgp_backend(rs_node) == "bird":
-            rs_node.appendStartCommand('[ ! -d /run/bird ] && mkdir /run/bird')
-            rs_node.appendStartCommand('bird -d', True)
+        if get_bgp_backend(rs_node) != "bird":
+            return
+        rs_node.appendStartCommand('[ ! -d /run/bird ] && mkdir /run/bird')
+        rs_node.appendStartCommand('bird -d', True)
         self._log("Bootstrapping bird.conf for RS {}...".format(rs_node.getName()))
 
         rs_ifaces = rs_node.getInterfaces()
@@ -140,7 +141,9 @@ class Routing(Layer):
         for ((scope, type, name), obj) in reg.getAll().items():
             if type == 'rs':
                 rs_node: Node = obj
-                self._installBird(rs_node)
+                self._ensureRouterBaseSystem(rs_node)
+                if get_bgp_backend(rs_node) == "bird":
+                    self._installBird(rs_node)
                 self._configure_rs(rs_node)
             if type == 'rnode':
                 rnode: Router = obj
@@ -167,6 +170,10 @@ class Routing(Layer):
                 if get_bgp_backend(rnode) == "bird":
                     self._installBird(rnode)
                     self._configure_bird_router(rnode)
+                else:
+                    self._log("Skipping BIRD setup for AS{} Router {} (backend={})...".format(
+                        scope, name, get_bgp_backend(rnode)
+                    ))
 
     def render(self, emulator: Emulator):
         reg = emulator.getRegistry()

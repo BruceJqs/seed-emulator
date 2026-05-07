@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from typing import Dict, List, Optional, Tuple
 
-from seedemu.core import Emulator, Node, ScopedRegistry, Server, Service
+from seedemu.core import BaseSystem, Emulator, Node, ScopedRegistry, Server, Service
 from seedemu.layers.Routing import Router
-from seedemu.layers._bgp_metadata import install_router_bgp_session
+from seedemu.layers._bgp_metadata import claim_external_bgp_backend, install_router_bgp_session
 
 
 ExaBgpFileTemplates: Dict[str, str] = {}
@@ -19,6 +19,7 @@ import time
 
 out_path = os.environ.get("EXABGP_EVENT_LOG", "/var/log/exabgp/events.jsonl")
 os.makedirs(os.path.dirname(out_path), exist_ok=True)
+open(out_path, "a", encoding="utf-8").close()
 
 for raw in sys.stdin:
     line = raw.strip()
@@ -128,19 +129,7 @@ process exabgp_json_sink {{
   encoder json;
 }}
 
-neighbor {peer_address} {{
-  router-id {local_address};
-  local-address {local_address};
-  local-as {local_asn};
-  peer-as {peer_asn};
-  family {{
-    ipv4 unicast;
-  }}
-  api {{
-    processes [ exabgp_json_sink ];
-  }}
-{static_block}
-}}
+{neighbor_blocks}
 """
 
 ExaBgpFileTemplates["static_block"] = """\
@@ -151,30 +140,50 @@ ExaBgpFileTemplates["static_block"] = """\
 
 class ExaBgpServer(Server):
     __emulator: Emulator | None
-    __router_asn: int | None
-    __router_name: str | None
     __local_asn: int
     __announce_prefixes: List[str]
     __dashboard_port: int
     __enable_dashboard: bool
+    __peers: List[Dict[str, object]]
+    __router_speaker_claimed: bool
 
     def __init__(self):
         super().__init__()
         self.__emulator = None
-        self.__router_asn = None
-        self.__router_name = None
         self.__local_asn = 65010
         self.__announce_prefixes = []
         self.__dashboard_port = 5000
         self.__enable_dashboard = True
+        self.__peers = []
+        self.__router_speaker_claimed = False
         self.setDisplayName("ExaBGP Control Plane Tool")
 
     def bind(self, emulator: Emulator):
         self.__emulator = emulator
 
     def attachToRouter(self, router_name: str, router_asn: int | None = None) -> "ExaBgpServer":
-        self.__router_name = str(router_name)
-        self.__router_asn = int(router_asn) if router_asn is not None else None
+        self.__peers = []
+        self.addPeer(router_name, router_asn=router_asn)
+        return self
+
+    def addPeer(
+        self,
+        router_name: str,
+        router_asn: int | None = None,
+        session_name: str | None = None,
+        router_relationship: str = "customer",
+    ) -> "ExaBgpServer":
+        relationship = str(router_relationship or "customer").strip().lower() or "customer"
+        if relationship not in {"customer", "peer", "provider", "unfiltered"}:
+            raise ValueError(f"unsupported router relationship: {router_relationship}")
+        self.__peers.append(
+            {
+                "router_name": str(router_name),
+                "router_asn": int(router_asn) if router_asn is not None else None,
+                "session_name": str(session_name).strip() if session_name is not None else None,
+                "router_relationship": relationship,
+            }
+        )
         return self
 
     def setLocalAsn(self, asn: int) -> "ExaBgpServer":
@@ -194,14 +203,24 @@ class ExaBgpServer(Server):
         self.__enable_dashboard = False
         return self
 
-    def _resolve_peer(self, node: Node) -> Tuple[Router, str, str]:
+    def claimRouterSpeaker(self, router: Router) -> "ExaBgpServer":
+        claim_external_bgp_backend(router)
+        self.__router_speaker_claimed = True
+        self.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
+        return self
+
+    def isRouterSpeakerClaimed(self) -> bool:
+        return self.__router_speaker_claimed
+
+    def _resolve_peer(self, node: Node, peer: Dict[str, object]) -> Tuple[Router, str, str]:
         assert self.__emulator is not None, "ExaBgpServer not bound to emulator"
-        router_asn = self.__router_asn if self.__router_asn is not None else node.getAsn()
+        router_asn = int(peer["router_asn"]) if peer.get("router_asn") is not None else node.getAsn()
         scope = ScopedRegistry(str(router_asn), self.__emulator.getRegistry())
-        assert self.__router_name is not None and scope.has("rnode", self.__router_name), (
-            f"router as{router_asn}/{self.__router_name} not found for ExaBGP peer"
+        router_name = str(peer["router_name"])
+        assert scope.has("rnode", router_name), (
+            f"router as{router_asn}/{router_name} not found for ExaBGP peer"
         )
-        router = scope.get("rnode", self.__router_name)
+        router = scope.get("rnode", router_name)
         assert isinstance(router, Router)
 
         local_address = ""
@@ -221,8 +240,25 @@ class ExaBgpServer(Server):
         )
         return router, local_address, peer_address
 
-    def _install_router_peer(self, router: Router, *, local_address: str, peer_address: str):
-        session_name = f"exabgp_{self.__local_asn}"
+    def _peer_relationship_params(self, relationship: str) -> Tuple[Optional[str], Optional[int], str]:
+        if relationship == "customer":
+            return "CUSTOMER_COMM", 30, "all"
+        if relationship == "peer":
+            return "PEER_COMM", 20, "local_and_customer"
+        if relationship == "provider":
+            return "PROVIDER_COMM", 10, "local_and_customer"
+        return None, None, "all"
+
+    def _install_router_peer(
+        self,
+        router: Router,
+        *,
+        local_address: str,
+        peer_address: str,
+        session_name: str,
+        relationship: str,
+    ):
+        import_community, local_pref, export_policy = self._peer_relationship_params(relationship)
         install_router_bgp_session(
             router,
             {
@@ -232,36 +268,73 @@ class ExaBgpServer(Server):
                 "local_asn": router.getAsn(),
                 "peer_address": local_address,
                 "peer_asn": self.__local_asn,
-                "import_community": None,
-                "local_pref": None,
-                "export_policy": "all",
+                "import_community": import_community,
+                "local_pref": local_pref,
+                "export_policy": export_policy,
                 "next_hop_self": True,
                 "route_server_client": False,
             },
         )
 
     def install(self, node: Node):
-        router, local_address, peer_address = self._resolve_peer(node)
-        self._install_router_peer(router, local_address=local_address, peer_address=peer_address)
+        assert self.__peers, "ExaBgpServer requires at least one peer"
+        resolved_peers: List[Tuple[Dict[str, object], Router, str, str]] = []
+        for index, peer in enumerate(self.__peers):
+            router, local_address, peer_address = self._resolve_peer(node, peer)
+            session_name = str(peer.get("session_name") or "")
+            if not session_name:
+                if len(self.__peers) == 1:
+                    session_name = f"exabgp_{self.__local_asn}"
+                else:
+                    session_name = f"exabgp_{self.__local_asn}_{router.getName()}_{index}"
+            self._install_router_peer(
+                router,
+                local_address=local_address,
+                peer_address=peer_address,
+                session_name=session_name,
+                relationship=str(peer.get("router_relationship") or "customer"),
+            )
+            resolved_peers.append((peer, router, local_address, peer_address))
 
         node.addSoftware("python3 python3-pip")
         node.addBuildCommand("python3 -m pip install --no-cache-dir exabgp flask")
         node.setFile("/opt/exabgp/event_sink.py", ExaBgpFileTemplates["event_sink"])
         node.setFile("/opt/exabgp/dashboard.py", ExaBgpFileTemplates["dashboard"])
 
-        static_block = ""
+        neighbor_blocks: List[str] = []
+        routes = ""
         if self.__announce_prefixes:
             routes = "\n".join(f"    route {prefix} next-hop self;" for prefix in self.__announce_prefixes)
-            static_block = ExaBgpFileTemplates["static_block"].format(routes=routes)
+        static_block = ExaBgpFileTemplates["static_block"].format(routes=routes) if routes else ""
+        for _peer, router, local_address, peer_address in resolved_peers:
+            neighbor_blocks.append(
+                (
+                    "neighbor {peer_address} {{\n"
+                    "  router-id {local_address};\n"
+                    "  local-address {local_address};\n"
+                    "  local-as {local_asn};\n"
+                    "  peer-as {peer_asn};\n"
+                    "  family {{\n"
+                    "    ipv4 unicast;\n"
+                    "  }}\n"
+                    "  api {{\n"
+                    "    processes [ exabgp_json_sink ];\n"
+                    "  }}\n"
+                    "{static_block}"
+                    "}}\n"
+                ).format(
+                    peer_address=peer_address,
+                    local_address=local_address,
+                    local_asn=self.__local_asn,
+                    peer_asn=router.getAsn(),
+                    static_block=static_block,
+                )
+            )
 
         node.setFile(
             "/etc/exabgp/exabgp.conf",
             ExaBgpFileTemplates["config"].format(
-                local_address=local_address,
-                local_asn=self.__local_asn,
-                peer_address=peer_address,
-                peer_asn=router.getAsn(),
-                static_block=static_block,
+                neighbor_blocks="\n".join(neighbor_blocks),
             ),
         )
         node.appendStartCommand("mkdir -p /var/log/exabgp /opt/exabgp")
@@ -296,6 +369,8 @@ class ExaBgpService(Service):
     def _doConfigure(self, node: Node, server: ExaBgpServer):
         super()._doConfigure(node, server)
         assert self.__emulator is not None
+        if server.isRouterSpeakerClaimed():
+            node.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
         server.bind(self.__emulator)
 
     def configure(self, emulator: Emulator):

@@ -12,7 +12,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parent
-PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
+PYTHON = Path(os.environ.get("PYTHON", sys.executable))
 
 
 def _run(cmd: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None, timeout: int = 600) -> subprocess.CompletedProcess[str]:
@@ -46,6 +46,21 @@ def _docker_exec_maybe(container: str, shell_cmd: str, *, timeout: int = 120) ->
     if result.returncode != 0:
         return None
     return result.stdout
+
+
+def _docker_ps_names() -> list[str]:
+    result = _must_run(["docker", "ps", "--format", "{{.Names}}"])
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _wait_container_name(predicate, *, timeout_s: int = 90, error_message: str) -> str:
+    def _probe():
+        for name in _docker_ps_names():
+            if predicate(name):
+                return name
+        return None
+
+    return _wait_until(_probe, timeout_s=timeout_s, interval_s=2, error_message=error_message)
 
 
 def _wait_http_ok(url: str, *, timeout_s: int = 60) -> None:
@@ -118,8 +133,14 @@ def _assert_bridge_nf_disabled() -> None:
     result = _must_run(
         ["sysctl", "net.bridge.bridge-nf-call-iptables", "net.bridge.bridge-nf-call-ip6tables", "net.bridge.bridge-nf-call-arptables"]
     )
-    text = result.stdout
-    assert " = 0" in text, f"bridge netfilter must be disabled before runtime validation:\n{text}"
+    values = {}
+    for line in result.stdout.splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip()
+    blocking = {key: value for key, value in values.items() if value != "0"}
+    assert not blocking, f"bridge netfilter must be disabled before runtime validation:\n{result.stdout}"
 
 
 def _compose_down(compose_file: Path) -> None:
@@ -313,5 +334,75 @@ emu.compile(Docker(platform=Platform.AMD64, internetMapEnabled=False), OUTPUT_DI
             contains=["198.51.100.0/24", "valid"],
             error_message="FRR peer route did not appear",
         )
+    finally:
+        _compose_down(compose)
+
+
+@pytest.mark.integration
+def test_runtime_b30_mini_internet_exabgp_ix_fresh_build():
+    _assert_runtime_clear()
+    _assert_bridge_nf_disabled()
+
+    script = REPO_ROOT / "examples" / "internet" / "B30_mini_internet_exabgp_ix" / "mini_internet_exabgp_ix.py"
+    compose = REPO_ROOT / "examples" / "internet" / "B30_mini_internet_exabgp_ix" / "output" / "docker-compose.yml"
+
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["SEED_DEMO_MAP_PORT"] = "18080"
+    env["SEED_B30_EXABGP_PORT"] = "5130"
+
+    try:
+        _must_run([str(PYTHON), str(script), "amd"], env=env, timeout=900)
+        _must_run(["docker", "compose", "-f", str(compose), "build"], timeout=1800)
+        _must_run(["docker", "compose", "-f", str(compose), "up", "-d", "--remove-orphans"], timeout=600)
+
+        _wait_http_ok(_map_url_from_compose(compose), timeout_s=120)
+        _wait_http_ok("http://127.0.0.1:5130/", timeout_s=120)
+
+        exabgp_container = _wait_container_name(
+            lambda name: "ExaBGP_Control_Plane_Tool" in name or "external" in name.lower() and "speaker" in name.lower(),
+            error_message="B30 ExaBGP external speaker container did not start",
+        )
+        as2_peer = _wait_container_name(
+            lambda name: name.startswith("as2brd-r100-"),
+            error_message="B30 AS2 r100 peer container did not start",
+        )
+        as3_peer = _wait_container_name(
+            lambda name: name.startswith("as3brd-r100-"),
+            error_message="B30 AS3 r100 peer container did not start",
+        )
+
+        procs = _docker_exec(
+            exabgp_container,
+            'ps -ef | egrep "exabgp|dashboard|event_sink" | grep -v grep',
+        ).stdout
+        assert "dashboard.py" in procs and "exabgp" in procs and "event_sink.py" in procs
+
+        version = _docker_exec(exabgp_container, "exabgp --version 2>&1").stdout
+        assert "ExaBGP" in version or "exabgp" in version.lower()
+
+        config = _docker_exec(exabgp_container, "cat /etc/exabgp/exabgp.conf").stdout
+        assert "peer-as 2" in config
+        assert "peer-as 3" in config
+        assert "203.0.113.0/24" in config
+        assert config.count("neighbor ") >= 2
+
+        _wait_docker_output(
+            as2_peer,
+            "birdc show route 203.0.113.0/24 all",
+            contains=["203.0.113.0/24"],
+            timeout_s=180,
+            error_message="B30 AS2 peer did not learn the ExaBGP IX tool route",
+        )
+        _wait_docker_output(
+            as3_peer,
+            "birdc show route 203.0.113.0/24 all",
+            contains=["203.0.113.0/24"],
+            timeout_s=180,
+            error_message="B30 AS3 peer did not learn the ExaBGP IX tool route",
+        )
+
+        event_log = _docker_exec(exabgp_container, "test -r /var/log/exabgp/events.jsonl && wc -l /var/log/exabgp/events.jsonl").stdout
+        assert "/var/log/exabgp/events.jsonl" in event_log
     finally:
         _compose_down(compose)
