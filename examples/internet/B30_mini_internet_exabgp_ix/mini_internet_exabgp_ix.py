@@ -84,7 +84,7 @@ def add_exabgp_service(emu: Emulator, router) -> None:
 
 def build_emulator() -> Emulator:
     base_bin = SCRIPT_DIR / "base_internet.bin"
-    mini_internet.run(dumpfile=str(base_bin), hosts_per_as=1)
+    mini_internet.run(dumpfile=str(base_bin), hosts_per_as=0)
 
     emu = Emulator()
     emu.load(str(base_bin))
@@ -107,7 +107,7 @@ def run(dumpfile: str | None = None) -> None:
 
     emu.render()
     emu.compile(
-        Docker(selfManagedNetwork=True, platform=resolve_platform(args.platform)),
+        Docker(platform=resolve_platform(args.platform)),
         str(output_dir),
         override=True,
     )
