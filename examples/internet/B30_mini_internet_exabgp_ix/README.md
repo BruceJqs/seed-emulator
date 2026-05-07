@@ -15,6 +15,10 @@ here as an IX directly connected control-plane tool: it speaks BGP from the
 router on the peering LAN and can inject or observe routes at the exchange. It
 is not modeled as a normal host service behind an AS router.
 
+The base mini-internet is generated as a control-plane topology without regular
+end hosts, because this example is about IX BGP tooling rather than data-plane
+web services.
+
 ## Running
 
 Generate the Docker output:
@@ -47,6 +51,11 @@ http://localhost:5106/
 ```
 
 If you changed `SEED_B30_EXABGP_PORT`, use that host port instead.
+For command-line checks on hosts with an HTTP proxy configured, bypass the proxy:
+
+```bash
+curl --noproxy '*' http://127.0.0.1:5106/
+```
 
 ## Notes
 
@@ -54,3 +63,6 @@ This example intentionally uses the planned Core Worker A router-speaker API:
 `claimRouterSpeaker(...)` and `addPeer(...)`. Those calls mark the AS180 router's
 BGP speaker as owned by ExaBGP and define explicit IX eBGP peers without
 treating ExaBGP as a regular host-side application.
+The example uses the normal B00 Docker network mode rather than self-managed
+dummy-address mode, because published dashboard ports must remain reachable from
+the host.
