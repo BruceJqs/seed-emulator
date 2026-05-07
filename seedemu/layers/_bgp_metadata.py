@@ -12,6 +12,11 @@ BGP_CONNECTED_EXPORT_ATTR = "__bgp_connected_export"
 BGP_BOOTSTRAPPED_ATTR = "__bgp_bootstrapped"
 OSPF_INTERFACE_INTENTS_ATTR = "__ospf_interface_intents"
 
+BGP_BACKEND_BIRD = "bird"
+BGP_BACKEND_FRR = "frr"
+BGP_BACKEND_EXTERNAL = "external"
+BGP_BACKEND_LABEL = "seedemu_bgp_backend"
+
 BGP_KIND_EBGP = "ebgp"
 BGP_KIND_IBGP = "ibgp"
 BGP_EXPORT_ALL = "all"
@@ -66,15 +71,35 @@ CONNECTED_EXPORT_FILTER = "filter { bgp_large_community.add(LOCAL_COMM); bgp_loc
 
 
 def get_bgp_backend(node: Router) -> str:
-    backend = str(node.getAttribute(BGP_BACKEND_ATTR, "bird") or "bird").strip().lower()
-    return backend if backend in {"bird", "frr"} else "bird"
+    backend = None
+    try:
+        backend = node.getAttribute(BGP_BACKEND_ATTR)
+    except AttributeError:
+        backend = None
+    if backend in {None, ""}:
+        backend = node.getLabel().get(BGP_BACKEND_LABEL, BGP_BACKEND_BIRD)
+    backend = str(backend or BGP_BACKEND_BIRD).strip().lower()
+    if backend == "exabgp":
+        backend = BGP_BACKEND_EXTERNAL
+    return backend if backend in {BGP_BACKEND_BIRD, BGP_BACKEND_FRR, BGP_BACKEND_EXTERNAL} else BGP_BACKEND_BIRD
 
 
 def set_bgp_backend(node: Router, backend: str) -> None:
-    value = str(backend or "bird").strip().lower() or "bird"
-    if value not in {"bird", "frr"}:
+    value = str(backend or BGP_BACKEND_BIRD).strip().lower() or BGP_BACKEND_BIRD
+    if value == "exabgp":
+        value = BGP_BACKEND_EXTERNAL
+    if value not in {BGP_BACKEND_BIRD, BGP_BACKEND_FRR, BGP_BACKEND_EXTERNAL}:
         raise ValueError(f"unsupported BGP backend: {backend}")
-    node.setAttribute(BGP_BACKEND_ATTR, value)
+    node.setLabel(BGP_BACKEND_LABEL, value)
+    try:
+        node.setAttribute(BGP_BACKEND_ATTR, value)
+    except AttributeError:
+        pass
+
+
+def claim_external_bgp_backend(node: Router) -> Router:
+    set_bgp_backend(node, BGP_BACKEND_EXTERNAL)
+    return node
 
 
 def _normalize_export_policy(policy: Any) -> str:
