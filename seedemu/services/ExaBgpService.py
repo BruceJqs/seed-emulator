@@ -342,7 +342,12 @@ class ExaBgpServer(Server):
                 neighbor_blocks="\n".join(neighbor_blocks),
             ),
         )
-        node.appendStartCommand("mkdir -p /var/log/exabgp /opt/exabgp")
+        node.appendStartCommand(
+            "mkdir -p /var/log/exabgp /opt/exabgp && "
+            "touch /var/log/exabgp/events.jsonl /var/log/exabgp/exabgp.log && "
+            "chmod 755 /var/log/exabgp && "
+            "chmod 666 /var/log/exabgp/events.jsonl /var/log/exabgp/exabgp.log"
+        )
         node.appendStartCommand("chmod +x /opt/exabgp/event_sink.py /opt/exabgp/dashboard.py")
         if self.__enable_dashboard:
             node.appendStartCommand(

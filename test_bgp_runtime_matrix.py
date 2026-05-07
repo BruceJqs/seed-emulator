@@ -41,6 +41,7 @@ def _classic_docker_build_env() -> dict[str, str]:
     env = dict(os.environ)
     env["COMPOSE_BAKE"] = "false"
     env["DOCKER_BUILDKIT"] = "0"
+    env["COMPOSE_PARALLEL_LIMIT"] = "1"
     return env
 
 
@@ -73,7 +74,7 @@ def _wait_container_name(predicate, *, timeout_s: int = 90, error_message: str) 
 def _wait_http_ok(url: str, *, timeout_s: int = 60) -> None:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
-        result = _run(["curl", "-fsS", "-o", "/dev/null", "-w", "%{http_code}", url], timeout=5)
+        result = _run(["curl", "--noproxy", "*", "-fsS", "-o", "/dev/null", "-w", "%{http_code}", url], timeout=5)
         if result.returncode == 0 and result.stdout.strip() == "200":
             return
         time.sleep(1)
