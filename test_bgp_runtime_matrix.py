@@ -37,6 +37,13 @@ def _must_run(cmd: list[str], *, cwd: Path | None = None, env: dict[str, str] | 
     return result
 
 
+def _classic_docker_build_env() -> dict[str, str]:
+    env = dict(os.environ)
+    env["COMPOSE_BAKE"] = "false"
+    env["DOCKER_BUILDKIT"] = "0"
+    return env
+
+
 def _docker_exec(container: str, shell_cmd: str, *, timeout: int = 120) -> subprocess.CompletedProcess[str]:
     return _must_run(["docker", "exec", container, "sh", "-lc", shell_cmd], timeout=timeout)
 
@@ -168,7 +175,7 @@ def test_runtime_a12_mixed_backend_fresh_build():
 
     try:
         _must_run([str(PYTHON), str(script), "amd"], env=env)
-        _must_run(["docker", "compose", "-f", str(compose), "build"], timeout=1800)
+        _must_run(["docker", "compose", "-f", str(compose), "build"], env=_classic_docker_build_env(), timeout=1800)
         _must_run(["docker", "compose", "-f", str(compose), "up", "-d", "--remove-orphans"], timeout=600)
 
         ospf = _wait_docker_output(
@@ -219,7 +226,7 @@ def test_runtime_a13_exabgp_fresh_build():
 
     try:
         _must_run([str(PYTHON), str(script), "amd"], env=env)
-        _must_run(["docker", "compose", "-f", str(compose), "build"], timeout=1800)
+        _must_run(["docker", "compose", "-f", str(compose), "build"], env=_classic_docker_build_env(), timeout=1800)
         _must_run(["docker", "compose", "-f", str(compose), "up", "-d", "--remove-orphans"], timeout=600)
 
         _wait_http_ok(_map_url_from_compose(compose))
@@ -255,7 +262,7 @@ def test_runtime_a14_observability_fresh_build():
 
     try:
         _must_run([str(PYTHON), str(script), "amd"], env=env)
-        _must_run(["docker", "compose", "-f", str(compose), "build"], timeout=1800)
+        _must_run(["docker", "compose", "-f", str(compose), "build"], env=_classic_docker_build_env(), timeout=1800)
         _must_run(["docker", "compose", "-f", str(compose), "up", "-d", "--remove-orphans"], timeout=600)
 
         _wait_http_ok(_map_url_from_compose(compose))
@@ -318,7 +325,7 @@ emu.compile(Docker(platform=Platform.AMD64, internetMapEnabled=False), OUTPUT_DI
 
     try:
         _must_run([str(PYTHON), str(script)], env=env)
-        _must_run(["docker", "compose", "-f", str(compose), "build"], timeout=1800)
+        _must_run(["docker", "compose", "-f", str(compose), "build"], env=_classic_docker_build_env(), timeout=1800)
         _must_run(["docker", "compose", "-f", str(compose), "up", "-d", "--remove-orphans"], timeout=600)
 
         _wait_http_ok("http://127.0.0.1:5105/")
@@ -353,7 +360,7 @@ def test_runtime_b30_mini_internet_exabgp_ix_fresh_build():
 
     try:
         _must_run([str(PYTHON), str(script), "amd"], env=env, timeout=900)
-        _must_run(["docker", "compose", "-f", str(compose), "build"], timeout=1800)
+        _must_run(["docker", "compose", "-f", str(compose), "build"], env=_classic_docker_build_env(), timeout=1800)
         _must_run(["docker", "compose", "-f", str(compose), "up", "-d", "--remove-orphans"], timeout=600)
 
         _wait_http_ok(_map_url_from_compose(compose), timeout_s=120)

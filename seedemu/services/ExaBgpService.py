@@ -296,8 +296,13 @@ class ExaBgpServer(Server):
             )
             resolved_peers.append((peer, router, local_address, peer_address))
 
-        node.addSoftware("python3 python3-pip")
-        node.addBuildCommand("python3 -m pip install --no-cache-dir exabgp flask")
+        node.addBuildCommand(
+            "apt-get update && "
+            "apt-get install -y --no-install-recommends "
+            "-o Dpkg::Options::=--force-unsafe-io "
+            "exabgp python3-flask && "
+            "rm -rf /var/lib/apt/lists/*"
+        )
         node.setFile("/opt/exabgp/event_sink.py", ExaBgpFileTemplates["event_sink"])
         node.setFile("/opt/exabgp/dashboard.py", ExaBgpFileTemplates["dashboard"])
 
