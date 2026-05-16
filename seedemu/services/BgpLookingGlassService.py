@@ -44,13 +44,16 @@ class BgpLookingGlassServer(Server):
         node.addBuildCommand(
             "arch=\"$(dpkg --print-architecture)\"; "
             "case \"$arch\" in amd64) go_arch=amd64 ;; arm64) go_arch=arm64 ;; *) echo \"unsupported arch: $arch\"; exit 1 ;; esac; "
-            f"curl -fsSL https://go.dev/dl/go{GO_VERSION}.linux-${{go_arch}}.tar.gz -o /tmp/go.tgz && "
+            f"go_archive=\"go{GO_VERSION}.linux-${{go_arch}}.tar.gz\"; "
+            "if [ -f \"/seedemu-cache/${go_archive}\" ]; then cp \"/seedemu-cache/${go_archive}\" /tmp/go.tgz; "
+            f"else curl -fsSL --connect-timeout 20 --max-time 180 \"https://go.dev/dl/${{go_archive}}\" -o /tmp/go.tgz || "
+            "curl -fsSL --connect-timeout 20 --max-time 180 \"https://mirrors.aliyun.com/golang/${go_archive}\" -o /tmp/go.tgz; fi && "
             "rm -rf /usr/local/go && tar -C /usr/local -xzf /tmp/go.tgz && rm -f /tmp/go.tgz && "
             "ln -sf /usr/local/go/bin/go /usr/local/bin/go && ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt"
         )
         node.addBuildCommand('git clone https://github.com/xddxdd/bird-lg-go /lg')
-        node.addBuildCommand('GOBIN=/usr/local/bin /usr/local/go/bin/go install github.com/kevinburke/go-bindata/go-bindata@v3.11.0')
-        node.addBuildCommand('PATH=/usr/local/go/bin:$PATH make -C /lg')
+        node.addBuildCommand('GOPROXY=https://goproxy.cn,direct GOBIN=/usr/local/bin /usr/local/go/bin/go install github.com/kevinburke/go-bindata/go-bindata@v3.11.0')
+        node.addBuildCommand('GOPROXY=https://goproxy.cn,direct PATH=/usr/local/go/bin:$PATH make -C /lg')
 
     def setFrontendPort(self, port: int) -> BgpLookingGlassServer:
         """!
