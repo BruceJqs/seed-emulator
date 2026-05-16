@@ -34,6 +34,43 @@ for raw in sys.stdin:
         fh.write(json.dumps(payload, ensure_ascii=False) + "\\n")
 """
 
+ExaBgpFileTemplates["live_control"] = """\
+#!/usr/bin/env python3
+import os
+import stat
+import sys
+import time
+
+fifo_path = os.environ.get("EXABGP_LIVE_FIFO", "/run/exabgp/live.in")
+log_path = os.environ.get("EXABGP_LIVE_LOG", "/var/log/exabgp/live-control.log")
+os.makedirs(os.path.dirname(fifo_path), exist_ok=True)
+os.makedirs(os.path.dirname(log_path), exist_ok=True)
+
+try:
+    if os.path.exists(fifo_path) and not stat.S_ISFIFO(os.stat(fifo_path).st_mode):
+        os.unlink(fifo_path)
+    if not os.path.exists(fifo_path):
+        os.mkfifo(fifo_path, 0o666)
+    os.chmod(fifo_path, 0o666)
+except FileExistsError:
+    pass
+
+def log(message: str) -> None:
+    with open(log_path, "a", encoding="utf-8") as fh:
+        fh.write(f"{int(time.time())} {message}\\n")
+
+log(f"ready fifo={fifo_path}")
+
+while True:
+    with open(fifo_path, "r", encoding="utf-8", errors="replace") as fifo:
+        for raw in fifo:
+            command = raw.strip()
+            if not command or command.startswith("#"):
+                continue
+            print(command, flush=True)
+            log(command)
+"""
+
 ExaBgpFileTemplates["dashboard"] = """\
 #!/usr/bin/env python3
 import json
@@ -127,6 +164,12 @@ ExaBgpFileTemplates["config"] = """\
 process exabgp_json_sink {{
   run /usr/bin/env python3 /opt/exabgp/event_sink.py;
   encoder json;
+}}
+
+process exabgp_live_control {{
+  run /usr/bin/env python3 /opt/exabgp/live_control.py;
+  encoder text;
+  respawn false;
 }}
 
 {neighbor_blocks}
@@ -304,6 +347,7 @@ class ExaBgpServer(Server):
             "rm -rf /var/lib/apt/lists/*"
         )
         node.setFile("/opt/exabgp/event_sink.py", ExaBgpFileTemplates["event_sink"])
+        node.setFile("/opt/exabgp/live_control.py", ExaBgpFileTemplates["live_control"])
         node.setFile("/opt/exabgp/dashboard.py", ExaBgpFileTemplates["dashboard"])
 
         neighbor_blocks: List[str] = []
@@ -323,7 +367,7 @@ class ExaBgpServer(Server):
                     "    ipv4 unicast;\n"
                     "  }}\n"
                     "  api {{\n"
-                    "    processes [ exabgp_json_sink ];\n"
+                    "    processes [ exabgp_json_sink exabgp_live_control ];\n"
                     "  }}\n"
                     "{static_block}"
                     "}}\n"
@@ -344,11 +388,23 @@ class ExaBgpServer(Server):
         )
         node.appendStartCommand(
             "mkdir -p /var/log/exabgp /opt/exabgp && "
-            "touch /var/log/exabgp/events.jsonl /var/log/exabgp/exabgp.log && "
+            "touch /var/log/exabgp/events.jsonl /var/log/exabgp/exabgp.log "
+            "/var/log/exabgp/live-control.log && "
             "chmod 755 /var/log/exabgp && "
-            "chmod 666 /var/log/exabgp/events.jsonl /var/log/exabgp/exabgp.log"
+            "chmod 666 /var/log/exabgp/events.jsonl /var/log/exabgp/exabgp.log "
+            "/var/log/exabgp/live-control.log"
         )
-        node.appendStartCommand("chmod +x /opt/exabgp/event_sink.py /opt/exabgp/dashboard.py")
+        node.appendStartCommand(
+            "mkdir -p /run/exabgp /var/run/exabgp && rm -f /run/exabgp/live.in && "
+            "rm -f /run/exabgp/exabgp.in /run/exabgp/exabgp.out "
+            "/var/run/exabgp/exabgp.in /var/run/exabgp/exabgp.out && "
+            "mkfifo /run/exabgp/exabgp.in /run/exabgp/exabgp.out && "
+            "ln -sf /run/exabgp/exabgp.in /var/run/exabgp/exabgp.in && "
+            "ln -sf /run/exabgp/exabgp.out /var/run/exabgp/exabgp.out && "
+            "chown exabgp:exabgp /run/exabgp /var/run/exabgp /run/exabgp/exabgp.in /run/exabgp/exabgp.out && "
+            "chmod 600 /run/exabgp/exabgp.in /run/exabgp/exabgp.out"
+        )
+        node.appendStartCommand("chmod +x /opt/exabgp/event_sink.py /opt/exabgp/live_control.py /opt/exabgp/dashboard.py")
         if self.__enable_dashboard:
             node.appendStartCommand(
                 f"EXABGP_EVENT_LOG=/var/log/exabgp/events.jsonl EXABGP_DASHBOARD_PORT={self.__dashboard_port} "
@@ -358,7 +414,7 @@ class ExaBgpServer(Server):
             )
         node.appendStartCommand(
             "EXABGP_EVENT_LOG=/var/log/exabgp/events.jsonl "
-            "exabgp /etc/exabgp/exabgp.conf >/var/log/exabgp/exabgp.log 2>&1",
+            "env exabgp.api.cli=false exabgp /etc/exabgp/exabgp.conf >/var/log/exabgp/exabgp.log 2>&1",
             True,
         )
 
