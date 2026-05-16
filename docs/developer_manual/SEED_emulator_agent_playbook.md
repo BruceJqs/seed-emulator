@@ -6,6 +6,7 @@
 - 线路 2 分支：`feat/seed-codex-harness`
 - 子仓：`subrepos/seed-agent`
 - 子仓分支：`feat/codex-integration`
+- 这份 playbook 默认用 `docker-compose`
 - WSL 访问浏览器优先用 `http://localhost:<port>/`
 
 ## 1. 快速别名
@@ -27,6 +28,15 @@ dockps
 docksh <id>
 ```
 
+如果本机还没有这些别名，先把常用命令记成短名：
+```bash
+alias dcbuild='DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker-compose build'
+alias dcup='docker-compose up -d'
+alias dcdown='docker-compose down --remove-orphans'
+alias dockps='docker ps --format "{{.ID}}  {{.Names}}"'
+alias docksh='docker exec -it'
+```
+
 ## 2. 阶段一: 先证实控制面能力
 
 原则:
@@ -35,6 +45,9 @@ docksh <id>
 - 每次都用唯一 `COMPOSE_PROJECT_NAME`
 - 先看配置，再看容器，再看协议和路由，再看页面和日志
 - 最后再回到源码说明“这能力怎么接入 SEED”
+- 每次换例子前先 `docker-compose down --remove-orphans`
+- 每次只用一个 `COMPOSE_PROJECT_NAME`
+- WSL 里用 `localhost` 看页面，不走 GUI
 
 ### A12: FRR / BIRD mixed backend
 
@@ -69,12 +82,12 @@ seedcore
 . .venv/bin/activate
 PYTHONPATH=. python examples/basic/A12_bgp_mixed_backend/bgp_mixed_backend.py
 cd examples/basic/A12_bgp_mixed_backend/output
-COMPOSE_PROJECT_NAME=a12 docker compose build
-COMPOSE_PROJECT_NAME=a12 docker compose up -d
+DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 COMPOSE_PROJECT_NAME=a12 docker-compose build
+COMPOSE_PROJECT_NAME=a12 docker-compose up -d
 ```
 
 再验:
-- `docker compose -p a12 ps`
+- `COMPOSE_PROJECT_NAME=a12 docker-compose ps`
 - `docker exec <frr-router> sh -lc 'test -f /etc/frr/frr.conf && sed -n "1,220p" /etc/frr/frr.conf'`
 - `docker exec <frr-router> vtysh -c 'show bgp summary'`
 - `docker exec <bird-router> birdc show protocols`
@@ -127,16 +140,17 @@ seedcore
 . .venv/bin/activate
 PYTHONPATH=. python examples/basic/A13_exabgp_control_plane/exabgp_control_plane.py
 cd examples/basic/A13_exabgp_control_plane/output
-COMPOSE_PROJECT_NAME=a13 docker compose build
-COMPOSE_PROJECT_NAME=a13 docker compose up -d
+DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 COMPOSE_PROJECT_NAME=a13 docker-compose build
+COMPOSE_PROJECT_NAME=a13 docker-compose up -d
 ```
 
-若 `5001` 已被 WSL/宿主占用:
-- 临时把 generated `docker-compose.yml` 里的 `5001:5000` 改成 `5011:5000`
-- 再 `COMPOSE_PROJECT_NAME=a13 docker compose up -d`
+若 `5001` 已被占用:
+- 先看 `docker ps | grep 5001`
+- 再把 generated `docker-compose.yml` 里的 `5001:5000` 改成 `5101:5000`
+- 然后重新 `COMPOSE_PROJECT_NAME=a13 docker-compose up -d`
 
 再验:
-- `docker compose -p a13 ps`
+- `COMPOSE_PROJECT_NAME=a13 docker-compose ps`
 - `docker exec <exabgp-node> sh -lc 'ps aux | grep -E "exabgp|python" | grep -v grep'`
 - `docker exec <exabgp-node> sh -lc 'sed -n "1,160p" /etc/exabgp/exabgp.conf'`
 - `docker exec <exabgp-node> sh -lc 'tail -n 40 /var/log/exabgp/exabgp.log'`
@@ -181,6 +195,7 @@ COMPOSE_PROJECT_NAME=a13 docker compose up -d
 测什么:
 - AS180 不是普通 host demo，而是 IX 上的 BGP speaker
 - AS2/AS3 是否学到 `203.0.113.0/24`
+- 是否可以不改配置文件，在线 announce / withdraw 新前缀
 - event sink 是否记录 ExaBGP 事件
 - dashboard 是否能解释 BGP 事件流
 
@@ -190,12 +205,12 @@ seedcore
 . .venv/bin/activate
 PYTHONPATH=. python examples/internet/B30_mini_internet_exabgp_ix/mini_internet_exabgp_ix.py amd
 cd examples/internet/B30_mini_internet_exabgp_ix/output
-COMPOSE_PROJECT_NAME=b30 docker compose build
-COMPOSE_PROJECT_NAME=b30 docker compose up -d
+DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 COMPOSE_PROJECT_NAME=b30 docker-compose build
+COMPOSE_PROJECT_NAME=b30 docker-compose up -d
 ```
 
 再验:
-- `docker compose -p b30 ps`
+- `COMPOSE_PROJECT_NAME=b30 docker-compose ps`
 - `docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 sh -lc 'ps aux | grep -E "exabgp|python|dashboard" | grep -v grep'`
 - `docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 sh -lc 'sed -n "1,220p" /etc/exabgp/exabgp.conf'`
 - `docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 sh -lc 'tail -n 40 /var/log/exabgp/events.jsonl; tail -n 40 /var/log/exabgp/exabgp.log'`
@@ -206,22 +221,35 @@ COMPOSE_PROJECT_NAME=b30 docker compose up -d
 - `curl http://localhost:8080/pro/home`
 - `curl http://localhost:5106/`
 
+在线改:
+- `docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 sh -lc "printf '%s\n' 'announce route 203.2.3.0/24 next-hop self' > /run/exabgp/live.in"`
+- `docker exec as2brd-r100-10.100.0.2 birdc show route for 203.2.3.1 all`
+- `docker exec as3brd-r100-10.100.0.3 birdc show route for 203.2.3.1 all`
+- `docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 tail -n 20 /var/log/exabgp/live-control.log`
+- `docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 sh -lc "printf '%s\n' 'withdraw route 203.2.3.0/24 next-hop self' > /run/exabgp/live.in"`
+- `docker exec as2brd-r100-10.100.0.2 birdc show route for 203.2.3.1 all`
+
 讲法:
 - AS180 不是普通 host demo
 - 它是 IX 直连 BGP speaker
 - `ExaBgpService` 把 speaker 接入 SEED 的 routing metadata
+- `/run/exabgp/live.in` 是 SEED 生成的 ExaBGP process API 入口，现场可以实时发 `announce` / `withdraw`
 
 通过点:
 - AS180 ExaBGP 节点安装完成
 - `/etc/exabgp/exabgp.conf` 正确
 - AS2 / AS3 学到 `203.0.113.0/24`
+- 在线 announce 后 AS2 / AS3 学到 `203.2.3.0/24`
+- 在线 withdraw 后 AS2 / AS3 查不到 `203.2.3.0/24`
 - event sink / dashboard 可达
 - dashboard 和 route-state 不混淆
+- 不改配置文件也能在线改 BGP announcement
 
 失败点:
 - event log 空
 - peer router 没学到 prefix
 - dashboard 200 但没有事件
+- `/run/exabgp/live.in` 不存在或 `live_control.py` 进程不在
 
 ### A14: Classic Looking Glass + event dashboard
 
@@ -253,12 +281,12 @@ seedcore
 . .venv/bin/activate
 PYTHONPATH=. python examples/basic/A14_bgp_event_looking_glass/bgp_event_looking_glass.py
 cd examples/basic/A14_bgp_event_looking_glass/output
-COMPOSE_PROJECT_NAME=a14 docker compose build
-COMPOSE_PROJECT_NAME=a14 docker compose up -d
+DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 COMPOSE_PROJECT_NAME=a14 docker-compose build
+COMPOSE_PROJECT_NAME=a14 docker-compose up -d
 ```
 
 再验:
-- `docker compose -p a14 ps`
+- `COMPOSE_PROJECT_NAME=a14 docker-compose ps`
 - `docker exec as2h-looking-glass-10.2.0.71 sh -lc 'ps aux | grep -E "frontend|proxy|bird-lg" | grep -v grep'`
 - `docker exec as151h-ExaBGP_Control_Plane_Tool-10.151.0.71 sh -lc 'ps aux | grep -E "exabgp|python" | grep -v grep'`
 - `docker exec as151h-ExaBGP_Control_Plane_Tool-10.151.0.71 sh -lc 'sed -n "1,160p" /etc/exabgp/exabgp.conf'`
@@ -273,6 +301,8 @@ COMPOSE_PROJECT_NAME=a14 docker compose up -d
 - 两者都由 SEED service 接入，但语义不同
 - `BgpLookingGlassService.py` 负责 router 侧 proxy + frontend
 - `ExaBgpService.py` 负责 event stream
+- AS2 的 `looking-glass` 是浏览器入口，不是 BIRD router
+- AS151 的 `event-viewer` 是 ExaBGP event sink + dashboard
 
 通过点:
 - Classic LG 页面可达
@@ -303,9 +333,9 @@ COMPOSE_PROJECT_NAME=a14 docker compose up -d
 可执行命令:
 ```bash
 seedcodex
-bash scripts/seed-codex status
-bash scripts/seed-codex inspect
-bash scripts/seed-codex ui -m gpt-5.4 -c 'model_reasoning_effort="low"'
+scripts/seed-codex status
+scripts/seed-codex inspect
+scripts/seed-codex ui -m gpt-5.4 -c 'model_reasoning_effort="low"'
 ```
 
 讲法:
@@ -313,24 +343,31 @@ bash scripts/seed-codex ui -m gpt-5.4 -c 'model_reasoning_effort="low"'
 - 底层证据走 SeedOps
 - shell 只补充证据
 
+如果是 B30 场景，第一句直接换成:
+```text
+接管当前 B30。不要修改配置，先找到 AS180 ExaBGP IX 工具 router，
+说明它和 AS2/r100、AS3/r100 的 BGP 对等关系，并给出 route、
+event、dashboard、process、config 和日志证据。
+```
+
 ## 4. 切换和清场
 
 每次换例子只做这几步:
 ```bash
 cd <example>/output
-COMPOSE_PROJECT_NAME=<name> docker compose down --remove-orphans
-COMPOSE_PROJECT_NAME=<name> docker compose build
-COMPOSE_PROJECT_NAME=<name> docker compose up -d
+COMPOSE_PROJECT_NAME=<name> docker-compose down --remove-orphans
+DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 COMPOSE_PROJECT_NAME=<name> docker-compose build
+COMPOSE_PROJECT_NAME=<name> docker-compose up -d
 ```
 
 如果要换到下一个展示任务:
 ```bash
-COMPOSE_PROJECT_NAME=<name> docker compose down --remove-orphans
+COMPOSE_PROJECT_NAME=<name> docker-compose down --remove-orphans
 ```
 
 ## 5. 端口速记
 - A12: `8080`
-- A13: `8080` + tool dashboard `5001`，若冲突可临时改到 `5011`
+- A13: `8080` + tool dashboard `5001`，若冲突可临时改到 `5101`
 - A14: `8080` + LG `5002` + event dashboard `5003`
 - B30: `8080` + AS180 dashboard `5106`
 
@@ -347,3 +384,13 @@ COMPOSE_PROJECT_NAME=<name> docker compose down --remove-orphans
 - ExaBGP 是 external speaker / tool node
 - Classic LG 看 route-state
 - Event dashboard 看事件流
+
+## 7. 你现场最顺手的讲法
+- 先打开 `http://localhost:8080/pro/home`
+- 再点到目标例子的 map 节点，看拓扑和端口
+- 再进容器看 `ps`、`birdc`、`vtysh`、`cat /etc/...`
+- 最后回源码看 service/layer 怎么把能力挂进来的
+- A12 用 `FRR vs BIRD`
+- A13 用 `tool node + event sink + peer route`
+- B30 用 `IX 直连 speaker + 大规模传播`
+- A14 用 `route-state` 和 `event-stream` 分开讲

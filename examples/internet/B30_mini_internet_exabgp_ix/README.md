@@ -8,12 +8,14 @@ IX-connected control-plane router:
 - IX address: `10.100.0.180`
 - Local ASN: `180`
 - Announcement: `203.0.113.0/24`
+- Extra static announcement: `203.0.114.0/24`
 - eBGP peers: `AS2/r100` and `AS3/r100`
 
-The router runs ExaBGP, a JSON event sink, and a small dashboard. ExaBGP is used
-here as an IX directly connected control-plane tool: it speaks BGP from the
-router on the peering LAN and can inject or observe routes at the exchange. It
-is not modeled as a normal host service behind an AS router.
+The router runs ExaBGP, a live control FIFO, a JSON event sink, and a small
+dashboard. ExaBGP is used here as an IX directly connected control-plane tool:
+it speaks BGP from the router on the peering LAN and can inject or observe
+routes at the exchange. It is not modeled as a normal host service behind an AS
+router.
 
 The base mini-internet is generated as a control-plane topology without regular
 end hosts, because this example is about IX BGP tooling rather than data-plane
@@ -40,8 +42,8 @@ Start the emulation manually:
 
 ```bash
 cd output
-docker compose build
-docker compose up -d
+DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 COMPOSE_PROJECT_NAME=b30 docker-compose build
+COMPOSE_PROJECT_NAME=b30 docker-compose up -d
 ```
 
 After BGP converges, open the dashboard at:
@@ -55,6 +57,26 @@ For command-line checks on hosts with an HTTP proxy configured, bypass the proxy
 
 ```bash
 curl --noproxy '*' http://127.0.0.1:5106/
+```
+
+## Live route injection
+
+The AS180 router exposes `/run/exabgp/live.in` inside the ExaBGP container. Write
+ExaBGP text API commands to that FIFO to announce or withdraw routes without
+regenerating the topology or editing `/etc/exabgp/exabgp.conf`.
+
+```bash
+docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 sh -lc "printf '%s\n' 'announce route 203.2.3.0/24 next-hop self' > /run/exabgp/live.in"
+docker exec as2brd-r100-10.100.0.2 birdc show route for 203.2.3.1 all
+docker exec as3brd-r100-10.100.0.3 birdc show route for 203.2.3.1 all
+docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 tail -n 20 /var/log/exabgp/live-control.log
+```
+
+Withdraw the same route:
+
+```bash
+docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 sh -lc "printf '%s\n' 'withdraw route 203.2.3.0/24 next-hop self' > /run/exabgp/live.in"
+docker exec as2brd-r100-10.100.0.2 birdc show route for 203.2.3.1 all
 ```
 
 ## Notes
