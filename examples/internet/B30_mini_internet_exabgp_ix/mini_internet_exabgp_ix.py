@@ -24,6 +24,7 @@ EXABGP_VNODE = "as180_exabgp_ix_control"
 EXABGP_IX = 100
 EXABGP_IX_ADDRESS = "10.100.0.180"
 EXABGP_ANNOUNCEMENT = "203.0.113.0/24"
+EXABGP_EXTRA_ANNOUNCEMENT = "203.0.114.0/24"
 EXABGP_CONTAINER_PORT = 5000
 EXABGP_HOST_PORT_ENV = "SEED_B30_EXABGP_PORT"
 EXABGP_DEFAULT_HOST_PORT = 5106
@@ -68,6 +69,7 @@ def add_exabgp_service(emu: Emulator, router) -> None:
         .claimRouterSpeaker(router)
         .setLocalAsn(EXABGP_ASN)
         .addAnnouncement(EXABGP_ANNOUNCEMENT)
+        .addAnnouncement(EXABGP_EXTRA_ANNOUNCEMENT)
         .enableDashboard(port=EXABGP_CONTAINER_PORT)
         .addPeer("r100", router_asn=2)
         .addPeer("r100", router_asn=3)
