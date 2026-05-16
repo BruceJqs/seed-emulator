@@ -47,6 +47,22 @@ docksh <id>
 - `seedemu/layers/Ospf.py`
 - `examples/basic/A12_bgp_mixed_backend`
 
+拓扑:
+- AS2: 两台路由器 `r1` / `r2`
+- AS151: 一台 BIRD 路由器 `router0` + 一台主机 `web`
+- AS152: 一台 BIRD 路由器 `router0` + 一台主机 `web`
+- IX100 / IX101: 两个交换点
+
+看谁:
+- `as2brd-r1` / `as2brd-r2`: 对比 BIRD 和 FRR 混合 backend
+- `as151brd-router0` / `as152brd-router0`: 看 BIRD 端协议和前缀学习
+- `as151h-web` / `as152h-web`: 只做接入验证，不是主讲对象
+
+测什么:
+- AS2 里 `r2` 是 FRR backend，`r1` 是 BIRD backend
+- AS151/AS152 通过 IX 学前缀
+- FRR 节点和 BIRD 节点的 route policy、local-pref、community 是否一致
+
 先跑:
 ```bash
 seedcore
@@ -89,6 +105,21 @@ COMPOSE_PROJECT_NAME=a12 docker compose up -d
 实现位置:
 - `seedemu/services/ExaBgpService.py`
 - `examples/basic/A13_exabgp_control_plane`
+
+拓扑:
+- AS2: BIRD 路由器 `router0`
+- AS151: BIRD 路由器 `router0` + ExaBGP 工具节点 `control-plane-tool`
+- IX100: 单交换点
+
+看谁:
+- `as151h-ExaBGP_Control_Plane_Tool`: 这是主角，里面跑 ExaBGP
+- `as2brd-router0` / `as151brd-router0`: 看邻居和路由学习
+
+测什么:
+- ExaBGP 节点是否安装并运行 `exabgp`
+- `exabgp.conf` 是否正确声明 local ASN / peer ASN / neighbor / announce prefix
+- peer router 是否学到工具节点宣布的前缀
+- dashboard 是否显示事件流
 
 先跑:
 ```bash
@@ -136,6 +167,23 @@ COMPOSE_PROJECT_NAME=a13 docker compose up -d
 - `seedemu/services/ExaBgpService.py`
 - `examples/internet/B30_mini_internet_exabgp_ix`
 
+拓扑:
+- AS180: ExaBGP IX tool router，挂在 IX100 上
+- AS2 / AS3 / AS4 / AS11 / AS12: 上游/邻接自治域
+- AS150~AS171: 大量边缘 AS，主要用来验证规模化传播
+- IX100~IX105: 多个交换点
+
+看谁:
+- `as180brd-ExaBGP_Control_Plane_Tool`: 主角，验证 IX 直连 speaker
+- `as2brd-r100` / `as3brd-r100`: 观察 `203.0.113.0/24`
+- `seedemu_internet_map`: 观察拓扑展示
+
+测什么:
+- AS180 不是普通 host demo，而是 IX 上的 BGP speaker
+- AS2/AS3 是否学到 `203.0.113.0/24`
+- event sink 是否记录 ExaBGP 事件
+- dashboard 是否能解释 BGP 事件流
+
 先跑:
 ```bash
 seedcore
@@ -181,6 +229,23 @@ COMPOSE_PROJECT_NAME=b30 docker compose up -d
 - `seedemu/services/BgpLookingGlassService.py`
 - `seedemu/services/ExaBgpService.py`
 - `examples/basic/A14_bgp_event_looking_glass`
+
+拓扑:
+- AS2: Classic Looking Glass 所在 AS
+- AS151: Event Viewer + ExaBGP event source
+- IX100: 单交换点
+
+看谁:
+- `as2h-looking-glass`: 这是 Classic LG 的 frontend/proxy
+- `as151h-event-viewer`: 这是 ExaBGP event dashboard
+- `as2brd-router0` / `as151brd-router0`: 这是 LG 读取的真实 BIRD router
+
+测什么:
+- `5002` 是 route-state 页面
+- `5003` 是 event-stream 页面
+- `proxy` / `frontend` / `exabgp` 进程是否都在
+- LG 页面是不是直接读 BIRD route-state
+- event dashboard 是不是只展示 ExaBGP JSON 事件
 
 先跑:
 ```bash
