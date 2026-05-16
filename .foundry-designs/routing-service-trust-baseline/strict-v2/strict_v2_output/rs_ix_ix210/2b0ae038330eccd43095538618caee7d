@@ -1,0 +1,5 @@
+router id 10.210.0.210;
+ipv4 table t_direct;
+protocol device {
+}
+

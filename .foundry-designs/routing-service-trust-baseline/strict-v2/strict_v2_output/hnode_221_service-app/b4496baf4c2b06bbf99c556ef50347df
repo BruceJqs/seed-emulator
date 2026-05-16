@@ -1,0 +1,10 @@
+server {
+    listen 80;
+    root /var/www/html;
+    index index.html;
+    server_name strict-v2.service.local;
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+

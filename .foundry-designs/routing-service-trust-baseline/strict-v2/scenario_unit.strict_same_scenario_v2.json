@@ -1,0 +1,53 @@
+{
+  "scenario_id": "scenario-routing-service-v2-strict-same-scenario",
+  "scenario_class": "routing-trust-service-strict-same-scenario",
+  "research_goal": "Refactor the current platform-validation lane into a same-topology control/treatment experiment where forged-origin hijack is the only changed variable.",
+  "runtime_mode": "build-run",
+  "design_stage": "strict-v2",
+  "required_roles": [
+    "as_attacker",
+    "as_service",
+    "as_client",
+    "as_observer",
+    "as_transit"
+  ],
+  "control": "same topology, same service layout, same observables, no hijack event",
+  "treatment": "same topology, same service layout, same observables, forged-origin hijack enabled",
+  "observables": [
+    "route snapshots",
+    "looking-glass state",
+    "bgp event trace",
+    "service reachability result",
+    "artifact completeness"
+  ],
+  "artifacts": [
+    "run manifest",
+    "evidence index",
+    "route_snapshot_control.json",
+    "route_snapshot_treatment.json",
+    "service_reachability.log",
+    "output-docker-compose.yml"
+  ],
+  "component_reuse_policy": {
+    "service_layout_anchor": "examples/internet/B29_email_dns",
+    "hijack_event_anchor": "examples/yesterday_once_more/Y01_bgp_prefix_hijacking/demo",
+    "observability_anchor": [
+      "examples/basic/A13_exabgp_control_plane",
+      "examples/basic/A14_bgp_event_looking_glass"
+    ],
+    "full_example_reuse_allowed": false
+  },
+  "runtime_constraints": {
+    "same_compose_namespace_shape": true,
+    "single_variable_change": "route_event_only",
+    "resource_lease_required": true,
+    "cleanup_ownership_required": true
+  },
+  "design_refs": [
+    "environment/strict_same_scenario_lane_v2.md",
+    "environment/strict_same_scenario_v2_blueprint.py",
+    "environment/component_reuse_mapping_v2.md",
+    "environment/observables_contract_v2.md",
+    "environment/strict_runtime_plan_v2.md"
+  ]
+}

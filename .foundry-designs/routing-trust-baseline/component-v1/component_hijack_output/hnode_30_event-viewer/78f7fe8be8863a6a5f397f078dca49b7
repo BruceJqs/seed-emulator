@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+import json
+import os
+from pathlib import Path
+
+from flask import Flask, jsonify, Response
+
+app = Flask(__name__)
+event_log = Path(os.environ.get("EXABGP_EVENT_LOG", "/var/log/exabgp/events.jsonl"))
+title = os.environ.get("EXABGP_DASHBOARD_TITLE", "ExaBGP Event Viewer")
+
+
+def _tail_events(limit: int = 200):
+    if not event_log.exists():
+        return []
+    lines = event_log.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]
+    out = []
+    for line in lines:
+        try:
+            out.append(json.loads(line))
+        except Exception:
+            out.append({"raw": line})
+    return out
+
+
+@app.route("/")
+def index():
+    html = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{title}</title>
+  <style>
+    body {{ font-family: monospace; margin: 0; background: #0d1321; color: #eef2ff; }}
+    header {{ padding: 16px 20px; background: #111827; position: sticky; top: 0; }}
+    main {{ padding: 20px; display: grid; gap: 12px; }}
+    .card {{ background: #172033; border: 1px solid #2b3a55; border-radius: 10px; padding: 12px; }}
+    .meta {{ color: #93c5fd; }}
+    .kind {{ color: #fbbf24; }}
+    pre {{ white-space: pre-wrap; word-break: break-word; margin: 0; }}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{title}</h1>
+    <div>Live BGP event stream rendered from ExaBGP JSON output.</div>
+  </header>
+  <main id="events"></main>
+  <script>
+    async function refresh() {{
+      const res = await fetch('/api/events');
+      const payload = await res.json();
+      const root = document.getElementById('events');
+      root.innerHTML = '';
+      for (const evt of payload.events.reverse()) {{
+        const card = document.createElement('section');
+        card.className = 'card';
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = new Date((evt._ts || 0) * 1000).toISOString();
+        const kind = document.createElement('div');
+        kind.className = 'kind';
+        kind.textContent = evt.type || evt.neighbor?.message?.update ? 'bgp-update' : 'event';
+        const pre = document.createElement('pre');
+        pre.textContent = JSON.stringify(evt, null, 2);
+        card.appendChild(meta);
+        card.appendChild(kind);
+        card.appendChild(pre);
+        root.appendChild(card);
+      }}
+    }}
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>"""
+    return Response(html, mimetype="text/html")
+
+
+@app.route("/api/events")
+def events():
+    return jsonify({"events": _tail_events()})
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("EXABGP_DASHBOARD_PORT", "5000")))
+

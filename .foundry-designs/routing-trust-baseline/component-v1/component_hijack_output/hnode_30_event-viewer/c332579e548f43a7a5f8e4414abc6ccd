@@ -1,0 +1,19 @@
+process exabgp_json_sink {
+  run /usr/bin/env python3 /opt/exabgp/event_sink.py;
+  encoder json;
+}
+
+neighbor 10.30.0.254 {
+  router-id 10.30.0.71;
+  local-address 10.30.0.71;
+  local-as 65199;
+  peer-as 30;
+  family {
+    ipv4 unicast;
+  }
+  api {
+    processes [ exabgp_json_sink ];
+  }
+
+}
+

@@ -34,6 +34,10 @@ This is the primary manual hub for `seed-email-service`.
    [seed-codex active stack](./seed_codex_active_stack.md)
 7. If you need the per-baseline demo script and prompt guide:
    [Agent baseline demo guide](./agent_baseline_demo_guide.md)
+8. For the final visual showcase with the 18 generated figures:
+   [SEED agent visual showcase](./agent_visual_showcase_guide.md)
+9. For moving the demo to a clean VM:
+   [Clean VM handoff package](./clean_vm_handoff_package.md)
 
 ---
 
@@ -63,12 +67,16 @@ This is the primary manual hub for `seed-email-service`.
 - [Seed-Agent mission runtime logbook](./agent_missions_logbook.md)
 - [Seed-Agent runtime evidence (closed-loop checks)](./RUN_EVIDENCE.md)
 - [Seed-Agent platform review](./seed_agent_platform_review.md)
+- [SEED agent visual showcase with 18 figures](./agent_visual_showcase_guide.md)
+- [Clean VM handoff package](./clean_vm_handoff_package.md)
 
 ---
 
 ## Presentation and proposal material
 
 - [Proposal materials index](../proposal/README.md)
+- [Ant-facing work report: SEED agent and emulator capability building](../proposal/蚂蚁工作报告-SEED智能体与仿真器能力建设.md)
+- [SEED agent visual showcase with 18 figures](./agent_visual_showcase_guide.md)
 - [Showcase pack index](../../showcase/README.md)
 
 ---

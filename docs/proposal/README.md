@@ -7,6 +7,7 @@ Open these first:
 1. [PROPOSAL_STRUCTURE.md](./PROPOSAL_STRUCTURE.md)
 2. [SEED智能体路线最终交付版.md](./SEED智能体路线最终交付版.md)
 3. [智能体路线宣讲提纲.md](./智能体路线宣讲提纲.md)
+4. [蚂蚁工作报告：SEED智能体与仿真器能力建设](./蚂蚁工作报告-SEED智能体与仿真器能力建设.md)
 
 Layout:
 

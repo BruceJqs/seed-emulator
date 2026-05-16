@@ -1,0 +1,464 @@
+version: "3.4"
+services:
+    39e016aa9e819f203ebc1809245a5818:
+        build:
+            context: .
+            dockerfile: dummies/39e016aa9e819f203ebc1809245a5818
+        image: 39e016aa9e819f203ebc1809245a5818
+
+    98a2693c996c2294358552f48373498d:
+        build:
+            context: .
+            dockerfile: dummies/98a2693c996c2294358552f48373498d
+        image: 98a2693c996c2294358552f48373498d
+
+
+    brdnode_224_r-core:
+        build: ./brdnode_224_r-core
+        container_name: as224brd-r-core-10.224.0.254
+        depends_on:
+            - 39e016aa9e819f203ebc1809245a5818
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_224_core_net:
+                ipv4_address: 10.224.0.254
+
+            net_ix_ix210:
+                ipv4_address: 10.210.0.224
+
+            net_ix_ix211:
+                ipv4_address: 10.211.0.224
+
+            net_ix_ix212:
+                ipv4_address: 10.212.0.224
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "224"
+            org.seedsecuritylabs.seedemu.meta.nodename: "r-core"
+            org.seedsecuritylabs.seedemu.meta.role: "BorderRouter"
+            org.seedsecuritylabs.seedemu.meta.loopback_addr: "10.0.0.1"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "core_net"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.224.0.254/24"
+            org.seedsecuritylabs.seedemu.meta.net.1.name: "ix210"
+            org.seedsecuritylabs.seedemu.meta.net.1.address: "10.210.0.224/24"
+            org.seedsecuritylabs.seedemu.meta.net.2.name: "ix211"
+            org.seedsecuritylabs.seedemu.meta.net.2.address: "10.211.0.224/24"
+            org.seedsecuritylabs.seedemu.meta.net.3.name: "ix212"
+            org.seedsecuritylabs.seedemu.meta.net.3.address: "10.212.0.224/24"
+
+        environment:
+            - CONTAINER_NAME=as224brd-r-core-10.224.0.254
+            
+    hnode_220_event-viewer:
+        build: ./hnode_220_event-viewer
+        container_name: as220h-ExaBGP_Control_Plane_Tool-10.220.0.71
+        depends_on:
+            - 98a2693c996c2294358552f48373498d
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_220_net0:
+                ipv4_address: 10.220.0.71
+
+        ports:
+            - 5601:5000/tcp
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "220"
+            org.seedsecuritylabs.seedemu.meta.nodename: "event-viewer"
+            org.seedsecuritylabs.seedemu.meta.role: "Host"
+            org.seedsecuritylabs.seedemu.meta.displayname: "ExaBGP Control Plane Tool"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.220.0.71/24"
+
+        environment:
+            - CONTAINER_NAME=as220h-ExaBGP_Control_Plane_Tool-10.220.0.71
+            
+    brdnode_220_r-attacker:
+        build: ./brdnode_220_r-attacker
+        container_name: as220brd-r-attacker-10.220.0.254
+        depends_on:
+            - 39e016aa9e819f203ebc1809245a5818
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_220_net0:
+                ipv4_address: 10.220.0.254
+
+            net_ix_ix210:
+                ipv4_address: 10.210.0.220
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "220"
+            org.seedsecuritylabs.seedemu.meta.nodename: "r-attacker"
+            org.seedsecuritylabs.seedemu.meta.role: "BorderRouter"
+            org.seedsecuritylabs.seedemu.meta.loopback_addr: "10.0.0.2"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.220.0.254/24"
+            org.seedsecuritylabs.seedemu.meta.net.1.name: "ix210"
+            org.seedsecuritylabs.seedemu.meta.net.1.address: "10.210.0.220/24"
+
+        environment:
+            - CONTAINER_NAME=as220brd-r-attacker-10.220.0.254
+            
+    hnode_221_service-app:
+        build: ./hnode_221_service-app
+        container_name: as221h-service-app-10.221.0.71
+        depends_on:
+            - 98a2693c996c2294358552f48373498d
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_221_net0:
+                ipv4_address: 10.221.0.71
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "221"
+            org.seedsecuritylabs.seedemu.meta.nodename: "service-app"
+            org.seedsecuritylabs.seedemu.meta.role: "Host"
+            org.seedsecuritylabs.seedemu.meta.class: "[\"WebService\"]"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.221.0.71/24"
+
+        environment:
+            - CONTAINER_NAME=as221h-service-app-10.221.0.71
+            
+    brdnode_221_r-service:
+        build: ./brdnode_221_r-service
+        container_name: as221brd-r-service-10.221.0.254
+        depends_on:
+            - 39e016aa9e819f203ebc1809245a5818
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_221_net0:
+                ipv4_address: 10.221.0.254
+
+            net_ix_ix211:
+                ipv4_address: 10.211.0.221
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "221"
+            org.seedsecuritylabs.seedemu.meta.nodename: "r-service"
+            org.seedsecuritylabs.seedemu.meta.role: "BorderRouter"
+            org.seedsecuritylabs.seedemu.meta.loopback_addr: "10.0.0.3"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.221.0.254/24"
+            org.seedsecuritylabs.seedemu.meta.net.1.name: "ix211"
+            org.seedsecuritylabs.seedemu.meta.net.1.address: "10.211.0.221/24"
+
+        environment:
+            - CONTAINER_NAME=as221brd-r-service-10.221.0.254
+            
+    hnode_222_client-probe:
+        build: ./hnode_222_client-probe
+        container_name: as222h-client-probe-10.222.0.71
+        depends_on:
+            - 98a2693c996c2294358552f48373498d
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_222_net0:
+                ipv4_address: 10.222.0.71
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "222"
+            org.seedsecuritylabs.seedemu.meta.nodename: "client-probe"
+            org.seedsecuritylabs.seedemu.meta.role: "Host"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.222.0.71/24"
+
+        environment:
+            - CONTAINER_NAME=as222h-client-probe-10.222.0.71
+            
+    brdnode_222_r-client:
+        build: ./brdnode_222_r-client
+        container_name: as222brd-r-client-10.222.0.254
+        depends_on:
+            - 39e016aa9e819f203ebc1809245a5818
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_222_net0:
+                ipv4_address: 10.222.0.254
+
+            net_ix_ix212:
+                ipv4_address: 10.212.0.222
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "222"
+            org.seedsecuritylabs.seedemu.meta.nodename: "r-client"
+            org.seedsecuritylabs.seedemu.meta.role: "BorderRouter"
+            org.seedsecuritylabs.seedemu.meta.loopback_addr: "10.0.0.4"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.222.0.254/24"
+            org.seedsecuritylabs.seedemu.meta.net.1.name: "ix212"
+            org.seedsecuritylabs.seedemu.meta.net.1.address: "10.212.0.222/24"
+
+        environment:
+            - CONTAINER_NAME=as222brd-r-client-10.222.0.254
+            
+    hnode_223_looking-glass:
+        build: ./hnode_223_looking-glass
+        container_name: as223h-looking-glass-10.223.0.71
+        depends_on:
+            - 98a2693c996c2294358552f48373498d
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_223_net0:
+                ipv4_address: 10.223.0.71
+
+        ports:
+            - 5602:5000/tcp
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "223"
+            org.seedsecuritylabs.seedemu.meta.nodename: "looking-glass"
+            org.seedsecuritylabs.seedemu.meta.role: "Host"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.223.0.71/24"
+
+        environment:
+            - CONTAINER_NAME=as223h-looking-glass-10.223.0.71
+            
+    brdnode_223_r-observer:
+        build: ./brdnode_223_r-observer
+        container_name: as223brd-r-observer-10.223.0.254
+        depends_on:
+            - 39e016aa9e819f203ebc1809245a5818
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_223_net0:
+                ipv4_address: 10.223.0.254
+
+            net_ix_ix210:
+                ipv4_address: 10.210.0.223
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "223"
+            org.seedsecuritylabs.seedemu.meta.nodename: "r-observer"
+            org.seedsecuritylabs.seedemu.meta.role: "BorderRouter"
+            org.seedsecuritylabs.seedemu.meta.loopback_addr: "10.0.0.5"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.223.0.254/24"
+            org.seedsecuritylabs.seedemu.meta.net.1.name: "ix210"
+            org.seedsecuritylabs.seedemu.meta.net.1.address: "10.210.0.223/24"
+
+        environment:
+            - CONTAINER_NAME=as223brd-r-observer-10.223.0.254
+            
+    rs_ix_ix210:
+        build: ./rs_ix_ix210
+        container_name: as210brd-ix210-10.210.0.210
+        depends_on:
+            - 39e016aa9e819f203ebc1809245a5818
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_ix_ix210:
+                ipv4_address: 10.210.0.210
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "210"
+            org.seedsecuritylabs.seedemu.meta.nodename: "ix210"
+            org.seedsecuritylabs.seedemu.meta.role: "Route Server"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "ix210"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.210.0.210/24"
+
+        environment:
+            - CONTAINER_NAME=as210brd-ix210-10.210.0.210
+            
+    rs_ix_ix211:
+        build: ./rs_ix_ix211
+        container_name: as211brd-ix211-10.211.0.211
+        depends_on:
+            - 39e016aa9e819f203ebc1809245a5818
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_ix_ix211:
+                ipv4_address: 10.211.0.211
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "211"
+            org.seedsecuritylabs.seedemu.meta.nodename: "ix211"
+            org.seedsecuritylabs.seedemu.meta.role: "Route Server"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "ix211"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.211.0.211/24"
+
+        environment:
+            - CONTAINER_NAME=as211brd-ix211-10.211.0.211
+            
+    rs_ix_ix212:
+        build: ./rs_ix_ix212
+        container_name: as212brd-ix212-10.212.0.212
+        depends_on:
+            - 39e016aa9e819f203ebc1809245a5818
+        cap_add:
+            - ALL
+
+        privileged: true
+        networks:
+            net_ix_ix212:
+                ipv4_address: 10.212.0.212
+
+
+        labels:
+            org.seedsecuritylabs.seedemu.meta.asn: "212"
+            org.seedsecuritylabs.seedemu.meta.nodename: "ix212"
+            org.seedsecuritylabs.seedemu.meta.role: "Route Server"
+            org.seedsecuritylabs.seedemu.meta.net.0.name: "ix212"
+            org.seedsecuritylabs.seedemu.meta.net.0.address: "10.212.0.212/24"
+
+        environment:
+            - CONTAINER_NAME=as212brd-ix212-10.212.0.212
+            
+    seedemu_internet_map:
+        image: handsonsecurity/seedemu-internetmap:2.0
+        container_name: seedemu_internet_map
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        privileged: true
+        ports:
+            - 18080:8080/tcp
+
+
+networks:
+    net_224_core_net:
+        driver_opts:
+            com.docker.network.driver.mtu: 1500
+        ipam:
+            config:
+                - subnet: 10.224.0.0/24
+        labels:
+            org.seedsecuritylabs.seedemu.meta.type: "local"
+            org.seedsecuritylabs.seedemu.meta.scope: "224"
+            org.seedsecuritylabs.seedemu.meta.name: "core_net"
+            org.seedsecuritylabs.seedemu.meta.prefix: "10.224.0.0/24"
+
+    net_220_net0:
+        driver_opts:
+            com.docker.network.driver.mtu: 1500
+        ipam:
+            config:
+                - subnet: 10.220.0.0/24
+        labels:
+            org.seedsecuritylabs.seedemu.meta.type: "local"
+            org.seedsecuritylabs.seedemu.meta.scope: "220"
+            org.seedsecuritylabs.seedemu.meta.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.prefix: "10.220.0.0/24"
+
+    net_221_net0:
+        driver_opts:
+            com.docker.network.driver.mtu: 1500
+        ipam:
+            config:
+                - subnet: 10.221.0.0/24
+        labels:
+            org.seedsecuritylabs.seedemu.meta.type: "local"
+            org.seedsecuritylabs.seedemu.meta.scope: "221"
+            org.seedsecuritylabs.seedemu.meta.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.prefix: "10.221.0.0/24"
+
+    net_222_net0:
+        driver_opts:
+            com.docker.network.driver.mtu: 1500
+        ipam:
+            config:
+                - subnet: 10.222.0.0/24
+        labels:
+            org.seedsecuritylabs.seedemu.meta.type: "local"
+            org.seedsecuritylabs.seedemu.meta.scope: "222"
+            org.seedsecuritylabs.seedemu.meta.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.prefix: "10.222.0.0/24"
+
+    net_223_net0:
+        driver_opts:
+            com.docker.network.driver.mtu: 1500
+        ipam:
+            config:
+                - subnet: 10.223.0.0/24
+        labels:
+            org.seedsecuritylabs.seedemu.meta.type: "local"
+            org.seedsecuritylabs.seedemu.meta.scope: "223"
+            org.seedsecuritylabs.seedemu.meta.name: "net0"
+            org.seedsecuritylabs.seedemu.meta.prefix: "10.223.0.0/24"
+
+    net_ix_ix210:
+        driver_opts:
+            com.docker.network.driver.mtu: 1500
+        ipam:
+            config:
+                - subnet: 10.210.0.0/24
+        labels:
+            org.seedsecuritylabs.seedemu.meta.type: "global"
+            org.seedsecuritylabs.seedemu.meta.scope: "ix"
+            org.seedsecuritylabs.seedemu.meta.name: "ix210"
+            org.seedsecuritylabs.seedemu.meta.prefix: "10.210.0.0/24"
+            org.seedsecuritylabs.seedemu.meta.displayname: "strict-v2-core-ix"
+
+    net_ix_ix211:
+        driver_opts:
+            com.docker.network.driver.mtu: 1500
+        ipam:
+            config:
+                - subnet: 10.211.0.0/24
+        labels:
+            org.seedsecuritylabs.seedemu.meta.type: "global"
+            org.seedsecuritylabs.seedemu.meta.scope: "ix"
+            org.seedsecuritylabs.seedemu.meta.name: "ix211"
+            org.seedsecuritylabs.seedemu.meta.prefix: "10.211.0.0/24"
+            org.seedsecuritylabs.seedemu.meta.displayname: "strict-v2-service-ix"
+
+    net_ix_ix212:
+        driver_opts:
+            com.docker.network.driver.mtu: 1500
+        ipam:
+            config:
+                - subnet: 10.212.0.0/24
+        labels:
+            org.seedsecuritylabs.seedemu.meta.type: "global"
+            org.seedsecuritylabs.seedemu.meta.scope: "ix"
+            org.seedsecuritylabs.seedemu.meta.name: "ix212"
+            org.seedsecuritylabs.seedemu.meta.prefix: "10.212.0.0/24"
+            org.seedsecuritylabs.seedemu.meta.displayname: "strict-v2-client-ix"
+
+
+
+

@@ -11,6 +11,12 @@ This repo now supports two complementary workflows:
 1. **BUILD path**: define topology -> compile -> run containers
 2. **OPS path**: attach to running output -> observe/operate via MCP tools
 
+External-facing summary:
+
+- [SEED agent and emulator capability work report](./docs/proposal/蚂蚁工作报告-SEED智能体与仿真器能力建设.md)
+- [SEED agent visual showcase with 18 figures](./docs/user_manual/agent_visual_showcase_guide.md)
+- [Clean VM handoff package for demos](./docs/user_manual/clean_vm_handoff_package.md)
+
 ![The Web UI](./docs/assets/web-ui.png)
 
 ---

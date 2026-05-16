@@ -1,0 +1,5 @@
+services:
+  seedemu-client:
+    build:
+      context: .
+      dockerfile: Dockerfile.foundry
