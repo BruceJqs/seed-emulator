@@ -144,13 +144,16 @@ class Ospf(Layer):
         """
         return (asn, netname) in self.__masked
 
-    def render(self, emulator: Emulator):
+    def configure(self, emulator: Emulator):
+        super().configure(emulator)
         reg = emulator.getRegistry()
 
         for ((scope, type, name), obj) in reg.getAll().items():
             if type != 'rnode': continue
             router: Node = obj
             if router.getAsn() in self.__masked_asn: continue
+            if get_bgp_backend(router) == "exabgp":
+                continue
 
             self._log('setting up OSPF for router as{}/{}...'.format(scope, name))
             masked = [netname for (asn, netname) in self.__masked if asn == int(scope)]
@@ -158,20 +161,8 @@ class Ospf(Layer):
             active, passive = classify_ospf_interfaces(router, stubs=stubs, masked=masked)
             set_ospf_interface_intents(router, active, passive)
 
-            ospf_interfaces = ''
-            for iface_name in passive: ospf_interfaces += OspfFileTemplates['ospf_stub_interface'].format(
-                interfaceName = iface_name
-            )
-            for iface_name in active: ospf_interfaces += OspfFileTemplates['ospf_interface'].format(
-                interfaceName = iface_name
-            )
-
-            if ospf_interfaces != '' and get_bgp_backend(router) == "bird":
-                router.addTable('t_ospf')
-                router.addProtocol('ospf', 'ospf1', OspfFileTemplates['ospf_body'].format(
-                    interfaces = ospf_interfaces
-                ))
-                router.addTablePipe('t_ospf')
+    def render(self, emulator: Emulator):
+        pass
 
     def print(self, indent: int) -> str:
         out = ' ' * indent

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 
-from __future__ import annotations
-
 import argparse
 import os
 from pathlib import Path
 import sys
+from typing import Optional
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[3]
@@ -13,14 +12,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from seedemu.compiler import Docker, Platform
-from seedemu.core import Binding, Emulator, Filter
-from seedemu.services import ExaBgpService
+from seedemu.core import Emulator
+from seedemu.layers import Ebgp, PeerRelationship
 from examples.internet.B00_mini_internet import mini_internet
 
 
 EXABGP_ASN = 180
 EXABGP_ROUTER = "exabgp"
-EXABGP_VNODE = "as180_exabgp_ix_control"
 EXABGP_IX = 100
 EXABGP_IX_ADDRESS = "10.100.0.180"
 EXABGP_ANNOUNCEMENT = "203.0.113.0/24"
@@ -54,34 +52,13 @@ def add_exabgp_ix_router(emu: Emulator):
     base = emu.getLayer("Base")
 
     as180 = base.createAutonomousSystem(EXABGP_ASN)
-    router = as180.createRouter(EXABGP_ROUTER)
+    router = as180.createRouter(EXABGP_ROUTER, routingBackend="exabgp")
     router.joinNetwork(f"ix{EXABGP_IX}", address=EXABGP_IX_ADDRESS)
     router.addPort(get_dashboard_host_port(), EXABGP_CONTAINER_PORT, "tcp")
     router.setDisplayName("AS180 ExaBGP IX Control Plane")
+    router.addBgpAnnouncement(EXABGP_ANNOUNCEMENT)
+    router.addBgpAnnouncement(EXABGP_EXTRA_ANNOUNCEMENT)
     return router
-
-
-def add_exabgp_service(emu: Emulator, router) -> None:
-    service = ExaBgpService()
-
-    (
-        service.install(EXABGP_VNODE)
-        .claimRouterSpeaker(router)
-        .setLocalAsn(EXABGP_ASN)
-        .addAnnouncement(EXABGP_ANNOUNCEMENT)
-        .addAnnouncement(EXABGP_EXTRA_ANNOUNCEMENT)
-        .enableDashboard(port=EXABGP_CONTAINER_PORT)
-        .addPeer("r100", router_asn=2)
-        .addPeer("r100", router_asn=3)
-    )
-
-    emu.addLayer(service)
-    emu.addBinding(
-        Binding(
-            EXABGP_VNODE,
-            filter=Filter(asn=EXABGP_ASN, nodeName=EXABGP_ROUTER),
-        )
-    )
 
 
 def build_emulator() -> Emulator:
@@ -91,13 +68,16 @@ def build_emulator() -> Emulator:
     emu = Emulator()
     emu.load(str(base_bin))
 
-    router = add_exabgp_ix_router(emu)
-    add_exabgp_service(emu, router)
+    add_exabgp_ix_router(emu)
+    ebgp = emu.getLayer("Ebgp")
+    assert isinstance(ebgp, Ebgp)
+    ebgp.addPrivatePeering(EXABGP_IX, 2, EXABGP_ASN, abRelationship=PeerRelationship.Provider)
+    ebgp.addPrivatePeering(EXABGP_IX, 3, EXABGP_ASN, abRelationship=PeerRelationship.Provider)
 
     return emu
 
 
-def run(dumpfile: str | None = None) -> None:
+def run(dumpfile: Optional[str] = None) -> None:
     emu = build_emulator()
 
     if dumpfile is not None:

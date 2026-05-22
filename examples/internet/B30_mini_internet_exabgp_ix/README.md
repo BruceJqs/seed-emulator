@@ -66,25 +66,27 @@ ExaBGP text API commands to that FIFO to announce or withdraw routes without
 regenerating the topology or editing `/etc/exabgp/exabgp.conf`.
 
 ```bash
-docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 sh -lc "printf '%s\n' 'announce route 203.2.3.0/24 next-hop self' > /run/exabgp/live.in"
-docker exec as2brd-r100-10.100.0.2 birdc show route for 203.2.3.1 all
-docker exec as3brd-r100-10.100.0.3 birdc show route for 203.2.3.1 all
-docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 tail -n 20 /var/log/exabgp/live-control.log
+EXA=$(docker ps --format '{{.Names}}' | grep 'as180.*exabgp')
+R2=$(docker ps --format '{{.Names}}' | grep 'as2.*r100')
+R3=$(docker ps --format '{{.Names}}' | grep 'as3.*r100')
+docker exec "$EXA" sh -lc "printf '%s\n' 'announce route 203.2.3.0/24 next-hop self' > /run/exabgp/live.in"
+docker exec "$R2" birdc show route for 203.2.3.1 all
+docker exec "$R3" birdc show route for 203.2.3.1 all
+docker exec "$EXA" tail -n 20 /var/log/exabgp/live-control.log
 ```
 
 Withdraw the same route:
 
 ```bash
-docker exec as180brd-ExaBGP_Control_Plane_Tool-10.100.0.180 sh -lc "printf '%s\n' 'withdraw route 203.2.3.0/24 next-hop self' > /run/exabgp/live.in"
-docker exec as2brd-r100-10.100.0.2 birdc show route for 203.2.3.1 all
+docker exec "$EXA" sh -lc "printf '%s\n' 'withdraw route 203.2.3.0/24 next-hop self' > /run/exabgp/live.in"
+docker exec "$R2" birdc show route for 203.2.3.1 all
 ```
 
 ## Notes
 
-This example intentionally uses the planned Core Worker A router-speaker API:
-`claimRouterSpeaker(...)` and `addPeer(...)`. Those calls mark the AS180 router's
-BGP speaker as owned by ExaBGP and define explicit IX eBGP peers without
-treating ExaBGP as a regular host-side application.
+This example uses `createRouter("exabgp", routingBackend="exabgp")`. The AS180
+router is an IX-connected BGP speaker, not a host-side application attached
+behind another router.
 The example uses the normal B00 Docker network mode rather than self-managed
 dummy-address mode, because published dashboard ports must remain reachable from
 the host.

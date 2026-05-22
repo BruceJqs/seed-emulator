@@ -81,20 +81,25 @@ from flask import Flask, jsonify, Response
 
 app = Flask(__name__)
 event_log = Path(os.environ.get("EXABGP_EVENT_LOG", "/var/log/exabgp/events.jsonl"))
+live_log = Path(os.environ.get("EXABGP_LIVE_LOG", "/var/log/exabgp/live-control.log"))
 title = os.environ.get("EXABGP_DASHBOARD_TITLE", "ExaBGP Event Viewer")
 
 
 def _tail_events(limit: int = 200):
-    if not event_log.exists():
-        return []
-    lines = event_log.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]
     out = []
-    for line in lines:
-        try:
-            out.append(json.loads(line))
-        except Exception:
-            out.append({"raw": line})
-    return out
+    if event_log.exists():
+        for line in event_log.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]:
+            try:
+                out.append(json.loads(line))
+            except Exception:
+                out.append({"type": "exabgp-log", "raw": line})
+    if live_log.exists():
+        for line in live_log.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]:
+            if not line.strip():
+                continue
+            ts, _, command = line.partition(" ")
+            out.append({"type": "live-control", "_ts": int(ts) if ts.isdigit() else 0, "command": command or line})
+    return sorted(out, key=lambda item: item.get("_ts", 0))[-limit:]
 
 
 @app.route("/")
@@ -134,7 +139,7 @@ def index():
         meta.textContent = new Date((evt._ts || 0) * 1000).toISOString();
         const kind = document.createElement('div');
         kind.className = 'kind';
-        kind.textContent = evt.type || evt.neighbor?.message?.update ? 'bgp-update' : 'event';
+        kind.textContent = evt.type || (evt.neighbor?.message?.update ? 'bgp-update' : 'event');
         const pre = document.createElement('pre');
         pre.textContent = JSON.stringify(evt, null, 2);
         card.appendChild(meta);
@@ -182,12 +187,13 @@ ExaBgpFileTemplates["static_block"] = """\
 """
 
 class ExaBgpServer(Server):
-    __emulator: Emulator | None
+    __emulator: Optional[Emulator]
     __local_asn: int
     __announce_prefixes: List[str]
     __dashboard_port: int
     __enable_dashboard: bool
     __peers: List[Dict[str, object]]
+    __resolved_peers: List[Tuple[Dict[str, object], Router, str, str]]
     __router_speaker_claimed: bool
 
     def __init__(self):
@@ -198,13 +204,14 @@ class ExaBgpServer(Server):
         self.__dashboard_port = 5000
         self.__enable_dashboard = True
         self.__peers = []
+        self.__resolved_peers = []
         self.__router_speaker_claimed = False
         self.setDisplayName("ExaBGP Control Plane Tool")
 
     def bind(self, emulator: Emulator):
         self.__emulator = emulator
 
-    def attachToRouter(self, router_name: str, router_asn: int | None = None) -> "ExaBgpServer":
+    def attachToRouter(self, router_name: str, router_asn: Optional[int] = None) -> "ExaBgpServer":
         self.__peers = []
         self.addPeer(router_name, router_asn=router_asn)
         return self
@@ -212,8 +219,8 @@ class ExaBgpServer(Server):
     def addPeer(
         self,
         router_name: str,
-        router_asn: int | None = None,
-        session_name: str | None = None,
+        router_asn: Optional[int] = None,
+        session_name: Optional[str] = None,
         router_relationship: str = "customer",
     ) -> "ExaBgpServer":
         relationship = str(router_relationship or "customer").strip().lower() or "customer"
@@ -319,9 +326,10 @@ class ExaBgpServer(Server):
             },
         )
 
-    def install(self, node: Node):
+    def configureOnNode(self, node: Node):
         assert self.__peers, "ExaBgpServer requires at least one peer"
-        resolved_peers: List[Tuple[Dict[str, object], Router, str, str]] = []
+        if self.__resolved_peers:
+            return
         for index, peer in enumerate(self.__peers):
             router, local_address, peer_address = self._resolve_peer(node, peer)
             session_name = str(peer.get("session_name") or "")
@@ -337,8 +345,10 @@ class ExaBgpServer(Server):
                 session_name=session_name,
                 relationship=str(peer.get("router_relationship") or "customer"),
             )
-            resolved_peers.append((peer, router, local_address, peer_address))
+            self.__resolved_peers.append((peer, router, local_address, peer_address))
 
+    def install(self, node: Node):
+        self.configureOnNode(node)
         node.addBuildCommand(
             "apt-get update && "
             "apt-get install -y --no-install-recommends "
@@ -355,7 +365,7 @@ class ExaBgpServer(Server):
         if self.__announce_prefixes:
             routes = "\n".join(f"    route {prefix} next-hop self;" for prefix in self.__announce_prefixes)
         static_block = ExaBgpFileTemplates["static_block"].format(routes=routes) if routes else ""
-        for _peer, router, local_address, peer_address in resolved_peers:
+        for _peer, router, local_address, peer_address in self.__resolved_peers:
             neighbor_blocks.append(
                 (
                     "neighbor {peer_address} {{\n"
@@ -395,14 +405,7 @@ class ExaBgpServer(Server):
             "/var/log/exabgp/live-control.log"
         )
         node.appendStartCommand(
-            "mkdir -p /run/exabgp /var/run/exabgp && rm -f /run/exabgp/live.in && "
-            "rm -f /run/exabgp/exabgp.in /run/exabgp/exabgp.out "
-            "/var/run/exabgp/exabgp.in /var/run/exabgp/exabgp.out && "
-            "mkfifo /run/exabgp/exabgp.in /run/exabgp/exabgp.out && "
-            "ln -sf /run/exabgp/exabgp.in /var/run/exabgp/exabgp.in && "
-            "ln -sf /run/exabgp/exabgp.out /var/run/exabgp/exabgp.out && "
-            "chown exabgp:exabgp /run/exabgp /var/run/exabgp /run/exabgp/exabgp.in /run/exabgp/exabgp.out && "
-            "chmod 600 /run/exabgp/exabgp.in /run/exabgp/exabgp.out"
+            "mkdir -p /run/exabgp /var/run/exabgp && rm -f /run/exabgp/live.in"
         )
         node.appendStartCommand("chmod +x /opt/exabgp/event_sink.py /opt/exabgp/live_control.py /opt/exabgp/dashboard.py")
         if self.__enable_dashboard:
@@ -414,13 +417,14 @@ class ExaBgpServer(Server):
             )
         node.appendStartCommand(
             "EXABGP_EVENT_LOG=/var/log/exabgp/events.jsonl "
-            "env exabgp.api.cli=false exabgp /etc/exabgp/exabgp.conf >/var/log/exabgp/exabgp.log 2>&1",
+            "env exabgp.api.cli=false "
+            "exabgp /etc/exabgp/exabgp.conf >/var/log/exabgp/exabgp.log 2>&1",
             True,
         )
 
 
 class ExaBgpService(Service):
-    __emulator: Emulator | None
+    __emulator: Optional[Emulator]
 
     def __init__(self):
         super().__init__()
@@ -433,11 +437,12 @@ class ExaBgpService(Service):
         return ExaBgpServer()
 
     def _doConfigure(self, node: Node, server: ExaBgpServer):
-        super()._doConfigure(node, server)
         assert self.__emulator is not None
+        server.bind(self.__emulator)
         if server.isRouterSpeakerClaimed():
             node.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
-        server.bind(self.__emulator)
+        server.configureOnNode(node)
+        super()._doConfigure(node, server)
 
     def configure(self, emulator: Emulator):
         self.__emulator = emulator
