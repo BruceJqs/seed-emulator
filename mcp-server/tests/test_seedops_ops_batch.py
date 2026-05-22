@@ -250,6 +250,65 @@ class TestSeedOpsOpsBatch(unittest.TestCase):
             self.assertFalse(result["nodes"][0]["ok"])
             self.assertIn("bgpd is not running", result["nodes"][0]["error"])
 
+    def test_routing_protocol_summary_uses_node_exabgp_backend(self):
+        with tempfile.TemporaryDirectory() as td:
+            store = SeedOpsStore(os.path.join(td, "seedops.db"))
+            nodes = [{"node_id": "as180/exabgp", "container_name": "c1", "routing_backend": "exabgp"}]
+            exabgp_output = (
+                "=== EXABGP PROCESSES ===\n"
+                "exabgp 1 0.0 /usr/sbin/exabgp /etc/exabgp/exabgp.conf\n"
+                "=== EXABGP CONFIG ===\n"
+                "neighbor 10.100.0.2 {\n"
+                "  local-as 180;\n"
+                "  peer-as 2;\n"
+                "  static { route 198.51.100.0/24 next-hop self; }\n"
+                "}\n"
+                "=== LIVE CONTROL ===\n"
+                "live_fifo=/run/exabgp/live.in\n"
+            )
+            docker_client = FakeDockerClient({"c1": ScriptedContainer({"EXABGP PROCESSES": (0, exabgp_output)})})
+            workspaces = FakeWorkspaces(nodes, docker_client)
+            ops = OpsService(store=store, workspaces=workspaces)
+
+            result = ops.routing_protocol_summary("ws1", selector={}, backend="auto")
+
+            self.assertEqual(result["counts"]["nodes_ok"], 1)
+            self.assertEqual(result["nodes"][0]["backend"], "exabgp")
+            self.assertEqual(result["backend_counts"]["exabgp"], 1)
+            self.assertEqual(result["nodes"][0]["bgp"]["up"], 1)
+            self.assertEqual(result["nodes"][0]["bgp"]["static_announcements"], 1)
+            self.assertEqual(result["nodes"][0]["bgp"]["live_fifo"], 1)
+
+    def test_routing_looking_glass_uses_node_exabgp_backend(self):
+        with tempfile.TemporaryDirectory() as td:
+            store = SeedOpsStore(os.path.join(td, "seedops.db"))
+            nodes = [{"node_id": "as180/exabgp", "container_name": "c1", "routing_backend": "exabgp"}]
+            docker_client = FakeDockerClient(
+                {
+                    "c1": ScriptedContainer(
+                        {
+                            "STATIC ANNOUNCEMENTS": (
+                                0,
+                                "=== EXABGP CONFIG ===\n"
+                                "neighbor 10.100.0.2 { peer-as 2; }\n"
+                                "=== STATIC ANNOUNCEMENTS ===\n"
+                                "    route 198.51.100.0/24 next-hop self;\n"
+                                "=== LIVE CONTROL ===\n"
+                                "live_fifo=/run/exabgp/live.in\n",
+                            )
+                        }
+                    )
+                }
+            )
+            workspaces = FakeWorkspaces(nodes, docker_client)
+            ops = OpsService(store=store, workspaces=workspaces)
+
+            result = ops.routing_looking_glass("ws1", selector={}, backend="auto")
+
+            self.assertEqual(result["counts"]["nodes_ok"], 1)
+            self.assertEqual(result["nodes"][0]["backend"], "exabgp")
+            self.assertIn("198.51.100.0/24", result["nodes"][0]["raw_head"])
+
     def test_routing_looking_glass_reports_unsupported_when_no_backend_matches(self):
         with tempfile.TemporaryDirectory() as td:
             store = SeedOpsStore(os.path.join(td, "seedops.db"))

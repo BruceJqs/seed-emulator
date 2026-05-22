@@ -35,6 +35,7 @@ _FRR_UNUSABLE_MARKERS = (
     "% bgpd is not running",
     "failed to connect to any daemons",
 )
+_SUPPORTED_ROUTING_BACKENDS = {"auto", "bird", "frr", "exabgp"}
 
 
 def _truncate(text: str, max_chars: int, *, truncated: bool = False) -> str:
@@ -271,11 +272,56 @@ class OpsService:
         return {"up": up, "down": down}
 
     @staticmethod
+    def _parse_exabgp_summary(output: str) -> dict[str, int]:
+        neighbors = 0
+        local_as = 0
+        peer_as = 0
+        static_announcements = 0
+        live_events = 0
+        live_fifo = 1 if "live_fifo=/run/exabgp/live.in" in str(output or "") else 0
+        for line in str(output or "").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("neighbor ") and "{" in stripped:
+                neighbors += 1
+            if stripped.startswith("local-as "):
+                local_as += 1
+            if stripped.startswith("peer-as "):
+                peer_as += 1
+            if "route " in stripped and "/" in stripped:
+                static_announcements += 1
+            if "announce route " in stripped or "withdraw route " in stripped:
+                live_events += 1
+        return {
+            "up": neighbors,
+            "down": 0,
+            "neighbors": neighbors,
+            "local_as": local_as,
+            "peer_as": peer_as,
+            "static_announcements": static_announcements,
+            "live_fifo": live_fifo,
+            "live_events": live_events,
+        }
+
+    @staticmethod
     def _routing_summary_command(backend: str) -> str:
         if backend == "bird":
             return "birdc show protocols"
         if backend == "frr":
             return "vtysh -c 'show bgp summary'"
+        if backend == "exabgp":
+            return (
+                "sh -lc '"
+                "echo \"=== EXABGP PROCESSES ===\"; "
+                "ps aux | grep -E \"[e]xabgp|event_sink|live_control|dashboard\" || true; "
+                "echo; echo \"=== EXABGP CONFIG ===\"; "
+                "sed -n \"1,240p\" /etc/exabgp/exabgp.conf 2>/dev/null || true; "
+                "echo; echo \"=== LIVE CONTROL ===\"; "
+                "if [ -p /run/exabgp/live.in ]; then echo live_fifo=/run/exabgp/live.in; else echo live_fifo=missing; fi; "
+                "tail -n 80 /var/log/exabgp/live-control.log 2>/dev/null || true; "
+                "echo; echo \"=== EVENT LOG ===\"; "
+                "tail -n 80 /var/log/exabgp/events.jsonl 2>/dev/null || true"
+                "'"
+            )
         raise ValueError(f"unsupported routing backend: {backend}")
 
     @staticmethod
@@ -284,6 +330,8 @@ class OpsService:
             "# seedops-routing-probe\n"
             "if command -v birdc >/dev/null 2>&1; then echo 'cmd:birdc=1'; else echo 'cmd:birdc=0'; fi\n"
             "if command -v vtysh >/dev/null 2>&1; then echo 'cmd:vtysh=1'; else echo 'cmd:vtysh=0'; fi\n"
+            "if command -v exabgp >/dev/null 2>&1 || [ -f /etc/exabgp/exabgp.conf ]; then echo 'cmd:exabgp=1'; else echo 'cmd:exabgp=0'; fi\n"
+            "if [ -p /run/exabgp/live.in ]; then echo 'file:exabgp_live_fifo=1'; else echo 'file:exabgp_live_fifo=0'; fi\n"
             "(ps -eo comm= 2>/dev/null || ps -A -o comm= 2>/dev/null || ps 2>/dev/null || true) | "
             "while read -r proc _rest; do "
             "case \"$proc\" in COMMAND|PID|'') continue ;; esac; "
@@ -296,6 +344,8 @@ class OpsService:
     def _parse_routing_backend_probe(output: str) -> dict[str, Any]:
         has_birdc = False
         has_vtysh = False
+        has_exabgp = False
+        has_exabgp_live_fifo = False
         processes: set[str] = set()
         for line in str(output or "").splitlines():
             item = line.strip()
@@ -307,6 +357,12 @@ class OpsService:
             if item == "cmd:vtysh=1":
                 has_vtysh = True
                 continue
+            if item == "cmd:exabgp=1":
+                has_exabgp = True
+                continue
+            if item == "file:exabgp_live_fifo=1":
+                has_exabgp_live_fifo = True
+                continue
             if item.startswith("proc:"):
                 proc = item.split(":", 1)[1].strip()
                 if proc:
@@ -316,8 +372,11 @@ class OpsService:
         return {
             "has_birdc": has_birdc,
             "has_vtysh": has_vtysh,
+            "has_exabgp": has_exabgp,
+            "has_exabgp_live_fifo": has_exabgp_live_fifo,
             "bird_running": "bird" in processes,
             "bgpd_running": "bgpd" in processes,
+            "exabgp_running": "exabgp" in processes,
             "frr_processes": frr_processes,
             "frr_running": bool(frr_processes),
         }
@@ -326,6 +385,9 @@ class OpsService:
     def _routing_backend_chain(probe: dict[str, Any]) -> list[str]:
         has_bird = bool(probe.get("has_birdc") or probe.get("bird_running"))
         has_frr = bool(probe.get("has_vtysh") or probe.get("frr_running"))
+        has_exabgp = bool(probe.get("has_exabgp") or probe.get("exabgp_running") or probe.get("has_exabgp_live_fifo"))
+        if has_exabgp:
+            return ["exabgp"]
         if has_bird and has_frr:
             if probe.get("bgpd_running"):
                 return ["frr", "bird"]
@@ -336,7 +398,7 @@ class OpsService:
             return ["frr"]
         if has_bird:
             return ["bird"]
-        return ["bird", "frr"]
+        return ["bird", "frr", "exabgp"]
 
     @staticmethod
     def _routing_output_usable(backend: str, output: str) -> bool:
@@ -363,6 +425,20 @@ class OpsService:
                     f" || vtysh -c 'show bgp {prefix_s}'"
                 )
             return "vtysh -c 'show bgp ipv4 unicast' || vtysh -c 'show bgp'"
+        if backend == "exabgp":
+            return (
+                "sh -lc '"
+                "echo \"=== EXABGP CONFIG ===\"; "
+                "sed -n \"1,260p\" /etc/exabgp/exabgp.conf 2>/dev/null || true; "
+                "echo; echo \"=== STATIC ANNOUNCEMENTS ===\"; "
+                "grep -E \"route [0-9][0-9.]+/[0-9]+\" /etc/exabgp/exabgp.conf 2>/dev/null || true; "
+                "echo; echo \"=== LIVE CONTROL ===\"; "
+                "if [ -p /run/exabgp/live.in ]; then echo live_fifo=/run/exabgp/live.in; else echo live_fifo=missing; fi; "
+                "tail -n 80 /var/log/exabgp/live-control.log 2>/dev/null || true; "
+                "echo; echo \"=== EVENT LOG ===\"; "
+                "tail -n 80 /var/log/exabgp/events.jsonl 2>/dev/null || true"
+                "'"
+            )
         raise ValueError(f"unsupported routing backend: {backend}")
 
     def _run_routing_backend(
@@ -783,24 +859,26 @@ class OpsService:
         docker_client = self._workspaces.get_docker_client()
         exec_backend = self._pick_exec_backend(docker_client)
         requested_backend = str(backend or "auto").strip().lower() or "auto"
-        if requested_backend not in {"auto", "bird", "frr"}:
-            raise ValueError("backend must be one of: auto, bird, frr")
+        if requested_backend not in _SUPPORTED_ROUTING_BACKENDS:
+            raise ValueError("backend must be one of: auto, bird, frr, exabgp")
 
         def worker(node: dict[str, Any]) -> dict[str, Any]:
             node_id = node.get("node_id")
             cname = node.get("container_name")
+            node_backend = str(node.get("routing_backend") or "").strip().lower()
+            effective_backend = node_backend if requested_backend == "auto" and node_backend in _SUPPORTED_ROUTING_BACKENDS - {"auto"} else requested_backend
             try:
                 routing = self._run_routing_backend(
                     docker_client=docker_client,
                     exec_backend=exec_backend,
                     container_name=str(cname),
-                    requested_backend=requested_backend,
+                    requested_backend=effective_backend,
                     command_builder=self._routing_summary_command,
                     output_validator=self._routing_output_usable,
                 )
                 if not routing["ok"]:
                     backend_name = (
-                        "unsupported" if requested_backend == "auto" and len(routing.get("attempts") or []) >= 2 else routing["backend"]
+                        "unsupported" if effective_backend == "auto" and len(routing.get("attempts") or []) >= 2 else routing["backend"]
                     )
                     return {
                         "node_id": node_id,
@@ -813,7 +891,12 @@ class OpsService:
                     }
                 out = str(routing["output"])
                 active_backend = str(routing["backend"])
-                parser = self._parse_bird_protocols if active_backend == "bird" else self._parse_frr_bgp_summary
+                if active_backend == "bird":
+                    parser = self._parse_bird_protocols
+                elif active_backend == "frr":
+                    parser = self._parse_frr_bgp_summary
+                else:
+                    parser = self._parse_exabgp_summary
                 bgp = parser(out)
                 return {
                     "node_id": node_id,
@@ -888,23 +971,25 @@ class OpsService:
         docker_client = self._workspaces.get_docker_client()
         exec_backend = self._pick_exec_backend(docker_client)
         requested_backend = str(backend or "auto").strip().lower() or "auto"
-        if requested_backend not in {"auto", "bird", "frr"}:
-            raise ValueError("backend must be one of: auto, bird, frr")
+        if requested_backend not in _SUPPORTED_ROUTING_BACKENDS:
+            raise ValueError("backend must be one of: auto, bird, frr, exabgp")
 
         def worker(node: dict[str, Any]) -> dict[str, Any]:
             node_id = node.get("node_id")
             cname = node.get("container_name")
+            node_backend = str(node.get("routing_backend") or "").strip().lower()
+            effective_backend = node_backend if requested_backend == "auto" and node_backend in _SUPPORTED_ROUTING_BACKENDS - {"auto"} else requested_backend
             try:
                 routing = self._run_routing_backend(
                     docker_client=docker_client,
                     exec_backend=exec_backend,
                     container_name=str(cname),
-                    requested_backend=requested_backend,
+                    requested_backend=effective_backend,
                     command_builder=lambda active_backend: self._routing_looking_glass_command(active_backend, prefix),
                     output_validator=self._routing_output_usable,
                 )
                 backend_name = (
-                    "unsupported" if requested_backend == "auto" and not routing["ok"] and len(routing.get("attempts") or []) >= 2 else routing["backend"]
+                    "unsupported" if effective_backend == "auto" and not routing["ok"] and len(routing.get("attempts") or []) >= 2 else routing["backend"]
                 )
                 return {
                     "node_id": node_id,

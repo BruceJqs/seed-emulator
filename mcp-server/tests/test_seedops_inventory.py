@@ -23,6 +23,7 @@ class TestSeedOpsInventory(unittest.TestCase):
             "org.seedsecuritylabs.seedemu.meta.role": "BorderRouter",
             "org.seedsecuritylabs.seedemu.meta.class": "[\"Routing\"]",
             "org.seedsecuritylabs.seedemu.meta.loopback_addr": "10.0.0.1",
+            "org.seedsecuritylabs.seedemu.meta.seedemu_routing_backend": "frr",
             "org.seedsecuritylabs.seedemu.meta.net.0.name": "net0",
             "org.seedsecuritylabs.seedemu.meta.net.0.address": "10.150.0.254/24",
             "org.seedsecuritylabs.seedemu.meta.net.1.name": "ix100",
@@ -39,6 +40,7 @@ class TestSeedOpsInventory(unittest.TestCase):
         self.assertEqual(node["role"], "BorderRouter")
         self.assertIn("Routing", node["classes"])
         self.assertEqual(node["container_name"], "as150brd-router0-10.150.0.254")
+        self.assertEqual(node["routing_backend"], "frr")
         self.assertEqual(len(node["interfaces"]), 2)
 
     def test_selector_matching(self):

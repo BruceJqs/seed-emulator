@@ -57,6 +57,11 @@ def parse_node_from_labels(
             classes = []
 
     loopback = labels.get(f"{label_prefix}loopback_addr") or None
+    routing_backend = (
+        labels.get(f"{label_prefix}seedemu_routing_backend")
+        or labels.get(f"{label_prefix}seedemu_bgp_backend")
+        or "bird"
+    )
 
     # Interfaces: meta.net.{i}.name / meta.net.{i}.address
     iface_pat = re.compile(rf"^{re.escape(label_prefix)}net\.(\d+)\.(name|address)$")
@@ -87,6 +92,7 @@ def parse_node_from_labels(
         "container_name": container_name,
         "interfaces": interfaces,
         "loopback": loopback,
+        "routing_backend": str(routing_backend).strip().lower() or "bird",
         "labels": labels,
     }
 
@@ -111,4 +117,3 @@ class InventoryBuilder:
         nodes.sort(key=lambda n: n.get("node_id", ""))
         by_id = {n["node_id"]: n for n in nodes}
         return Inventory(nodes=nodes, by_node_id=by_id, updated_at=int(time.time()))
-
