@@ -457,6 +457,7 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         @brief Just a more descriptive name.
         """
         self.__ports.append((host, node, proto))
+        return self
 
     def getPorts(self) -> List[Tuple[int, int, str]]:
         """!
@@ -1134,14 +1135,19 @@ class Router(Node):
 
     __loopback_address: str
     __is_border_router: bool
+    __routing_backend: str
+    __bgp_announcements: List[str]
 
     __extensions: Dict[str, RouterExtension]
 
-    def __init__(self, name: str, role: NodeRole, asn: int, scope: str = None):
+    def __init__(self, name: str, role: NodeRole, asn: int, scope: str = None, routingBackend: str = "bird"):
         self.__is_border_router = False
         self.__loopback_address = None
+        self.__routing_backend = "bird"
+        self.__bgp_announcements = []
         self.__extensions = {}
         super().__init__( name,role,asn,scope)
+        self.setRoutingBackend(routingBackend)
 
     def hasExtension(self, name: str) -> bool:
         return name in self.__extensions
@@ -1169,6 +1175,61 @@ class Router(Node):
 
     def isBorderRouter(self):
         return self.__is_border_router
+
+    def setRoutingBackend(self, backend: str) -> Router:
+        """!
+        @brief Set routing daemon backend for this router.
+
+        @param backend routing backend. Supported values are bird, frr, exabgp.
+
+        @returns self, for chaining API calls.
+        """
+        value = str(backend or "bird").strip().lower() or "bird"
+        if value == "external":
+            value = "exabgp"
+        assert value in {"bird", "frr", "exabgp"}, "unsupported routing backend: {}".format(backend)
+        self.__routing_backend = value
+        self.setLabel("seedemu_routing_backend", value)
+        self.setLabel("seedemu_bgp_backend", value)
+        try:
+            self.setAttribute("__routing_backend", value)
+            self.setAttribute("__bgp_backend", value)
+        except AttributeError:
+            pass
+        return self
+
+    def getRoutingBackend(self) -> str:
+        """!
+        @brief Get routing daemon backend for this router.
+
+        @returns backend name.
+        """
+        return self.__routing_backend
+
+    def addBgpAnnouncement(self, prefix: str) -> Router:
+        """!
+        @brief Add a static BGP announcement for route-injection backends.
+
+        @param prefix prefix to announce.
+
+        @returns self, for chaining API calls.
+        """
+        value = str(prefix).strip()
+        if value and value not in self.__bgp_announcements:
+            self.__bgp_announcements.append(value)
+        try:
+            self.setAttribute("__bgp_announcements", list(self.__bgp_announcements))
+        except AttributeError:
+            pass
+        return self
+
+    def getBgpAnnouncements(self) -> List[str]:
+        """!
+        @brief Get static BGP announcements configured on this router.
+
+        @returns list of prefixes.
+        """
+        return list(self.__bgp_announcements)
 
     def setLoopbackAddress(self, address: str):
         """!
@@ -1472,4 +1533,3 @@ def promote_to_scion_router(node: Node):
         extn.initScionRouter()
         node.installExtension(extn)
     return node
-

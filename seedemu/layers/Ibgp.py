@@ -91,7 +91,8 @@ class Ibgp(Layer, Graphable):
         """
         return self.__masked
 
-    def render(self, emulator: Emulator):
+    def configure(self, emulator: Emulator):
+        super().configure(emulator)
         reg = emulator.getRegistry()
         base: Base = reg.get('seedemu', 'layer', 'Base')
         for asn in base.getAsns():
@@ -133,6 +134,9 @@ class Ibgp(Layer, Graphable):
                     n += 1
 
                     self._log('adding peering: {} <-> {} (ibgp, as{})'.format(laddr, raddr, asn))
+
+    def render(self, emulator: Emulator):
+        pass
 
     def _doCreateGraphs(self, emulator: Emulator):
         base: Base = emulator.getRegistry().get('seedemu', 'layer', 'Base')
