@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any, Dict, Iterable, List, Tuple
 
 from seedemu.core import Router
 from seedemu.core.enums import NetworkType
@@ -9,12 +9,14 @@ from seedemu.core.enums import NetworkType
 BGP_BACKEND_ATTR = "__bgp_backend"
 BGP_SESSION_INTENTS_ATTR = "__bgp_session_intents"
 BGP_CONNECTED_EXPORT_ATTR = "__bgp_connected_export"
+BGP_CONNECTED_EXPORT_RENDERED_ATTR = "__bgp_connected_export_rendered"
 BGP_BOOTSTRAPPED_ATTR = "__bgp_bootstrapped"
 OSPF_INTERFACE_INTENTS_ATTR = "__ospf_interface_intents"
 
 BGP_BACKEND_BIRD = "bird"
 BGP_BACKEND_FRR = "frr"
-BGP_BACKEND_EXTERNAL = "external"
+BGP_BACKEND_EXABGP = "exabgp"
+BGP_BACKEND_EXTERNAL = BGP_BACKEND_EXABGP
 BGP_BACKEND_LABEL = "seedemu_bgp_backend"
 
 BGP_KIND_EBGP = "ebgp"
@@ -73,24 +75,31 @@ CONNECTED_EXPORT_FILTER = "filter { bgp_large_community.add(LOCAL_COMM); bgp_loc
 def get_bgp_backend(node: Router) -> str:
     backend = None
     try:
-        backend = node.getAttribute(BGP_BACKEND_ATTR)
+        backend = node.getRoutingBackend()
     except AttributeError:
-        backend = None
+        try:
+            backend = node.getAttribute(BGP_BACKEND_ATTR)
+        except AttributeError:
+            backend = None
     if backend in {None, ""}:
         backend = node.getLabel().get(BGP_BACKEND_LABEL, BGP_BACKEND_BIRD)
     backend = str(backend or BGP_BACKEND_BIRD).strip().lower()
-    if backend == "exabgp":
-        backend = BGP_BACKEND_EXTERNAL
-    return backend if backend in {BGP_BACKEND_BIRD, BGP_BACKEND_FRR, BGP_BACKEND_EXTERNAL} else BGP_BACKEND_BIRD
+    if backend == "external":
+        backend = BGP_BACKEND_EXABGP
+    return backend if backend in {BGP_BACKEND_BIRD, BGP_BACKEND_FRR, BGP_BACKEND_EXABGP} else BGP_BACKEND_BIRD
 
 
 def set_bgp_backend(node: Router, backend: str) -> None:
     value = str(backend or BGP_BACKEND_BIRD).strip().lower() or BGP_BACKEND_BIRD
-    if value == "exabgp":
-        value = BGP_BACKEND_EXTERNAL
-    if value not in {BGP_BACKEND_BIRD, BGP_BACKEND_FRR, BGP_BACKEND_EXTERNAL}:
+    if value == "external":
+        value = BGP_BACKEND_EXABGP
+    if value not in {BGP_BACKEND_BIRD, BGP_BACKEND_FRR, BGP_BACKEND_EXABGP}:
         raise ValueError(f"unsupported BGP backend: {backend}")
     node.setLabel(BGP_BACKEND_LABEL, value)
+    try:
+        node.setRoutingBackend(value)
+    except AttributeError:
+        pass
     try:
         node.setAttribute(BGP_BACKEND_ATTR, value)
     except AttributeError:
@@ -109,7 +118,7 @@ def _normalize_export_policy(policy: Any) -> str:
     return value
 
 
-def normalize_bgp_session(session: dict[str, Any]) -> dict[str, Any]:
+def normalize_bgp_session(session: Dict[str, Any]) -> Dict[str, Any]:
     name = str(session.get("name") or "session").strip() or "session"
     kind = str(session.get("kind") or BGP_KIND_EBGP).strip().lower() or BGP_KIND_EBGP
     if kind not in {BGP_KIND_EBGP, BGP_KIND_IBGP}:
@@ -153,7 +162,7 @@ def normalize_bgp_session(session: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def record_bgp_session(node: Router, session: dict[str, Any]) -> dict[str, Any]:
+def record_bgp_session(node: Router, session: Dict[str, Any]) -> Dict[str, Any]:
     normalized = normalize_bgp_session(session)
     sessions = [dict(item) for item in list(node.getAttribute(BGP_SESSION_INTENTS_ATTR, []) or []) if isinstance(item, dict)]
     sessions = [item for item in sessions if str(item.get("name") or "") != normalized["name"]]
@@ -162,8 +171,8 @@ def record_bgp_session(node: Router, session: dict[str, Any]) -> dict[str, Any]:
     return dict(normalized)
 
 
-def get_bgp_sessions(node: Router) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
+def get_bgp_sessions(node: Router) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
     for item in list(node.getAttribute(BGP_SESSION_INTENTS_ATTR, []) or []):
         if not isinstance(item, dict):
             continue
@@ -187,12 +196,12 @@ def ensure_bird_bgp_base(node: Router) -> None:
         node.appendFile("/etc/bird/bird.conf", BIRD_BGP_COMMONS_TEMPLATE.format(localAsn=node.getAsn()))
     node.addTable("t_bgp")
     node.addTablePipe("t_bgp")
-    if not has_bgp_connected_export(node):
+    if has_bgp_connected_export(node) and not node.getAttribute(BGP_CONNECTED_EXPORT_RENDERED_ATTR, False):
         node.addTablePipe("t_direct", "t_bgp", exportFilter=CONNECTED_EXPORT_FILTER)
-        mark_bgp_connected_export(node)
+        node.setAttribute(BGP_CONNECTED_EXPORT_RENDERED_ATTR, True)
 
 
-def _bird_import_clause(session: dict[str, Any]) -> str:
+def _bird_import_clause(session: Dict[str, Any]) -> str:
     if session["import_community"] and session["local_pref"] is not None:
         return (
             "filter {\n"
@@ -204,13 +213,13 @@ def _bird_import_clause(session: dict[str, Any]) -> str:
     return "all"
 
 
-def _bird_export_clause(session: dict[str, Any]) -> str:
+def _bird_export_clause(session: Dict[str, Any]) -> str:
     if session["export_policy"] == BGP_EXPORT_LOCAL_AND_CUSTOMER:
         return "where bgp_large_community ~ [LOCAL_COMM, CUSTOMER_COMM]"
     return "all"
 
 
-def render_bird_protocol_body(session: dict[str, Any]) -> str:
+def render_bird_protocol_body(session: Dict[str, Any]) -> str:
     normalized = normalize_bgp_session(session)
     if normalized["route_server_client"]:
         return BIRD_RS_PEER_TEMPLATE.format(
@@ -239,13 +248,10 @@ def render_bird_protocol_body(session: dict[str, Any]) -> str:
     )
 
 
-def install_router_bgp_session(node: Router, session: dict[str, Any]) -> dict[str, Any]:
+def install_router_bgp_session(node: Router, session: Dict[str, Any]) -> Dict[str, Any]:
     normalized = record_bgp_session(node, session)
-    if get_bgp_backend(node) != "bird":
+    if not normalized["route_server_client"]:
         mark_bgp_connected_export(node)
-        return normalized
-    ensure_bird_bgp_base(node)
-    node.addProtocol("bgp", normalized["name"], render_bird_protocol_body(normalized))
     return normalized
 
 
@@ -254,11 +260,11 @@ def classify_ospf_interfaces(
     *,
     stubs: Iterable[str] = (),
     masked: Iterable[str] = (),
-) -> tuple[list[str], list[str]]:
+) -> Tuple[List[str], List[str]]:
     stub_names = {str(name) for name in stubs}
     masked_names = {str(name) for name in masked}
-    active: list[str] = []
-    passive: list[str] = ["dummy0"]
+    active: List[str] = []
+    passive: List[str] = ["dummy0"]
     for iface in node.getInterfaces():
         net = iface.getNet()
         name = str(net.getName())
@@ -281,7 +287,7 @@ def set_ospf_interface_intents(node: Router, active: Iterable[str], passive: Ite
     )
 
 
-def get_ospf_interface_intents(node: Router) -> dict[str, list[str]]:
+def get_ospf_interface_intents(node: Router) -> Dict[str, List[str]]:
     raw = node.getAttribute(OSPF_INTERFACE_INTENTS_ATTR, {}) or {}
     active = [str(name) for name in list(raw.get("active", []) or [])]
     passive = [str(name) for name in list(raw.get("passive", []) or [])]

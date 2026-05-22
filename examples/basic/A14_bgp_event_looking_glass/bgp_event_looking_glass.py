@@ -49,7 +49,7 @@ as151.createHost("event-viewer").joinNetwork("net0").addPortForwarding(event_das
 
 ebgp.addPrivatePeering(100, 2, 151, abRelationship=PeerRelationship.Provider)
 
-looking_glass.install("bgp_lg").attach("router0").setFrontendPort(5000).setProxyPort(8000)
+looking_glass.install("bgp_lg").addRouter(2, "router0").setFrontendPort(5000).setProxyPort(8000)
 emu.addBinding(Binding("bgp_lg", filter=Filter(nodeName="looking-glass", asn=2)))
 
 exabgp.install("bgp_events") \

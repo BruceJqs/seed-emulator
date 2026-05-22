@@ -2,8 +2,7 @@
 # encoding: utf-8
 
 from seedemu.layers import Base, Routing, Ebgp, PeerRelationship
-from seedemu.services import ExaBgpService
-from seedemu.core import Emulator, Binding, Filter
+from seedemu.core import Emulator
 from seedemu.compiler import Docker, Platform
 import sys, os
 
@@ -31,7 +30,6 @@ emu = Emulator()
 base = Base()
 routing = Routing()
 ebgp = Ebgp()
-exabgp = ExaBgpService()
 
 base.createInternetExchange(100)
 
@@ -39,25 +37,17 @@ as2 = base.createAutonomousSystem(2)
 as2.createNetwork("net0")
 as2.createRouter("router0").joinNetwork("net0").joinNetwork("ix100")
 
-as151 = base.createAutonomousSystem(151)
-as151.createNetwork("net0")
-as151.createRouter("router0").joinNetwork("net0").joinNetwork("ix100")
-as151.createHost("control-plane-tool").joinNetwork("net0").addPortForwarding(exabgp_dashboard_port, 5000)
+as180 = base.createAutonomousSystem(180)
+exabgp_router = as180.createRouter("exabgp", routingBackend="exabgp")
+exabgp_router.joinNetwork("ix100", address="10.100.0.180")
+exabgp_router.addPort(exabgp_dashboard_port, 5000)
+exabgp_router.addBgpAnnouncement("198.51.100.0/24")
 
-ebgp.addPrivatePeering(100, 2, 151, abRelationship=PeerRelationship.Provider)
-
-exabgp.install("exabgp_tool") \
-    .attachToRouter("router0") \
-    .setLocalAsn(65010) \
-    .addAnnouncement("198.51.100.0/24") \
-    .enableDashboard(5000)
-
-emu.addBinding(Binding("exabgp_tool", filter=Filter(nodeName="control-plane-tool", asn=151)))
+ebgp.addPrivatePeering(100, 2, 180, abRelationship=PeerRelationship.Provider)
 
 emu.addLayer(base)
 emu.addLayer(routing)
 emu.addLayer(ebgp)
-emu.addLayer(exabgp)
 
 emu.render()
 emu.compile(Docker(platform=platform), output_dir, override=True)
