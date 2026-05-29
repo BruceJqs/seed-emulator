@@ -47,6 +47,12 @@ Current seed artifact:
 examples/agent-benchmarks/incident.bgp_route_leak_optimizer.v1/
 ```
 
+Validation entry point:
+
+```bash
+python3 examples/agent-benchmarks/validate_package.py --run-scorer
+```
+
 ## Stage 2: BGP Route Leak Runnable Slice
 
 Deliver:

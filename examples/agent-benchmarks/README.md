@@ -31,3 +31,22 @@ generate runtime -> collect baseline -> inject fault -> attach agent
 
 The package skeleton is machine-readable planning material. Runtime adapters,
 injectors, and scorers should be added incrementally.
+
+## Validation
+
+Validate all benchmark packages:
+
+```bash
+python3 examples/agent-benchmarks/validate_package.py --run-scorer
+```
+
+Validate one package:
+
+```bash
+python3 examples/agent-benchmarks/validate_package.py \
+  examples/agent-benchmarks/incident.bgp_route_leak_optimizer.v1 \
+  --run-scorer
+```
+
+The first scorer reports `incomplete` until real replay artifacts are produced.
+That is intentional: a package with no runtime evidence should not pass.
