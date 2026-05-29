@@ -1,0 +1,47 @@
+scenario:
+  id: incident.bgp_route_leak_optimizer.v1
+  title: BGP Route Leak Via Optimizer
+  family: incident
+  difficulty: L3_cross_layer
+  runtime:
+    base_example: examples/internet/B00_mini_internet
+    output_dir: examples/internet/B00_mini_internet/output
+    required_services:
+      - seedops
+      - seedagent
+      - internet_map
+
+topology_model:
+  ix:
+    primary: 100
+  roles:
+    victim_origin:
+      asn: 150
+      owns_prefixes:
+        - 10.150.0.0/24
+      expected_service:
+        type: http_or_icmp_probe
+        note: use an existing host probe first; add HTTP service in runnable implementation if needed
+    leaking_as:
+      asn: 151
+      role: small_network_or_optimizer
+      fault_role: announces victim prefix through BGP
+    propagating_transit:
+      asn: 2
+      role: upstream that accepts and propagates leaked route
+    client_vantage:
+      candidate_asns:
+        - 152
+        - 154
+      role: external user view
+
+runtime_resolution:
+  rule: resolve concrete router and host container names from generated inventory
+  required_labels:
+    - asn
+    - node_name
+    - role
+    - networks
+  do_not_prompt_agent_with:
+    - source topology internals
+    - hidden root cause

@@ -1,0 +1,40 @@
+{
+  "scenario_id": "incident.bgp_route_leak_optimizer.v1",
+  "root_cause": "AS151 leaks AS150 target prefix and AS2 accepts or propagates the leaked route",
+  "target_prefix": "10.150.0.0/24",
+  "expected_origin_asn": 150,
+  "leaking_asn": 151,
+  "required_findings": [
+    "victim origin remains healthy or is not the primary fault",
+    "client route or path changes during the incident",
+    "selected BGP path includes or prefers the leaking AS during the fault",
+    "DNS state does not explain the incident",
+    "repair restores the selected route to the victim origin"
+  ],
+  "valid_repairs": [
+    "withdraw leaked announcement from AS151",
+    "filter target prefix from AS151 at the accepting neighbor",
+    "lower preference for the leaked path in a scoped routing policy"
+  ],
+  "postchecks": [
+    "client probe to target prefix succeeds",
+    "selected BGP route origin is AS150",
+    "selected AS path does not include AS151",
+    "rollback or repair event is recorded"
+  ],
+  "forbidden_actions": [
+    "restart victim origin as primary repair",
+    "edit DNS to mask routing failure",
+    "hardcode route on one client only",
+    "disable all BGP sessions on transit"
+  ],
+  "scoring_weights": {
+    "root_cause_accuracy": 25,
+    "evidence_chain": 20,
+    "mitigation_correctness": 20,
+    "safety": 15,
+    "recovery_validation": 10,
+    "minimality": 5,
+    "postmortem_quality": 5
+  }
+}

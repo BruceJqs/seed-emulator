@@ -1,0 +1,45 @@
+fault:
+  id: route_leak_from_as151
+  type: bgp_route_leak
+  hidden_root_cause: AS151 advertises AS150 victim prefix and AS2 accepts the path
+  target_prefix: 10.150.0.0/24
+  leaking_asn: 151
+  expected_propagating_asn: 2
+
+injector:
+  preferred:
+    type: live_bgp_announce
+    requirements:
+      - live BGP speaker or ExaBGP control interface
+      - reversible withdraw command
+      - event log artifact
+  fallback:
+    type: scoped_router_policy_change
+    requirements:
+      - explicit changed config artifact
+      - daemon reload artifact
+      - rollback artifact
+
+expected_symptoms:
+  - client path changes through AS151 or toward the leaking route
+  - BGP best path for 10.150.0.0/24 includes AS151 at one approved vantage point
+  - victim origin process remains healthy
+  - DNS is unchanged
+
+rollback:
+  required: true
+  acceptable_methods:
+    - withdraw leaked route
+    - remove injected route policy
+    - restore previous daemon config and reload
+
+replay_artifacts:
+  during_fault:
+    - route_summary.during.json
+    - client_probe.during.json
+    - traceroute.during.txt
+    - fault_event.json
+  after_rollback:
+    - route_summary.after.json
+    - client_probe.after.json
+    - rollback_event.json

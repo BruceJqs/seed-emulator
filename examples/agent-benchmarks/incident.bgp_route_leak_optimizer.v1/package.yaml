@@ -1,0 +1,42 @@
+scenario:
+  id: incident.bgp_route_leak_optimizer.v1
+  title: BGP Route Leak Via Optimizer
+  family: incident
+  version: 1
+  status: design_skeleton
+  owner: seed-agent-benchmark
+
+files:
+  case: case.md
+  topology: topology.yaml
+  normal_state: normal_state.yaml
+  fault_injection: fault_injection.yaml
+  agent_policy: agent_policy.yaml
+  oracle: oracle.json
+  scorer: scorer.py
+  runbook: runbook.md
+  replay_dir: replay
+
+stages:
+  - baseline
+  - inject
+  - observe
+  - propose
+  - gate
+  - act
+  - verify
+  - score
+
+first_runtime_target:
+  base_example: examples/internet/B00_mini_internet
+  compose_project_name: agent_bgp_leak
+  target_prefix: 10.150.0.0/24
+  victim_asn: 150
+  leaking_asn: 151
+  transit_asn: 2
+
+compatibility:
+  existing_agent_mission_reference: examples/agent-missions/tasks/TS_B00_PREFIX_HIJACK_LIVE.yaml
+  migration_rule: >
+    benchmark package can emit a mission YAML, but mission YAML is not the
+    source of truth

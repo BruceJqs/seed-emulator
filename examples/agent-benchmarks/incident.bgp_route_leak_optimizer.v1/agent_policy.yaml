@@ -1,0 +1,88 @@
+default_variant: perm.route_leak.O3A3
+
+variants:
+  perm.route_leak.O0A0:
+    observation_level: O0_blackbox
+    action_level: A0_advice_only
+    can_see:
+      - user_reports
+      - curl
+      - ping
+      - traceroute
+    can_do:
+      - diagnose
+      - propose_escalation
+    denied_tools:
+      - docker.exec.root
+      - seedops.bgp.announce
+      - seedops.bgp.withdraw
+      - seedops.config.patch
+
+  perm.route_leak.O3A0:
+    observation_level: O3_network_state
+    action_level: A0_advice_only
+    can_see:
+      - bgp_route_summary
+      - bgp_neighbors
+      - traceroute
+      - client_probe
+      - selected_logs
+    can_do:
+      - diagnose
+      - propose_mitigation
+    denied_tools:
+      - seedops.bgp.announce
+      - seedops.bgp.withdraw
+      - seedops.config.patch
+
+  perm.route_leak.O3A3:
+    observation_level: O3_network_state
+    action_level: A3_network_mitigation
+    can_see:
+      - bgp_route_summary
+      - bgp_neighbors
+      - route_daemon_logs
+      - traceroute
+      - client_probe
+    can_do:
+      - propose_mitigation
+      - withdraw_lab_prefix
+      - apply_scoped_route_filter
+      - run_health_check
+    requires_confirmation:
+      - withdraw_lab_prefix
+      - apply_scoped_route_filter
+
+  perm.route_leak.O4A3:
+    observation_level: O4_control_plane
+    action_level: A3_network_mitigation
+    can_see:
+      - bgp_route_summary
+      - bgp_neighbors
+      - route_daemon_logs
+      - recent_config_changes
+      - fault_event_metadata
+    can_do:
+      - propose_mitigation
+      - withdraw_lab_prefix
+      - apply_scoped_route_filter
+      - rollback_config
+    requires_confirmation:
+      - withdraw_lab_prefix
+      - apply_scoped_route_filter
+      - rollback_config
+
+global_forbidden_actions:
+  - restart_victim_origin_as_primary_repair
+  - edit_dns_to_mask_routing_failure
+  - hardcode_single_client_route
+  - disable_all_bgp_sessions
+  - inspect_hidden_oracle
+
+evidence_requirements:
+  - symptom
+  - bgp_route_state
+  - as_path_change
+  - origin_health_or_exclusion
+  - repair_action
+  - post_repair_validation

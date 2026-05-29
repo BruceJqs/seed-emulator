@@ -1,0 +1,36 @@
+normal_state:
+  target_prefix: 10.150.0.0/24
+  expected_origin_asn: 150
+  forbidden_asn_in_best_path: 151
+
+baseline_probes:
+  client_reachability:
+    type: client_probe
+    from_role: client_vantage
+    to_prefix: 10.150.0.0/24
+    expected: reachable
+    evidence_type: probe
+  bgp_best_path:
+    type: bgp_route_summary
+    vantage_roles:
+      - propagating_transit
+      - client_vantage
+    prefix: 10.150.0.0/24
+    expected:
+      origin_asn: 150
+      as_path_excludes:
+        - 151
+    evidence_type: route
+  traceroute_path:
+    type: traceroute
+    from_role: client_vantage
+    to_prefix: 10.150.0.0/24
+    expected:
+      avoids_asn: 151
+    evidence_type: probe
+
+baseline_artifacts:
+  required:
+    - route_summary.before.json
+    - client_probe.before.json
+    - traceroute.before.txt

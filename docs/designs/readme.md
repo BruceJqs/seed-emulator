@@ -35,6 +35,13 @@ Users can join the simulated Internet with VPN client software. This emulation i
 
 See [design.md](design.md)
 
+## Agent Benchmark Design
+
+See [agent-benchmark/README.md](agent-benchmark/README.md) for the SeedAgent
+incident benchmark design, including real Internet incident replay, project
+sandboxing, CTF / AI attack-defense, red/blue operations, restricted-permission
+tasks, and the first BGP route leak package plan.
+
 ## Case study
 
 ### BGP peering
@@ -72,4 +79,3 @@ See [design.md](design.md)
 ### Buliding new layer
 
 ### Creating new graphs
-
