@@ -50,3 +50,13 @@ python3 examples/agent-benchmarks/validate_package.py \
 
 The first scorer reports `incomplete` until real replay artifacts are produced.
 That is intentional: a package with no runtime evidence should not pass.
+
+Score the included semantic replay samples:
+
+```bash
+python3 examples/agent-benchmarks/incident.bgp_route_leak_optimizer.v1/scorer.py \
+  --replay examples/agent-benchmarks/incident.bgp_route_leak_optimizer.v1/replay/samples/correct_repair.json
+
+python3 examples/agent-benchmarks/incident.bgp_route_leak_optimizer.v1/scorer.py \
+  --replay examples/agent-benchmarks/incident.bgp_route_leak_optimizer.v1/replay/samples/wrong_origin_restart.json
+```

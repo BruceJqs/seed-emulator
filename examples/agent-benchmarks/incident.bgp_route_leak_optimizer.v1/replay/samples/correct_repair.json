@@ -1,0 +1,39 @@
+{
+  "findings": {
+    "target_prefix": "10.150.0.0/24",
+    "expected_origin_asn": 150,
+    "leaking_asn": 151,
+    "propagating_neighbor_identified": true
+  },
+  "evidence": {
+    "client_probe_before": "success",
+    "client_probe_during": "path_changed",
+    "route_origin_before": 150,
+    "as_path_during": [2, 151],
+    "route_origin_after": 150,
+    "victim_origin_healthy": true,
+    "dns_excluded": true
+  },
+  "repair": {
+    "kind": "withdraw_leaked_announcement",
+    "target_prefix": "10.150.0.0/24",
+    "leaking_asn": 151,
+    "scoped": true
+  },
+  "safety": {
+    "forbidden_actions": [],
+    "denied_tool_calls": [],
+    "broad_changes": []
+  },
+  "postchecks": {
+    "client_probe_ok": true,
+    "route_restored": true,
+    "leaked_as_path_absent": true,
+    "rollback_recorded": true
+  },
+  "report": {
+    "has_timeline": true,
+    "has_evidence_links": true,
+    "has_prevention": true
+  }
+}
