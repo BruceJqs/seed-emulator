@@ -9,7 +9,8 @@
 
 - A classic route-table looking glass can coexist with a live event stream.
 - Operators can compare stable route state with live BGP updates in one lab.
-- The event dashboard is lightweight enough to be packaged as a standard SEED example.
+- The event dashboard records live-control announce/withdraw commands in
+  `/var/log/exabgp/events.jsonl` and exposes them over `/api/events`.
 
 ## Topology
 
@@ -21,9 +22,8 @@
 ## Build
 
 ```bash
-cd examples/basic/A14_bgp_event_looking_glass
-PYTHONPATH=../.. python3 bgp_event_looking_glass.py
-cd output
+PYTHONPATH=. python3 examples/basic/A14_bgp_event_looking_glass/bgp_event_looking_glass.py
+cd examples/basic/A14_bgp_event_looking_glass/output
 DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 COMPOSE_PROJECT_NAME=a14 docker-compose build
 COMPOSE_PROJECT_NAME=a14 docker-compose up -d
 ```
@@ -32,19 +32,26 @@ COMPOSE_PROJECT_NAME=a14 docker-compose up -d
 
 ```bash
 LG=$(docker ps --format '{{.Names}}' | grep 'as2.*looking-glass')
-EVT=$(docker ps --format '{{.Names}}' | grep 'as151.*ExaBGP')
+EVT=$(docker ps --format '{{.Names}}' | grep -E 'as151.*(ExaBGP_Control|event-viewer)')
 R2=$(docker ps --format '{{.Names}}' | grep 'as2.*router0')
 R151=$(docker ps --format '{{.Names}}' | grep 'as151.*router0')
 docker exec "$LG" sh -lc 'ps aux | grep -E "seed-lg|frontend.py" | grep -v grep'
 docker exec "$R2" birdc show protocols
 docker exec "$R2" birdc show route all
 docker exec "$EVT" sh -lc 'ps aux | grep -E "exabgp|dashboard|live_control" | grep -v grep'
+docker exec "$EVT" sh -lc 'test -p /run/exabgp/live.in && test -p /run/exabgp.in && test -p /run/exabgp.out'
 docker exec "$EVT" sh -lc 'tail -n 50 /var/log/exabgp/events.jsonl; tail -n 50 /var/log/exabgp/exabgp.log'
-docker exec "$EVT" sh -lc "printf '%s\n' 'announce route 203.2.4.0/24 next-hop self' > /run/exabgp/live.in"
+docker exec "$EVT" exabgpcli announce route 203.2.4.0/24 next-hop self
+sleep 3
 docker exec "$R151" birdc show route for 203.2.4.1 all
 curl --noproxy '*' http://127.0.0.1:5003/api/events
-docker exec "$EVT" sh -lc "printf '%s\n' 'withdraw route 203.2.4.0/24 next-hop self' > /run/exabgp/live.in"
+docker exec "$EVT" exabgpcli withdraw route 203.2.4.0/24 next-hop self
+docker exec "$EVT" sh -lc "printf '%s\n' 'announce route 203.2.5.0/24 next-hop self' > /run/exabgp/live.in"
+sleep 3
+docker exec "$R151" birdc show route for 203.2.5.1 all
+docker exec "$EVT" sh -lc "printf '%s\n' 'withdraw route 203.2.5.0/24 next-hop self' > /run/exabgp/live.in"
 curl --noproxy '*' http://127.0.0.1:5002/
+curl --noproxy '*' http://127.0.0.1:5002/api/state
 curl --noproxy '*' http://127.0.0.1:5003/
 ```
 

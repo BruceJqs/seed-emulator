@@ -2,7 +2,7 @@
 
 This guide provides a thorough checklist and runnable commands to validate the B29 DNS-first email example end-to-end, including: DNS, BGP, email flows (intra- and cross-domain), logging/record verification, resilience, and large-scale/roster-based automation.
 
-- Internet Map: http://localhost:8080/map.html
+- Internet Map: http://localhost:8080/pro/home
 - Roundcube: http://localhost:8082
 
 ## 1) Environment pre-checks
@@ -67,7 +67,7 @@ Use the batch script to exercise multiple flows and get a summary.
 
 - Defaults:
 ```bash
-cd /home/parallels/seed-email-system/examples/internet/B29_email_dns
+cd examples/internet/B29_email_dns
 ./run_cross_tests.sh
 ```
 - Custom flows file (one "from to" pair per line, `#` for comments):
@@ -100,8 +100,8 @@ For quickly adding many providers or simulating a larger email network (without 
 
 - Generate providers under `tools/output/`:
 ```bash
-cd /home/parallels/seed-email-system/examples/internet/B29_email_dns
-PYTHONPATH=/home/parallels/seed-email-system:$PYTHONPATH \
+cd examples/internet/B29_email_dns
+PYTHONPATH=$(git rev-parse --show-toplevel):${PYTHONPATH:-} \
   python \
   tools/email_autogen.py --platform arm --providers 8 --asn-start 150
 ```
@@ -183,7 +183,7 @@ If you need to permanently add a domain into the DNS-first B29 core, you’ll ne
 - Record environment info:
 ```bash
 docker-compose ps
-birdc show protocols | grep BGP
+docker exec as100brd-ix100-10.100.0.100 birdc show protocols | grep BGP
 ```
 
 ---

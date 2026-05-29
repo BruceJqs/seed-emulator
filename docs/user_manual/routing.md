@@ -1,5 +1,44 @@
 # Manual: Routing
 
+<a name="router-backends"></a>
+## Router Routing Backends
+
+Routers use the BIRD backend by default:
+
+```python
+as2.createRouter("router0")
+```
+
+A topology can select another real router backend when the router is created:
+
+```python
+as2.createRouter("r2", routingBackend="frr")
+```
+
+The long-term router backend values are `bird` and `frr`. The protocol layers
+still describe routing intent in the same way. `Ebgp`, `Ibgp`, and `Ospf`
+record sessions, relationships, and interface intent; the `Routing` layer
+renders the daemon-specific configuration for each router backend.
+
+`frr` is used for routers whose control plane should be rendered as FRRouting.
+The current branch also has a transitional `routingBackend="exabgp"` path for
+eBGP control-plane speakers that directly join an IX or a router-facing link
+and announce routes through ExaBGP. Treat that as a demo bridge, not as the
+target router backend API. ExaBGP speakers can add static announcements in the
+current topology API:
+
+```python
+speaker = as180.createRouter("exabgp", routingBackend="exabgp")
+speaker.joinNetwork("ix100", address="10.100.0.180")
+speaker.addBgpAnnouncement("198.51.100.0/24")
+```
+
+At runtime, ExaBGP speakers expose ExaBGP's native CLI pipes
+(`/run/exabgp.in` and `/run/exabgp.out`) and SEED's convenience
+FIFO (`/run/exabgp/live.in`) for live announce and withdraw commands. The
+current ExaBGP path is intended for eBGP announcement and event workflows, not
+as a full OSPF/iBGP transit router.
+
 
 <a name="ibgp-ospf-protocol"></a>
 ## Configure the OSPF and IBGP Routing Protocols
@@ -48,4 +87,3 @@ ospf.maskByName('151', 'net0')
 # mask with reference
 ospf.maskNetwork(as152_net)
 ```
-

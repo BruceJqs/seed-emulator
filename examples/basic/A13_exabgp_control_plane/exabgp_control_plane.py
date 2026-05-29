@@ -38,10 +38,10 @@ as2.createNetwork("net0")
 as2.createRouter("router0").joinNetwork("net0").joinNetwork("ix100")
 
 as180 = base.createAutonomousSystem(180)
-exabgp_router = as180.createRouter("exabgp", routingBackend="exabgp")
-exabgp_router.joinNetwork("ix100", address="10.100.0.180")
-exabgp_router.addPort(exabgp_dashboard_port, 5000)
-exabgp_router.addBgpAnnouncement("198.51.100.0/24")
+exabgp_speaker = as180.createRouter("exabgp", routingBackend="exabgp")
+exabgp_speaker.joinNetwork("ix100", address="10.100.0.180")
+exabgp_speaker.addPort(exabgp_dashboard_port, 5000)
+exabgp_speaker.addBgpAnnouncement("198.51.100.0/24")
 
 ebgp.addPrivatePeering(100, 2, 180, abRelationship=PeerRelationship.Provider)
 

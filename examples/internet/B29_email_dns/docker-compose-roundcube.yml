@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   roundcube-db:
     image: mariadb:10.11
@@ -59,19 +57,23 @@ networks:
   # 引用已存在的SEED网络（6个邮件服务商）
   output_net_200_net0:
     external: true
+    name: ${SEED_B29_PROJECT_NAME:-b29}_net_200_net0
   output_net_201_net0:
     external: true
+    name: ${SEED_B29_PROJECT_NAME:-b29}_net_201_net0
   output_net_202_net0:
     external: true
+    name: ${SEED_B29_PROJECT_NAME:-b29}_net_202_net0
   output_net_203_net0:
     external: true
+    name: ${SEED_B29_PROJECT_NAME:-b29}_net_203_net0
   output_net_204_net0:
     external: true
+    name: ${SEED_B29_PROJECT_NAME:-b29}_net_204_net0
   output_net_205_net0:
     external: true
+    name: ${SEED_B29_PROJECT_NAME:-b29}_net_205_net0
 
 volumes:
   roundcube-db-data:
   roundcube-www-data:
-
-

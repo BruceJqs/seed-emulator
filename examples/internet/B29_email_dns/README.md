@@ -2,7 +2,7 @@
 
 A realistic multi-ISP, multi-IX email system using DNS-based MX routing with a Roundcube webmail frontend. This is the single source of truth for running and validating the B29 scenario.
 
-- Internet Map: http://localhost:8080/map.html
+- Internet Map: http://localhost:8080/pro/home
 - Roundcube: http://localhost:8082
 
 ## Status
@@ -19,7 +19,7 @@ A realistic multi-ISP, multi-IX email system using DNS-based MX routing with a R
 cd examples/internet/B29_email_dns
 
 # Start everything (generate -> up -> accounts -> Roundcube)
-bash b29ctl.sh start            # auto-detects platform via uname; uses docker compose or docker-compose
+bash b29ctl.sh start            # default compose project: b29
 
 # Cross-domain tests (primary providers only)
 bash b29ctl.sh test
@@ -58,12 +58,16 @@ printf "Subject: Startup->163\n\nHi\n" | docker exec -i mail-startup-selfhosted 
 
 - Check delivery logs (look for Saved/status=sent)
 ```bash
-cd /home/parallels/seed-email-system/examples/internet/B29_email_dns
+cd examples/internet/B29_email_dns
 for f in \
   output/mail-gmail-google-data/mail-logs/mail.log \
   output/mail-company-aliyun-data/mail-logs/mail.log \
   output/mail-163-netease-data/mail-logs/mail.log
-{ do echo "=== $f ==="; [ -f "$f" ] && grep -E "Saved|status=sent" "$f" | tail -n 20 || echo missing; echo; }; done
+do
+  echo "=== $f ==="
+  [ -f "$f" ] && grep -E "Saved|status=sent" "$f" | tail -n 20 || echo missing
+  echo
+done
 ```
 
 - Optional: disable milters at runtime for deterministic tests

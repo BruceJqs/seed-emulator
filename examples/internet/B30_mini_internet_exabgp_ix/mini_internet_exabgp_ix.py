@@ -30,7 +30,7 @@ EXABGP_DEFAULT_HOST_PORT = 5106
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build mini_internet with an AS180 ExaBGP IX control-plane router"
+        description="Build mini_internet with an AS180 ExaBGP IX control-plane speaker"
     )
     parser.add_argument("platform", nargs="?", default="amd", choices=["amd", "arm"])
     return parser.parse_args()
@@ -48,17 +48,17 @@ def get_dashboard_host_port() -> int:
         raise ValueError(f"{EXABGP_HOST_PORT_ENV} must be an integer, got {value!r}") from exc
 
 
-def add_exabgp_ix_router(emu: Emulator):
+def add_exabgp_ix_speaker(emu: Emulator):
     base = emu.getLayer("Base")
 
     as180 = base.createAutonomousSystem(EXABGP_ASN)
-    router = as180.createRouter(EXABGP_ROUTER, routingBackend="exabgp")
-    router.joinNetwork(f"ix{EXABGP_IX}", address=EXABGP_IX_ADDRESS)
-    router.addPort(get_dashboard_host_port(), EXABGP_CONTAINER_PORT, "tcp")
-    router.setDisplayName("AS180 ExaBGP IX Control Plane")
-    router.addBgpAnnouncement(EXABGP_ANNOUNCEMENT)
-    router.addBgpAnnouncement(EXABGP_EXTRA_ANNOUNCEMENT)
-    return router
+    speaker = as180.createRouter(EXABGP_ROUTER, routingBackend="exabgp")
+    speaker.joinNetwork(f"ix{EXABGP_IX}", address=EXABGP_IX_ADDRESS)
+    speaker.addPort(get_dashboard_host_port(), EXABGP_CONTAINER_PORT, "tcp")
+    speaker.setDisplayName("AS180 ExaBGP IX Control Plane")
+    speaker.addBgpAnnouncement(EXABGP_ANNOUNCEMENT)
+    speaker.addBgpAnnouncement(EXABGP_EXTRA_ANNOUNCEMENT)
+    return speaker
 
 
 def build_emulator() -> Emulator:
@@ -68,7 +68,7 @@ def build_emulator() -> Emulator:
     emu = Emulator()
     emu.load(str(base_bin))
 
-    add_exabgp_ix_router(emu)
+    add_exabgp_ix_speaker(emu)
     ebgp = emu.getLayer("Ebgp")
     assert isinstance(ebgp, Ebgp)
     ebgp.addPrivatePeering(EXABGP_IX, 2, EXABGP_ASN, abRelationship=PeerRelationship.Provider)

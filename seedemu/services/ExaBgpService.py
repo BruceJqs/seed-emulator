@@ -36,15 +36,17 @@ for raw in sys.stdin:
 
 ExaBgpFileTemplates["live_control"] = """\
 #!/usr/bin/env python3
+import json
 import os
 import stat
-import sys
 import time
 
 fifo_path = os.environ.get("EXABGP_LIVE_FIFO", "/run/exabgp/live.in")
 log_path = os.environ.get("EXABGP_LIVE_LOG", "/var/log/exabgp/live-control.log")
+event_log_path = os.environ.get("EXABGP_EVENT_LOG", "/var/log/exabgp/events.jsonl")
 os.makedirs(os.path.dirname(fifo_path), exist_ok=True)
 os.makedirs(os.path.dirname(log_path), exist_ok=True)
+os.makedirs(os.path.dirname(event_log_path), exist_ok=True)
 
 try:
     if os.path.exists(fifo_path) and not stat.S_ISFIFO(os.stat(fifo_path).st_mode):
@@ -56,8 +58,11 @@ except FileExistsError:
     pass
 
 def log(message: str) -> None:
+    ts = int(time.time())
     with open(log_path, "a", encoding="utf-8") as fh:
-        fh.write(f"{int(time.time())} {message}\\n")
+        fh.write(f"{ts} {message}\\n")
+    with open(event_log_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"type": "live-control", "_ts": ts, "command": message}) + "\\n")
 
 log(f"ready fifo={fifo_path}")
 
@@ -87,18 +92,25 @@ title = os.environ.get("EXABGP_DASHBOARD_TITLE", "ExaBGP Event Viewer")
 
 def _tail_events(limit: int = 200):
     out = []
+    seen = set()
+    def add_event(item):
+        key = (item.get("_ts", 0), item.get("type", ""), item.get("command", ""), json.dumps(item, sort_keys=True))
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(item)
     if event_log.exists():
         for line in event_log.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]:
             try:
-                out.append(json.loads(line))
+                add_event(json.loads(line))
             except Exception:
-                out.append({"type": "exabgp-log", "raw": line})
+                add_event({"type": "exabgp-log", "raw": line})
     if live_log.exists():
         for line in live_log.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]:
             if not line.strip():
                 continue
             ts, _, command = line.partition(" ")
-            out.append({"type": "live-control", "_ts": int(ts) if ts.isdigit() else 0, "command": command or line})
+            add_event({"type": "live-control", "_ts": int(ts) if ts.isdigit() else 0, "command": command or line})
     return sorted(out, key=lambda item: item.get("_ts", 0))[-limit:]
 
 
@@ -122,7 +134,7 @@ def index():
 <body>
   <header>
     <h1>{title}</h1>
-    <div>Live BGP event stream rendered from ExaBGP JSON output.</div>
+    <div>Live BGP event stream rendered from ExaBGP JSON output and live-control commands.</div>
   </header>
   <main id="events"></main>
   <script>
@@ -405,7 +417,13 @@ class ExaBgpServer(Server):
             "/var/log/exabgp/live-control.log"
         )
         node.appendStartCommand(
-            "mkdir -p /run/exabgp /var/run/exabgp && rm -f /run/exabgp/live.in"
+            "mkdir -p /run/exabgp /var/run/exabgp && "
+            "rm -f /run/exabgp/live.in /run/exabgp.in /run/exabgp.out "
+            "/var/run/exabgp.in /var/run/exabgp.out && "
+            "mkfifo /run/exabgp.in /run/exabgp.out && "
+            "touch /var/log/exabgp/events.jsonl /var/log/exabgp/live-control.log && "
+            "chmod 666 /run/exabgp.in /run/exabgp.out && "
+            "chmod 777 /run/exabgp /var/run/exabgp"
         )
         node.appendStartCommand("chmod +x /opt/exabgp/event_sink.py /opt/exabgp/live_control.py /opt/exabgp/dashboard.py")
         if self.__enable_dashboard:
@@ -417,7 +435,8 @@ class ExaBgpServer(Server):
             )
         node.appendStartCommand(
             "EXABGP_EVENT_LOG=/var/log/exabgp/events.jsonl "
-            "env exabgp.api.cli=false "
+            "env exabgp.api.cli=true exabgp.api.pipename=exabgp "
+            "exabgp.daemon.drop=false exabgp.daemon.user=root "
             "exabgp /etc/exabgp/exabgp.conf >/var/log/exabgp/exabgp.log 2>&1",
             True,
         )

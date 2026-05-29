@@ -23,9 +23,8 @@ routers with `routingBackend="frr"`.
 ## Build
 
 ```bash
-cd examples/basic/A12_bgp_mixed_backend
-PYTHONPATH=../.. python3 bgp_mixed_backend.py
-cd output
+PYTHONPATH=. python3 examples/basic/A12_bgp_mixed_backend/bgp_mixed_backend.py
+cd examples/basic/A12_bgp_mixed_backend/output
 DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 COMPOSE_PROJECT_NAME=a12 docker-compose build
 COMPOSE_PROJECT_NAME=a12 docker-compose up -d
 ```
@@ -39,11 +38,20 @@ FRR_AS151=$(docker ps --format '{{.Names}}' | grep 'as151.*router0')
 BIRD_AS2=$(docker ps --format '{{.Names}}' | grep 'as2.*r1')
 BIRD_AS152=$(docker ps --format '{{.Names}}' | grep 'as152.*router0')
 docker exec "$FRR_AS2" sh -lc 'test -f /etc/frr/frr.conf && ! pgrep bird && sed -n "1,220p" /etc/frr/frr.conf'
+docker exec "$FRR_AS151" sh -lc 'test -f /etc/frr/frr.conf && ! pgrep bird && sed -n "1,220p" /etc/frr/frr.conf'
+docker exec "$BIRD_AS2" sh -lc 'test -f /etc/bird/bird.conf && sed -n "1,220p" /etc/bird/bird.conf'
 docker exec "$FRR_AS2" vtysh -c 'show bgp summary' -c 'show ip ospf neighbor' -c 'show bgp ipv4 unicast'
 docker exec "$FRR_AS151" vtysh -c 'show bgp summary' -c 'show ip route bgp'
 docker exec "$BIRD_AS2" birdc show protocols
 docker exec "$BIRD_AS2" birdc show route all
 docker exec "$BIRD_AS152" birdc show protocols
+docker exec "$BIRD_AS152" birdc show route all
+curl --noproxy '*' http://127.0.0.1:8080/pro/home
 ```
+
+The route output should show that mixed BIRD/FRR routers exchange customer
+prefixes through normal BGP. Check the next hop, AS path, large communities, and
+local preference in the route details; those attributes prove that the backend
+renderer is preserving SEED route-policy intent, not only starting a daemon.
 
 The exact container names are generated in `output/docker-compose.yml`.

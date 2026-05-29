@@ -504,10 +504,10 @@ SEED Realistic Email System (29-1) created!
    SMTP: localhost:2205 | IMAP: localhost:1405
 
 🌐 Monitoring:
-   Internet Map: http://localhost:8080/map.html
+   Internet Map: http://localhost:8080/pro/home
 
 ======================================================================
-    "")
+    """)
 
 if __name__ == "__main__":
     platform = sys.argv[1] if len(sys.argv) > 1 else "auto"

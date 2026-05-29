@@ -7,6 +7,11 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose-roundcube.yml"
 
+export SEED_B29_PROJECT_NAME="${SEED_B29_PROJECT_NAME:-${COMPOSE_PROJECT_NAME:-b29}}"
+ROUNDCUBE_PROJECT_NAME="${ROUNDCUBE_PROJECT_NAME:-roundcube-b29}"
+export DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-0}"
+export COMPOSE_DOCKER_CLI_BUILD="${COMPOSE_DOCKER_CLI_BUILD:-0}"
+
 compose() {
     if docker compose version >/dev/null 2>&1; then
         docker compose "$@"
@@ -40,7 +45,7 @@ check_mail_servers() {
         return 1
     }
     
-    MAIL_SERVERS=$(compose ps 2>/dev/null | grep -E "^mail-" | grep -E "Up|running" | wc -l)
+    MAIL_SERVERS=$(COMPOSE_PROJECT_NAME="$SEED_B29_PROJECT_NAME" compose ps 2>/dev/null | grep -E "^mail-" | grep -E "Up|running" | wc -l)
     
     if [ "$MAIL_SERVERS" -eq 6 ]; then
         print_success "All 6 mail servers are running"
@@ -48,7 +53,7 @@ check_mail_servers() {
     else
         print_warning "Only $MAIL_SERVERS mail servers are running (expected 6)"
         print_info "Starting mail servers..."
-        compose up -d
+        COMPOSE_PROJECT_NAME="$SEED_B29_PROJECT_NAME" compose up -d
         sleep 10
         return 0
     fi
@@ -63,7 +68,7 @@ start_roundcube() {
     
     # 启动Roundcube
     cd "$SCRIPT_DIR"
-    compose -f "$COMPOSE_FILE" up -d
+    COMPOSE_PROJECT_NAME="$ROUNDCUBE_PROJECT_NAME" compose -f "$COMPOSE_FILE" up -d
     
     if [ $? -eq 0 ]; then
         print_success "Roundcube Webmail started"
@@ -95,7 +100,7 @@ start_roundcube() {
 stop_roundcube() {
     print_info "Stopping Roundcube Webmail..."
     cd "$SCRIPT_DIR"
-    compose -f "$COMPOSE_FILE" down
+    COMPOSE_PROJECT_NAME="$ROUNDCUBE_PROJECT_NAME" compose -f "$COMPOSE_FILE" down -v --remove-orphans
     
     if [ $? -eq 0 ]; then
         print_success "Roundcube Webmail stopped"
@@ -255,4 +260,3 @@ main() {
 }
 
 main "$@"
-
