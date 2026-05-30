@@ -214,7 +214,8 @@ class AutonomousSystem(Printable, Graphable, Configurable, Customizable):
         @brief Create a router node.
 
         @param name name of the new node.
-        @param routingBackend routing daemon backend. Supported values are bird, frr, exabgp.
+        @param routingBackend routing daemon backend. Supported values are bird
+        and frr. Use ExaBgpService for ExaBGP speakers.
         @returns Node.
         """
         assert name not in self.__routers, 'Router with name {} already exists.'.format(name)
