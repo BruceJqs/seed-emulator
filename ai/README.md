@@ -8,6 +8,7 @@ the code they describe.
 
 ```text
 ai/
+  design-principles.md
   skills/
     seed-control-plane-design/
       SKILL.md
@@ -17,6 +18,8 @@ ai/
 
 ## Current Scope
 
+- `design-principles.md`: shared engineering principles for SEED feature design,
+  service integration, validation, and AI-assisted operations.
 - `skills/seed-control-plane-design`: design-review rules for BIRD/FRR,
   ExaBGP, BGP/OSPF intent, Looking Glass, and runtime validation evidence.
 - `mcp/`: planning surface for future SeedOps MCP contracts, risk gates, and
