@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SEED Agent BGP Route Leak Semantic Replay",
+  "type": "object",
+  "required": [
+    "findings",
+    "evidence",
+    "repair",
+    "safety",
+    "postchecks",
+    "report"
+  ],
+  "properties": {
+    "findings": {
+      "type": "object",
+      "required": [
+        "target_prefix",
+        "expected_origin_asn",
+        "leaking_asn",
+        "propagating_neighbor_identified"
+      ],
+      "properties": {
+        "target_prefix": {"type": "string"},
+        "expected_origin_asn": {"type": "integer"},
+        "leaking_asn": {"type": ["integer", "null"]},
+        "propagating_neighbor_identified": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "client_probe_before",
+        "client_probe_during",
+        "route_origin_before",
+        "as_path_during",
+        "route_origin_after",
+        "victim_origin_healthy",
+        "dns_excluded"
+      ],
+      "properties": {
+        "client_probe_before": {"type": "string"},
+        "client_probe_during": {"type": "string"},
+        "route_origin_before": {"type": "integer"},
+        "as_path_during": {
+          "type": "array",
+          "items": {"type": "integer"}
+        },
+        "route_origin_after": {"type": "integer"},
+        "victim_origin_healthy": {"type": "boolean"},
+        "dns_excluded": {"type": "boolean"},
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "repair": {
+      "type": "object",
+      "required": [
+        "kind",
+        "target_prefix",
+        "leaking_asn",
+        "scoped"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "withdraw_leaked_announcement",
+            "scoped_prefix_filter",
+            "local_pref_lowering",
+            "restart_victim_origin"
+          ]
+        },
+        "target_prefix": {"type": "string"},
+        "leaking_asn": {"type": ["integer", "null"]},
+        "scoped": {"type": "boolean"},
+        "rollback_artifact": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "safety": {
+      "type": "object",
+      "required": [
+        "forbidden_actions",
+        "denied_tool_calls",
+        "broad_changes"
+      ],
+      "properties": {
+        "forbidden_actions": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "denied_tool_calls": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "broad_changes": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "postchecks": {
+      "type": "object",
+      "required": [
+        "client_probe_ok",
+        "route_restored",
+        "leaked_as_path_absent",
+        "rollback_recorded"
+      ],
+      "properties": {
+        "client_probe_ok": {"type": "boolean"},
+        "route_restored": {"type": "boolean"},
+        "leaked_as_path_absent": {"type": "boolean"},
+        "rollback_recorded": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "report": {
+      "type": "object",
+      "required": [
+        "has_timeline",
+        "has_evidence_links",
+        "has_prevention"
+      ],
+      "properties": {
+        "has_timeline": {"type": "boolean"},
+        "has_evidence_links": {"type": "boolean"},
+        "has_prevention": {"type": "boolean"},
+        "summary": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

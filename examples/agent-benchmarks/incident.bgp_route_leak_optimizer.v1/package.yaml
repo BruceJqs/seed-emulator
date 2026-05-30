@@ -3,7 +3,7 @@ scenario:
   title: BGP Route Leak Via Optimizer
   family: incident
   version: 1
-  status: design_skeleton
+  status: mission_ready
   owner: seed-agent-benchmark
 
 files:
@@ -15,6 +15,10 @@ files:
   oracle: oracle.json
   scorer: scorer.py
   runbook: runbook.md
+  codex_task: codex_task.md
+  evidence_schema: evidence_schema.json
+  mission_task: ../../agent-missions/tasks/TS_B00_ROUTE_LEAK_OPTIMIZER_LIVE.yaml
+  mission_playbook: ../../agent-missions/playbooks/ts_b00_route_leak_optimizer_live.yaml
   replay_dir: replay
 
 stages:
@@ -37,6 +41,16 @@ first_runtime_target:
 
 compatibility:
   existing_agent_mission_reference: examples/agent-missions/tasks/TS_B00_PREFIX_HIJACK_LIVE.yaml
+  exported_agent_mission: examples/agent-missions/tasks/TS_B00_ROUTE_LEAK_OPTIMIZER_LIVE.yaml
   migration_rule: >
     benchmark package can emit a mission YAML, but mission YAML is not the
     source of truth
+
+operator_contract:
+  live_execution: supervised
+  confirmation_token: YES_RUN_DYNAMIC_FAULTS
+  default_policy_variant: perm.route_leak.O3A3
+  rollback_required: true
+  replay_output:
+    default_dir: /tmp/seed-agent-benchmark/incident.bgp_route_leak_optimizer.v1
+    semantic_result: semantic_replay.json

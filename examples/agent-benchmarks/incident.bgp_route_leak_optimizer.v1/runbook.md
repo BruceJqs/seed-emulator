@@ -1,7 +1,21 @@
 # Runbook: BGP Route Leak Benchmark
 
-This is a design runbook for the first implementation. It intentionally avoids
-hardcoded container names; resolve them from runtime inventory.
+This is the operator runbook for the mission-ready implementation. It
+intentionally avoids hardcoded container names; resolve them from runtime
+inventory.
+
+Agent-facing task card:
+
+```text
+codex_task.md
+```
+
+Mission export:
+
+```text
+../../agent-missions/tasks/TS_B00_ROUTE_LEAK_OPTIMIZER_LIVE.yaml
+../../agent-missions/playbooks/ts_b00_route_leak_optimizer_live.yaml
+```
 
 ## 1. Prepare Runtime
 
@@ -84,3 +98,16 @@ Pass condition:
 ```text
 origin AS is AS150, AS151 is absent from selected path, and client probe works.
 ```
+
+## 7. Score
+
+If the agent generated a semantic replay JSON, score it:
+
+```bash
+python3 examples/agent-benchmarks/incident.bgp_route_leak_optimizer.v1/scorer.py \
+  --replay /tmp/seed-agent-benchmark/incident.bgp_route_leak_optimizer.v1/semantic_replay.json \
+  --validate-schema
+```
+
+The replay should follow `evidence_schema.json`. A good run should score at
+least `85/100` and have `status=pass`.

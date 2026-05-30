@@ -1,0 +1,62 @@
+version: 1
+name: ts_b00_route_leak_optimizer_live
+vars:
+  target_prefix: 10.150.0.0/24
+  target_ip: 10.150.0.1
+  leak_protocol_id: seedops_route_leak_10_150_0_0_24
+defaults:
+  selector:
+    asn: [151]
+    role: [BorderRouter, Router]
+  timeout_seconds: 30
+  parallelism: 12
+  max_output_chars: 10000
+steps:
+  - action: workspace_refresh
+    id: refresh
+    save_as: refresh
+  - action: routing_bgp_summary
+    id: bgp_before
+    save_as: route_summary.before
+  - action: traceroute
+    id: trace_before
+    dst: 10.150.0.1
+    save_as: traceroute.before
+    on_error: continue
+  - action: bgp_announce_prefix
+    id: announce_route_leak
+    prefix: 10.150.0.0/24
+    table: t_direct
+    protocol_id: seedops_route_leak_10_150_0_0_24
+    save_as: leak_event
+  - action: sleep
+    id: propagation_wait
+    seconds: 3
+  - action: routing_bgp_summary
+    id: bgp_during
+    save_as: route_summary.during
+  - action: traceroute
+    id: trace_during
+    dst: 10.150.0.1
+    save_as: traceroute.during
+    on_error: continue
+  - action: bgp_withdraw_prefix
+    id: withdraw_route_leak
+    prefix: 10.150.0.0/24
+    table: t_direct
+    protocol_id: seedops_route_leak_10_150_0_0_24
+    save_as: rollback_event
+    on_error: continue
+  - action: sleep
+    id: rollback_wait
+    seconds: 3
+    on_error: continue
+  - action: routing_bgp_summary
+    id: bgp_after
+    save_as: route_summary.after
+    on_error: continue
+  - action: traceroute
+    id: trace_after
+    dst: 10.150.0.1
+    save_as: traceroute.after
+    on_error: continue

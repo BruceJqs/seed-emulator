@@ -17,7 +17,8 @@ Core properties:
 - reports are execution-trace-first, not summary-only
 
 Curated agent-facing runtime bundles now live in `examples/agent-specific`.
-Legacy showcase remains in `examples/agent-base`.
+Older interactive materials remain outside the mission contract and are not the
+source of truth for accepted tasks.
 
 ---
 
@@ -42,6 +43,7 @@ examples/agent-missions/
   - `RS_B29_FAULT_IMPACT_ABLATION`
 - Routing Security
   - `TS_B00_PREFIX_HIJACK_LIVE`
+  - `TS_B00_ROUTE_LEAK_OPTIMIZER_LIVE`
 - Service Reachability
   - `TS_B29_MAIL_REACHABILITY_DEBUG`
 - Security Offense-Defense
@@ -105,6 +107,15 @@ examples/agent-missions/run_task_demo.sh \
   --context-json '{"target_prefix":"10.150.0.0/24","attacker_asn":"151"}' \
   --risk on \
   --confirm-token YES_RUN_DYNAMIC_FAULTS
+
+# Route leak optimizer benchmark (live drill with rollback and scorer replay)
+examples/agent-missions/run_task_demo.sh \
+  --task TS_B00_ROUTE_LEAK_OPTIMIZER_LIVE \
+  --objective "Diagnose AS151 route leak for 10.150.0.0/24, repair it, and record before/during/after evidence" \
+  --attach-output-dir examples/internet/B00_mini_internet/output \
+  --context-json '{"target_prefix":"10.150.0.0/24","leaking_asn":"151","victim_asn":"150","propagating_asn":"2"}' \
+  --risk on \
+  --confirm-token YES_RUN_DYNAMIC_FAULTS
 ```
 
 Run risky mission with confirmation:
@@ -126,9 +137,17 @@ Outputs are written under `/tmp/seed-agent-mission-demo/<task_id>/<timestamp>/`.
 - captures before/during/after evidence
 - performs explicit rollback and post-check validation
 
+`TS_B00_ROUTE_LEAK_OPTIMIZER_LIVE` uses the same supervised dynamic-routing
+tooling but grades the incident as a benchmark package:
+
+- AS151 acts as the leaking optimizer for `10.150.0.0/24`
+- AS150 remains the legitimate origin
+- AS2 is the accepting or propagating transit
+- the expected repair is scoped withdraw or route filtering, not DNS or origin restart
+
 ---
 
-## One-command review pack (for presentation)
+## One-command Review Pack
 
 Run a six-class review bundle from the repo root. If SeedOps and SeedAgent use different bearer tokens, pass them separately:
 

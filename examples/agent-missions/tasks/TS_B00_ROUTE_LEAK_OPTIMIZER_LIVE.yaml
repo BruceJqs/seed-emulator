@@ -1,0 +1,93 @@
+task_id: TS_B00_ROUTE_LEAK_OPTIMIZER_LIVE
+title: B00 Route Leak Optimizer Live Drill
+track: troubleshooting
+baseline: B00
+scenario_class: Routing Security
+benchmark_package: examples/agent-benchmarks/incident.bgp_route_leak_optimizer.v1
+objective_template: diagnose an AS151 optimizer route leak, apply scoped repair, and produce replay evidence
+required_inputs:
+  - id: attach_output_dir
+    question: Provide B00 output directory for attach.
+    required: true
+    reason: Runtime workspace attachment is required.
+  - id: target_prefix
+    question: Which victim prefix is leaked?
+    required: true
+    default: 10.150.0.0/24
+    pattern: '^\d{1,3}(\.\d{1,3}){3}/\d{1,2}$'
+    reason: Prefix scope is required for route-leak injection and rollback.
+  - id: leaking_asn
+    question: Which ASN is the leaking optimizer?
+    required: true
+    default: "151"
+    pattern: '^[0-9]{1,6}$'
+    reason: The repair must identify and scope the leaking neighbor.
+  - id: victim_asn
+    question: Which ASN is the legitimate origin?
+    required: true
+    default: "150"
+    pattern: '^[0-9]{1,6}$'
+    reason: The verifier must confirm the route returns to the legitimate origin.
+  - id: propagating_asn
+    question: Which ASN accepts or propagates the leak?
+    required: false
+    default: "2"
+    pattern: '^[0-9]{1,6}$'
+    reason: This narrows the BGP evidence search.
+stages: [baseline, inject, observe, propose, gate, act, verify, score]
+policy_by_stage:
+  baseline: read_only
+  inject: net_ops
+  observe: read_only
+  propose: read_only
+  gate: confirmation_required
+  act: net_ops
+  verify: read_only
+  score: read_only
+canonical_request_templates:
+  - >
+    Attach to {attach_output_dir}; run the incident benchmark
+    incident.bgp_route_leak_optimizer.v1 by leaking {target_prefix} from AS{leaking_asn},
+    proving AS{victim_asn} and DNS are not the root cause, applying a scoped withdraw
+    or route filter, verifying recovery, and producing semantic replay evidence.
+fallback_playbooks:
+  - examples/agent-missions/playbooks/ts_b00_route_leak_optimizer_live.yaml
+scale_hints: [small, medium]
+rollback_required: true
+risk_profile:
+  requires_confirmation: true
+  confirmation_token: YES_RUN_DYNAMIC_FAULTS
+  reversible_actions:
+    - bgp_withdraw_prefix
+    - restore_route_policy
+evidence_requirements:
+  - route_summary.before
+  - client_probe.before
+  - route_summary.during
+  - traceroute.during
+  - leak_event
+  - route_summary.after
+  - client_probe.after
+  - rollback_event
+skill_patterns:
+  - attach-and-scan
+  - routing-security-incident
+  - scoped-mitigation
+  - replay-evidence
+acceptance_checks:
+  - status == ok
+  - AS151 appears in during-fault route evidence
+  - AS150 is restored after repair
+  - rollback or scoped repair is recorded
+  - no forbidden shortcut is used
+report_template: |
+  Route leak optimizer report for {task_id}:
+  - objective: {objective}
+  - victim prefix: {target_prefix}
+  - leaking ASN: {leaking_asn}
+  - legitimate origin: {victim_asn}
+  - baseline evidence: {baseline_observation}
+  - incident evidence: {impact}
+  - repair: {repair_action}
+  - verification: {verification}
+  - semantic replay: {semantic_replay_path}

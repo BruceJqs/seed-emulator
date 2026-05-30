@@ -30,6 +30,13 @@ REQUIRED_DECLARED_FILES = {
     "replay_dir",
 }
 
+OPTIONAL_DECLARED_FILES = {
+    "codex_task",
+    "evidence_schema",
+    "mission_task",
+    "mission_playbook",
+}
+
 REQUIRED_STAGES = ["baseline", "inject", "observe", "propose", "gate", "act", "verify", "score"]
 
 
@@ -129,6 +136,9 @@ class BenchmarkPackage:
             result.errors.append(f"files missing keys: {missing_keys}")
 
         for key, path in sorted(declared.items()):
+            if key not in REQUIRED_DECLARED_FILES and key not in OPTIONAL_DECLARED_FILES:
+                result.warnings.append(f"unknown declared file key: {key}")
+
             if key == "replay_dir":
                 if not path.is_dir():
                     result.errors.append(f"declared replay_dir does not exist: {path}")
@@ -146,6 +156,7 @@ class BenchmarkPackage:
                     self._load_json(path)
             except Exception as exc:
                 result.errors.append(f"failed to parse {path.name}: {exc}")
+
 
     def _validate_oracle_consistency(self, result: ValidationResult) -> None:
         declared = self.declared_files()

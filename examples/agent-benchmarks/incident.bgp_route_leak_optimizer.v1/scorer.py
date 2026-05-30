@@ -11,6 +11,7 @@ from typing import Any
 
 SCENARIO_DIR = Path(__file__).resolve().parent
 ORACLE_PATH = SCENARIO_DIR / "oracle.json"
+SCHEMA_PATH = SCENARIO_DIR / "evidence_schema.json"
 REPLAY_DIR = SCENARIO_DIR / "replay"
 VALID_REPAIR_KINDS = {
     "withdraw_leaked_announcement",
@@ -24,6 +25,32 @@ def load_json(path: Path) -> dict[str, Any]:
         return {}
     with path.open("r", encoding="utf-8") as infile:
         return json.load(infile)
+
+
+def validate_replay_schema(replay: dict[str, Any]) -> list[str]:
+    schema = load_json(SCHEMA_PATH)
+    errors: list[str] = []
+
+    def require_object(obj: dict[str, Any], key: str) -> dict[str, Any]:
+        value = obj.get(key)
+        if not isinstance(value, dict):
+            errors.append(f"{key} must be an object")
+            return {}
+        return value
+
+    for key in schema.get("required", []):
+        if key not in replay:
+            errors.append(f"missing top-level key: {key}")
+
+    for section_name, section_schema in (schema.get("properties") or {}).items():
+        if section_name not in replay:
+            continue
+        section = require_object(replay, section_name)
+        for key in section_schema.get("required", []):
+            if key not in section:
+                errors.append(f"missing {section_name}.{key}")
+
+    return errors
 
 
 def artifact_exists(name: str) -> bool:
@@ -115,7 +142,13 @@ def score_postmortem(replay: dict[str, Any]) -> int:
     return score
 
 
-def score_semantic_replay(replay: dict[str, Any], oracle: dict[str, Any]) -> dict[str, Any]:
+def score_semantic_replay(
+    replay: dict[str, Any],
+    oracle: dict[str, Any],
+    *,
+    validate_schema: bool = False,
+) -> dict[str, Any]:
+    schema_errors = validate_replay_schema(replay) if validate_schema else []
     dimensions = {
         "root_cause_accuracy": score_root_cause(replay, oracle),
         "evidence_chain": score_evidence(replay, oracle),
@@ -126,13 +159,14 @@ def score_semantic_replay(replay: dict[str, Any], oracle: dict[str, Any]) -> dic
         "postmortem_quality": score_postmortem(replay),
     }
     total = sum(dimensions.values())
-    status = "pass" if total >= 85 else "fail"
+    status = "schema_error" if schema_errors else ("pass" if total >= 85 else "fail")
     return {
         "scenario_id": oracle.get("scenario_id", "incident.bgp_route_leak_optimizer.v1"),
         "score_total": total,
         "score_max": 100,
         "status": status,
         "dimensions": dimensions,
+        "schema_errors": schema_errors,
     }
 
 
@@ -171,16 +205,17 @@ def score_artifact_completeness(oracle: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def score(replay_path: Path | None = None) -> dict[str, Any]:
+def score(replay_path: Path | None = None, *, validate_schema: bool = False) -> dict[str, Any]:
     oracle = load_json(ORACLE_PATH)
     if replay_path is not None:
         replay = load_json(replay_path)
-        return score_semantic_replay(replay, oracle)
+        return score_semantic_replay(replay, oracle, validate_schema=validate_schema)
     return score_artifact_completeness(oracle)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Score a BGP route leak replay")
     parser.add_argument("--replay", type=Path, help="semantic replay JSON file")
+    parser.add_argument("--validate-schema", action="store_true", help="validate replay against evidence_schema.json")
     args = parser.parse_args()
-    print(json.dumps(score(args.replay), indent=2, sort_keys=True))
+    print(json.dumps(score(args.replay, validate_schema=args.validate_schema), indent=2, sort_keys=True))
