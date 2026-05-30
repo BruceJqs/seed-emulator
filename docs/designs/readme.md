@@ -35,7 +35,7 @@ Users can join the simulated Internet with VPN client software. This emulation i
 
 See [design.md](design.md)
 
-Control-plane showcase design: [control-plane-showcase-design.md](control-plane-showcase-design.md)
+Control-plane extension design: [control-plane-extension-design.md](control-plane-extension-design.md)
 
 ## Case study
 

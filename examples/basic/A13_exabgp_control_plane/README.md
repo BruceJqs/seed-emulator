@@ -8,8 +8,10 @@ named pipes and SEED's `/run/exabgp/live.in` FIFO.
 
 ## What it proves
 
-- The current branch can generate an ExaBGP speaker with the transitional
-  `createRouter(..., routingBackend="exabgp")` API.
+- The current branch can install an ExaBGP speaker as a standard service with
+  `ExaBgpService` and `Binding`.
+- The ExaBGP node is an IX-attached BGP speaker host, not a BIRD/FRR-style
+  transit router backend and not a hidden host behind another AS router.
 - The peer router keeps its normal BIRD backend while ExaBGP acts as an IX BGP speaker.
 - The built-in dashboard exposes ExaBGP JSON events and live-control commands over HTTP.
 
@@ -18,6 +20,14 @@ named pipes and SEED's `/run/exabgp/live.in` FIFO.
 - `AS2/router0` is the provider edge
 - `AS180/exabgp` is an ExaBGP speaker on `ix100` at `10.100.0.180`
 - `AS180/exabgp` announces `198.51.100.0/24` to `AS2/router0`
+
+Core API shape:
+
+```python
+as180.createHost("exabgp").joinNetwork("ix100", address="10.100.0.180")
+exabgp.install("as180_exabgp").setLocalAsn(180).addPeer("router0", router_asn=2)
+emu.addBinding(Binding("as180_exabgp", filter=Filter(asn=180, nodeName="exabgp")))
+```
 
 ## Build
 

@@ -215,7 +215,7 @@ class AutonomousSystem(Printable, Graphable, Configurable, Customizable):
 
         @param name name of the new node.
         @param routingBackend routing daemon backend. Supported values are bird
-        and frr. The exabgp value is a transitional control-plane speaker path.
+        and frr. Use ExaBgpService for ExaBGP speakers.
         @returns Node.
         """
         assert name not in self.__routers, 'Router with name {} already exists.'.format(name)

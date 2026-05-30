@@ -21,23 +21,31 @@ record sessions, relationships, and interface intent; the `Routing` layer
 renders the daemon-specific configuration for each router backend.
 
 `frr` is used for routers whose control plane should be rendered as FRRouting.
-The current branch also has a transitional `routingBackend="exabgp"` path for
-eBGP control-plane speakers that directly join an IX or a router-facing link
-and announce routes through ExaBGP. Treat that as a demo bridge, not as the
-target router backend API. ExaBGP speakers can add static announcements in the
-current topology API:
+
+ExaBGP is modeled separately as a control-plane speaker service. It can be
+installed on a host that directly joins an IX or router-facing link, then bound
+with the normal service `Binding` mechanism:
 
 ```python
-speaker = as180.createRouter("exabgp", routingBackend="exabgp")
+from seedemu.core import Binding, Filter
+from seedemu.services import ExaBgpService
+
+speaker = as180.createHost("exabgp")
 speaker.joinNetwork("ix100", address="10.100.0.180")
-speaker.addBgpAnnouncement("198.51.100.0/24")
+
+exabgp = ExaBgpService()
+exabgp.install("as180_exabgp") \
+    .setLocalAsn(180) \
+    .addPeer("router0", router_asn=2) \
+    .addAnnouncement("198.51.100.0/24")
+emu.addBinding(Binding("as180_exabgp", filter=Filter(asn=180, nodeName="exabgp")))
 ```
 
 At runtime, ExaBGP speakers expose ExaBGP's native CLI pipes
 (`/run/exabgp.in` and `/run/exabgp.out`) and SEED's convenience
 FIFO (`/run/exabgp/live.in`) for live announce and withdraw commands. The
-current ExaBGP path is intended for eBGP announcement and event workflows, not
-as a full OSPF/iBGP transit router.
+current ExaBGP path is intended for eBGP announcement, observation, and event
+workflows, not as a full OSPF/iBGP transit router.
 
 
 <a name="ibgp-ospf-protocol"></a>

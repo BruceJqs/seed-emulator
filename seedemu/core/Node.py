@@ -1180,8 +1180,9 @@ class Router(Node):
         """!
         @brief Set routing daemon backend for this router.
 
-        @param backend routing backend. Supported values are bird and frr. The
-        exabgp value is a transitional control-plane speaker path.
+        @param backend routing backend. Supported values are bird and frr.
+        The exabgp value is kept only for legacy generated examples; new
+        examples should use ExaBgpService.
 
         @returns self, for chaining API calls.
         """

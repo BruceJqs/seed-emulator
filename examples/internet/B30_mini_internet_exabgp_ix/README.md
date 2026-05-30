@@ -12,10 +12,11 @@ IX-connected control-plane speaker:
 - eBGP peers: `AS2/r100` and `AS3/r100`
 
 The speaker runs ExaBGP, a live control FIFO, a JSON event log, and a small
-dashboard. ExaBGP is used here as an IX directly connected control-plane tool:
-it speaks BGP on the peering LAN and can inject or observe
-routes at the exchange. It is not modeled as a normal host service behind an AS
-router, but it is also not a full BIRD/FRR-style transit router backend.
+dashboard. ExaBGP is installed through `ExaBgpService` and bound to an
+IX-attached AS180 host. It speaks BGP on the peering LAN and can inject or
+observe routes at the exchange. It is not modeled as a normal host service
+behind an AS router, and it is not a full BIRD/FRR-style transit router
+backend.
 
 The base mini-internet is generated as a control-plane topology without regular
 end hosts, because this example is about IX BGP tooling rather than data-plane
@@ -97,11 +98,16 @@ announce, and withdraw commands.
 
 ## Notes
 
-This example currently uses the transitional
-`createRouter("exabgp", routingBackend="exabgp")` API. The AS180 node is an
-IX-connected BGP speaker, not a host-side application attached behind another
-router and not the long-term model for a full router backend. The target design
-should expose this through explicit speaker/service semantics.
+The AS180 node is an IX-connected BGP speaker service:
+
+```python
+as180.createHost("exabgp").joinNetwork("ix100", address="10.100.0.180")
+exabgp.install("as180_exabgp").setLocalAsn(180).addPeer("r100", router_asn=2)
+emu.addBinding(Binding("as180_exabgp", filter=Filter(asn=180, nodeName="exabgp")))
+```
+
+This keeps BIRD/FRR as real router backends and uses ExaBGP for control-plane
+peer, announce, withdraw, observe, and event-stream workflows.
 The example uses the normal B00 Docker network mode rather than self-managed
 dummy-address mode, because published dashboard ports must remain reachable from
 the host.
