@@ -35,6 +35,8 @@ Users can join the simulated Internet with VPN client software. This emulation i
 
 See [design.md](design.md)
 
+Email service design: [email-service-design.md](email-service-design.md)
+
 ## Case study
 
 ### BGP peering
@@ -72,4 +74,3 @@ See [design.md](design.md)
 ### Buliding new layer
 
 ### Creating new graphs
-

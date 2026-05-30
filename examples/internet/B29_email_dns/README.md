@@ -1,13 +1,14 @@
-# B29 Email (DNS-first)
+# B29 Email (SEED DNS + SMTP/IMAP)
 
-A realistic multi-ISP, multi-IX email system using DNS-based MX routing with a Roundcube webmail frontend. This is the single source of truth for running and validating the B29 scenario.
+A realistic multi-ISP, multi-IX email system using SEED DNS/MX records, AS-local DNS caches, real Postfix/Dovecot mail servers, transport-map delivery, and a Roundcube webmail frontend. This is the single source of truth for running and validating the B29 scenario.
 
-- Internet Map: http://localhost:8080/map.html
+- Internet Map: http://localhost:18080/pro/home
 - Roundcube: http://localhost:8082
 
 ## Status
 - Clean, internally validated demo scenario (no ad-hoc hot patches).
 - Deterministic classroom setup; demo-mode security (DKIM/DMARC/SPF not enforced).
+- Runtime validation checks per-message tokens in the recipient mailbox, not only historical log entries.
 
 ## Requirements
 - Linux host with Docker
@@ -17,6 +18,16 @@ A realistic multi-ISP, multi-IX email system using DNS-based MX routing with a R
 ## Quick Start (Integrated)
 ```bash
 cd examples/internet/B29_email_dns
+
+# WSL/Docker pre-check. If it warns about bridge netfilter, run the printed sudo sysctl line.
+bash b29ctl.sh doctor
+
+# Optional image warm-up for slow Docker Hub links.
+# These tags match docker-compose-roundcube.yml after retagging.
+docker pull docker.m.daocloud.io/library/mariadb:10.11
+docker tag docker.m.daocloud.io/library/mariadb:10.11 mariadb:10.11
+docker pull docker.1ms.run/roundcube/roundcubemail:latest
+docker tag docker.1ms.run/roundcube/roundcubemail:latest roundcube/roundcubemail:latest
 
 # Start everything (generate -> up -> accounts -> Roundcube)
 bash b29ctl.sh start            # auto-detects platform via uname; uses docker compose or docker-compose
@@ -39,6 +50,12 @@ bash b29ctl.sh test --pairs pairs.txt
 ```
 
 ## Quick Verify (optional)
+- Cross-AS data plane:
+```bash
+docker exec as202h-host_0-10.202.0.71 ping -c 2 10.200.0.71
+docker exec mail-gmail-google ping -c 2 10.200.0.10
+```
+
 - DNS MX from AS-150 cache
 ```bash
 cd examples/internet/B29_email_dns/output
@@ -49,16 +66,16 @@ docker exec as150h-dns-cache-10.150.0.53 nslookup -type=mx gmail.com
 - Cross-domain (CLI samples)
 ```bash
 # QQ -> Gmail
-printf "Subject: QQ->Gmail\n\nHi\n" | docker exec -i mail-qq-tencent sendmail user@gmail.com
+printf "Subject: QQ->Gmail\nFrom: user@qq.com\nTo: user@gmail.com\n\nHi\n" | docker exec -i mail-qq-tencent sendmail -f user@qq.com -t
 # Outlook -> Company (use admin@company.cn)
-printf "Subject: Outlook->Company\n\nHi\n" | docker exec -i mail-outlook-microsoft sendmail admin@company.cn
+printf "Subject: Outlook->Company\nFrom: user@outlook.com\nTo: admin@company.cn\n\nHi\n" | docker exec -i mail-outlook-microsoft sendmail -f user@outlook.com -t
 # Startup -> 163 (use founder@startup.net)
-printf "Subject: Startup->163\n\nHi\n" | docker exec -i mail-startup-selfhosted sendmail user@163.com
+printf "Subject: Startup->163\nFrom: founder@startup.net\nTo: user@163.com\n\nHi\n" | docker exec -i mail-startup-selfhosted sendmail -f founder@startup.net -t
 ```
 
 - Check delivery logs (look for Saved/status=sent)
 ```bash
-cd /home/parallels/seed-email-system/examples/internet/B29_email_dns
+cd ~/seed-playground/seed-emulator-harness-codex/examples/internet/B29_email_dns
 for f in \
   output/mail-gmail-google-data/mail-logs/mail.log \
   output/mail-company-aliyun-data/mail-logs/mail.log \

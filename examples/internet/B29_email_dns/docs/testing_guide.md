@@ -1,11 +1,21 @@
 # B29 Multi-Dimensional Testing Guide
 
-This guide provides a thorough checklist and runnable commands to validate the B29 DNS-first email example end-to-end, including: DNS, BGP, email flows (intra- and cross-domain), logging/record verification, resilience, and large-scale/roster-based automation.
+This guide provides a thorough checklist and runnable commands to validate the B29 SEED DNS + SMTP/IMAP email example end-to-end, including: DNS, BGP, email flows (intra- and cross-domain), mailbox-token verification, resilience, and large-scale/roster-based automation.
 
-- Internet Map: http://localhost:8080/map.html
+- Internet Map: http://localhost:18080/pro/home
 - Roundcube: http://localhost:8082
 
 ## 1) Environment pre-checks
+
+- WSL/Docker bridge netfilter:
+```bash
+cd examples/internet/B29_email_dns
+bash b29ctl.sh doctor
+```
+If it warns, fix the host setting before validating cross-AS traffic:
+```bash
+sudo sysctl -w net.bridge.bridge-nf-call-iptables=0 net.bridge.bridge-nf-call-ip6tables=0
+```
 
 - Containers up (from `B29_email_dns/output/`):
 ```bash
@@ -35,6 +45,12 @@ docker exec as150h-dns-cache-10.150.0.53 nslookup -type=mx nope.invalid  # Expec
 
 ## 3) Connectivity checks
 
+- Cross-AS data plane:
+```bash
+docker exec as202h-host_0-10.202.0.71 ping -c 2 10.200.0.71
+docker exec mail-gmail-google ping -c 2 10.200.0.10
+```
+
 - Ping and traceroute to provider mail IPs (sample):
 ```bash
 docker exec as150h-host_0-10.150.0.71 ping -c 2 10.202.0.10
@@ -46,11 +62,11 @@ docker exec as150h-host_0-10.150.0.71 ping -c 2 10.202.0.10
 
 - Intra-domain (e.g., qq.com to qq.com):
 ```bash
-printf "Subject: intra QQ test\n\nBody\n" | docker exec -i mail-qq-tencent sendmail user@qq.com
+printf "Subject: intra QQ test\nFrom: user@qq.com\nTo: user@qq.com\n\nBody\n" | docker exec -i mail-qq-tencent sendmail -f user@qq.com -t
 ```
 - Cross-domain (e.g., Gmail -> QQ):
 ```bash
-printf "Subject: Gmail->QQ $(date +%s)\n\nBody\n" | docker exec -i mail-gmail-google sendmail user@qq.com
+printf "Subject: Gmail->QQ $(date +%s)\nFrom: user@gmail.com\nTo: user@qq.com\n\nBody\n" | docker exec -i mail-gmail-google sendmail -f user@gmail.com -t
 ```
 - Verify delivery from logs (look for LMTP Saved or INBOX stored):
 ```bash
@@ -89,7 +105,7 @@ EOF
 ```bash
 docker restart mail-gmail-google
 sleep 3
-printf "Subject: Gmail->QQ (after-restart) $(date +%s)\n\nBody\n" | docker exec -i mail-gmail-google sendmail user@qq.com
+printf "Subject: Gmail->QQ (after-restart) $(date +%s)\nFrom: user@gmail.com\nTo: user@qq.com\n\nBody\n" | docker exec -i mail-gmail-google sendmail -f user@gmail.com -t
 # Verify Saved in QQ logs
 docker logs --since 3m mail-qq-tencent | egrep -i "Saved|INBOX|to=<user@qq.com>|lmtp"
 ```
@@ -166,10 +182,10 @@ docker exec -it mail-qq-tencent postqueue -p
 ## 10) Extending with custom domains
 
 For classroom realism (e.g., `zju.edu.cn`, `tsinghua.edu.cn`, `pku.edu.cn`):
-- Quick path: keep B29 DNS-first core as-is; use `tools/email_autogen.py` to spin additional providers (transport-map) with your chosen domains.
+- Quick path: keep B29's SEED DNS + transport-map delivery model as-is; use `tools/email_autogen.py` to spin additional providers with your chosen domains.
 - Account provisioning: map the school domains to autogen containers via `--containers`, or use `--domain-map` to map to an existing B29 domain like `company.cn`.
 
-If you need to permanently add a domain into the DNS-first B29 core, you’ll need to update `email_realistic.py` in:
+If you need to permanently add a domain into the B29 core, update `email_realistic.py` in:
 - `configure_mail_servers()` to add the provider (name, domain, ASN, IPs, ports)
 - `configure_dns_system()` to add A/MX, authoritative NS, and binding
 - `configure_bgp_peering()` to transit-peer the new AS with an ISP

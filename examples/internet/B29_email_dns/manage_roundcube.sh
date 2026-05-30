@@ -6,6 +6,14 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose-roundcube.yml"
+SEED_B29_PROJECT_NAME="${SEED_B29_PROJECT_NAME:-b29}"
+SEED_B29_ROUNDCUBE_PROJECT_NAME="${SEED_B29_ROUNDCUBE_PROJECT_NAME:-b29_roundcube}"
+# Roundcube is a sidecar compose project. Do not inherit the main B29
+# COMPOSE_PROJECT_NAME, otherwise stop/down may target the wrong project.
+COMPOSE_PROJECT_NAME="$SEED_B29_ROUNDCUBE_PROJECT_NAME"
+SEED_B29_NETWORK_PREFIX="${SEED_B29_NETWORK_PREFIX:-${SEED_B29_PROJECT_NAME:-b29}}"
+export COMPOSE_PROJECT_NAME
+export SEED_B29_NETWORK_PREFIX
 
 compose() {
     if docker compose version >/dev/null 2>&1; then
@@ -16,6 +24,15 @@ compose() {
         print_error "docker compose/docker-compose not installed"
         return 1
     fi
+}
+
+main_compose() {
+    local previous_project="${COMPOSE_PROJECT_NAME:-}"
+    COMPOSE_PROJECT_NAME="$SEED_B29_PROJECT_NAME" compose "$@"
+    local rc=$?
+    COMPOSE_PROJECT_NAME="$previous_project"
+    export COMPOSE_PROJECT_NAME
+    return "$rc"
 }
 
 # Colors
@@ -40,7 +57,7 @@ check_mail_servers() {
         return 1
     }
     
-    MAIL_SERVERS=$(compose ps 2>/dev/null | grep -E "^mail-" | grep -E "Up|running" | wc -l)
+    MAIL_SERVERS=$(main_compose ps 2>/dev/null | grep -E "^mail-" | grep -E "Up|running" | wc -l)
     
     if [ "$MAIL_SERVERS" -eq 6 ]; then
         print_success "All 6 mail servers are running"
@@ -48,7 +65,7 @@ check_mail_servers() {
     else
         print_warning "Only $MAIL_SERVERS mail servers are running (expected 6)"
         print_info "Starting mail servers..."
-        compose up -d
+        main_compose up -d
         sleep 10
         return 0
     fi
@@ -255,4 +272,3 @@ main() {
 }
 
 main "$@"
-

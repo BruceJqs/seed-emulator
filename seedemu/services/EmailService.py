@@ -33,6 +33,7 @@ MAILSERVER_COMPOSE_TEMPLATE_TRANSPORT = """\
         domainname: {domain}
         restart: unless-stopped
         privileged: true
+        {dns_block}
         environment:
             - OVERRIDE_HOSTNAME={hostname}.{domain}
             - PERMIT_DOCKER=connected-networks
@@ -182,6 +183,8 @@ class EmailService:
         domain_map = {p["domain"]: p["ip"] for p in self._providers}
 
         for p in self._providers:
+            dns_value = p.get("dns") or self._dns_nameserver
+            dns_block = f"dns:\n          - {dns_value}\n" if dns_value else ""
             if self._mode == "transport":
                 transport_lines = ""
                 for dom, ip in domain_map.items():
@@ -202,6 +205,7 @@ class EmailService:
                         f"        domainname: {p['domain']}\n"
                         f"        restart: unless-stopped\n"
                         f"        privileged: true\n"
+                        f"{('        ' + dns_block) if dns_block else ''}"
                         f"        environment:\n"
                         f"            - OVERRIDE_HOSTNAME={p['hostname']}.{p['domain']}\n"
                         f"            - PERMIT_DOCKER=connected-networks\n"
@@ -245,11 +249,10 @@ class EmailService:
                         submission_port=p["ports"].get("submission", "587"),
                         imap_port=p["ports"].get("imap", "143"),
                         imaps_port=p["ports"].get("imaps", "993"),
+                        dns_block=dns_block,
                         transport_entries=transport_lines,
                     )
             else:
-                dns_value = p.get("dns") or self._dns_nameserver
-                dns_block = f"dns:\n          - {dns_value}\n" if dns_value else ""
                 if self._use_build_wrappers:
                     compose_entry = (
                         f"    {p['name']}:\n"
@@ -309,6 +312,8 @@ class EmailService:
                 asn=p["asn"],
                 net=p["network"],
                 ip_address=p["ip"],
+                show_on_map=True,
+                node_name=p["name"],
             )
 
     def get_output_callbacks(self) -> List[Callable]:

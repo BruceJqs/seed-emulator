@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cross-domain test runner for B29 Email (DNS-first)
-# Default: test primary providers only (qq, 163, gmail, outlook) to avoid known AS-204<->AS-205 routing issue
+# Default: test primary providers only (qq, 163, gmail, outlook).
 # Usage:
 #   bash run_cross_tests.sh            # primary providers only
 #   bash run_cross_tests.sh --all      # all six providers
@@ -108,12 +108,12 @@ for idx in "${!FROM_CONTAINERS[@]}"; do
   from_c="${FROM_CONTAINERS[$idx]}"; from_addr="${FROM_ADDRS[$idx]}"
   to_c="${TO_CONTAINERS[$idx]}"; to_addr="${TO_ADDRS[$idx]}"
   total=$((total+1))
-  subject_token="$(date +%s)-$RANDOM"
+  subject_token="b29-cross-$(date +%s)-$RANDOM"
   printf "Subject: %s\nTo: %s\nFrom: %s\n\nHi %s\n" "${from_addr##*@}->${to_addr##*@}" "$to_addr" "$from_addr" "$subject_token" \
-    | docker exec -i "$from_c" sh -c "sendmail -t" || true
+    | docker exec -i "$from_c" sh -c "sendmail -f '$from_addr' -t" || true
   delivered=0
   for k in {1..15}; do
-    if docker exec "$to_c" sh -lc "grep -E \"(Saved|stored mail into mailbox .*INBOX|status=sent .* to=<$to_addr>)\" -n /var/log/mail/mail.log" >/dev/null 2>&1; then
+    if docker exec "$to_c" sh -lc "grep -R -- '$subject_token' /var/mail 2>/dev/null" >/dev/null 2>&1; then
       delivered=1; break; fi
     sleep 1
   done

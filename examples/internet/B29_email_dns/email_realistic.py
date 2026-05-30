@@ -420,7 +420,7 @@ def run(platform="auto"):
     else:
         docker = Docker(platform=auto_plat)
 
-    # 使用 EmailService（transport 模式）添加邮件服务器到 Docker 配置（绕过DNS，确保跨域稳定）
+    # 使用 EmailService transport 模式固定跨域投递下一跳，同时保留 SEED DNS/MX 做域名解析和 sender 校验。
     email_svc = EmailService(platform=f"linux/{platform_str}", mode="transport", dns_nameserver="10.150.0.53")
     for mail in mail_servers:
         # 为每个提供商分配唯一的 submission/imaps 端口，避免 587/993 端口冲突
@@ -504,7 +504,7 @@ SEED Realistic Email System (29-1) created!
    SMTP: localhost:2205 | IMAP: localhost:1405
 
 🌐 Monitoring:
-   Internet Map: http://localhost:8080/map.html
+   Internet Map: http://localhost:18080/pro/home
 
 ======================================================================
     """)
