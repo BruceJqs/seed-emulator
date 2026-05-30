@@ -774,6 +774,13 @@ class Routing(Layer):
                             rif = riface
                             break
 
+                if rif == None and hnet.getType() == NetworkType.InternetExchange:
+                    self._log(
+                        "Host {} in as{} is directly attached to IX {}; skipping default route.".format(
+                            name, scope, hnet.getName()
+                        )
+                    )
+                    continue
                 assert rif != None, 'Host {} in as{} in network {}: no router'.format(name, scope, hnet.getName())
                 self._log("Setting default route for host {} ({}) to router {}".format(name, hif.getAddress(), rif.getAddress()))
                 hnode.appendStartCommand('ip rou del default 2> /dev/null')

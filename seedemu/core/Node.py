@@ -18,7 +18,7 @@ from string import ascii_letters
 from random import choice
 from .BaseSystem import BaseSystem
 
-DEFAULT_SOFTWARE: List[str] = ['zsh', 'curl', 'nano', 'vim-nox', 'mtr-tiny', 'iproute2', 'iputils-ping', 'tcpdump', 'termshark', 'dnsutils', 'jq', 'ipcalc', 'netcat-openbsd']
+DEFAULT_SOFTWARE: List[str] = ['zsh', 'curl', 'nano', 'vim-nox', 'mtr-tiny', 'iproute2', 'iputils-ping', 'tcpdump', 'termshark', 'dnsutils', 'jq', 'ipcalc', 'netcat']
 
 class File(Printable):
     """!
@@ -1180,7 +1180,9 @@ class Router(Node):
         """!
         @brief Set routing daemon backend for this router.
 
-        @param backend routing backend. Supported values are bird, frr, exabgp.
+        @param backend routing backend. Supported values are bird and frr.
+        The exabgp value is kept only for legacy generated examples; new
+        examples should use ExaBgpService.
 
         @returns self, for chaining API calls.
         """
