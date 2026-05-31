@@ -1599,6 +1599,37 @@ def test_explicit_ipv6_prefixes_are_claimed_and_auto_allocation_skips_them():
         as2.createNetwork("duplicate", ipv6Prefix="2000:0:2::/64")
 
 
+def test_explicit_ipv6_prefixes_that_cover_the_root_are_rejected():
+    base = Base(enableIpv6=True)
+    as2 = base.createAutonomousSystem(2)
+
+    with pytest.raises(AssertionError, match="overlaps root prefix"):
+        as2.createNetwork("too-wide", ipv6Prefix="2000::/8")
+
+    with pytest.raises(AssertionError, match="overlaps root prefix"):
+        base.createInternetExchange(100, ipv6Prefix="2000::/8")
+
+
+def test_late_ipv6_enablement_rejects_existing_prefixes_that_cover_the_root():
+    base = Base()
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("too-wide", ipv6Prefix="2000::/8")
+
+    with pytest.raises(AssertionError, match="overlaps root prefix"):
+        base.enableIpv6()
+
+
+def test_explicit_ipv6_prefixes_outside_the_root_remain_user_managed():
+    base = Base(enableIpv6=True)
+    as2 = base.createAutonomousSystem(2)
+
+    explicit = as2.createNetwork("external", ipv6Prefix="fd00:2::/64")
+    auto = as2.createNetwork("auto")
+
+    assert str(explicit.getIpv6Prefix()) == "fd00:2::/64"
+    assert str(auto.getIpv6Prefix()) == "2000:0:2::/64"
+
+
 def test_reserved_ipv6_infrastructure_prefix_cannot_be_assigned_to_user_networks():
     base = Base(enableIpv6=True)
     as2 = base.createAutonomousSystem(2)

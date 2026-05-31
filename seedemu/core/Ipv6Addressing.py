@@ -39,9 +39,15 @@ class Ipv6Addressing:
     def getReservedPrefixes(self) -> List[IPv6Network]:
         return list(self.__reserved_prefixes)
 
+    def __is_outside_root(self, prefix: IPv6Network) -> bool:
+        if prefix.subnet_of(self.__root):
+            return False
+        assert not prefix.overlaps(self.__root), "IPv6 prefix {} overlaps root prefix {}".format(prefix, self.__root)
+        return True
+
     def claimPrefix(self, prefix: Union[str, IPv6Network]) -> Ipv6Addressing:
         claimed = prefix if isinstance(prefix, IPv6Network) else IPv6Network(normalizePrefix(prefix))
-        if not claimed.subnet_of(self.__root):
+        if self.__is_outside_root(claimed):
             return self
         assert self.__is_available(claimed), "IPv6 prefix {} overlaps an allocated prefix".format(claimed)
         self.__allocated_prefixes.add(claimed)
@@ -49,7 +55,7 @@ class Ipv6Addressing:
 
     def reservePrefix(self, prefix: Union[str, IPv6Network]) -> Ipv6Addressing:
         reserved = prefix if isinstance(prefix, IPv6Network) else IPv6Network(normalizePrefix(prefix))
-        if not reserved.subnet_of(self.__root):
+        if self.__is_outside_root(reserved):
             return self
         self.claimPrefix(reserved)
         self.__reserved_prefixes.append(reserved)
@@ -57,7 +63,7 @@ class Ipv6Addressing:
 
     def reserveAsNetworkPrefix(self, asn: int, prefix: Union[str, IPv6Network]) -> Ipv6Addressing:
         network = prefix if isinstance(prefix, IPv6Network) else IPv6Network(normalizePrefix(prefix))
-        if not network.subnet_of(self.__root):
+        if self.__is_outside_root(network):
             return self
 
         as_prefix = self.assignAsPrefix(asn)

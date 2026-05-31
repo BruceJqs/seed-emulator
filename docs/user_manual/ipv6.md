@@ -42,7 +42,10 @@ User-provided IPv6 prefixes under the root are normalized and reserved before
 later automatic allocation. Padded CIDR strings and bracketed IPv6 literals are
 accepted consistently across root, AS network, IX LAN, and service-network
 prefix inputs. Overlapping explicit AS/IX prefixes are rejected, and automatic
-allocation skips claimed prefixes instead of reusing them.
+allocation skips claimed prefixes instead of reusing them. Prefixes outside the
+configured root may be used as user-managed prefixes when they are fully
+disjoint from the root. Prefixes that overlap the root without being subnets of
+it are rejected because automatic allocation could otherwise collide with them.
 
 IPv6 address assignment follows the existing `AddressAssignmentConstraint`
 intent. Hosts use the host offset range, routers use the router offset range,

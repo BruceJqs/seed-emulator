@@ -63,6 +63,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 
 - explicit IPv6 local prefixes are claimed and automatic `/64` allocation skips
   them;
+- explicit IPv6 prefixes that overlap the configured root without being a root
+  subnet are rejected, while fully disjoint prefixes outside the root remain
+  user-managed;
 - reserved infrastructure prefixes and explicit IX prefixes are claimed so
   automatic AS allocation cannot collide with them;
 - late `Base.enableIpv6()` rejects overlapping explicit AS/IX IPv6 prefixes;

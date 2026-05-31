@@ -133,6 +133,9 @@ Repository-level IPv6 work should keep these checks green:
   explicit AS/IX prefixes, including late `Base.enableIpv6()` migration paths;
   explicit root, AS/IX, and service-network IPv6 prefixes use shared prefix
   normalization so padded and bracketed CIDR inputs behave consistently.
+  Explicit prefixes that overlap the configured root without being root subnets
+  are rejected, while fully disjoint prefixes outside the root remain
+  user-managed.
 - Explicit interface IPv4/IPv6 address inputs use shared address literal
   normalization while preserving `getAddress()` as IPv4 and
   `getIpv6Address()` as IPv6.

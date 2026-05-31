@@ -81,7 +81,8 @@ infrastructure does not collide with customer or IX LAN prefixes.
 Explicit user prefixes are claimed by the allocator when they fall under the
 configured IPv6 root. Later automatic allocations must avoid them. Prefixes
 outside the root are treated as user-managed and are not rewritten by the
-allocator.
+allocator. A prefix that overlaps the configured root but is not a subnet of it
+is rejected because it would make later automatic allocation ambiguous.
 
 ## Core Change Map
 
