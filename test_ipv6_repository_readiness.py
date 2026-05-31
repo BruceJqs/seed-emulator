@@ -329,6 +329,48 @@ def _render_monero_endpoint_topology(family=AddressFamily.IPv4):
     )
 
 
+def _render_monero_service_network_endpoint_topology(family=AddressFamily.IPv4):
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base(enableIpv6=True)
+    monero = MoneroService()
+    blockchain = monero.createBlockchain("base-monero")
+    blockchain.setEndpointAddressFamily(family)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createHost("seed").joinNetwork(
+        "000_svc",
+        address="192.168.66.71",
+        ipv6Address="fd00:66::71",
+    )
+    as2.createHost("client").joinNetwork(
+        "000_svc",
+        address="192.168.66.72",
+        ipv6Address="fd00:66::72",
+    )
+    as2.createHost("light").joinNetwork(
+        "000_svc",
+        address="192.168.66.73",
+        ipv6Address="fd00:66::73",
+    )
+
+    blockchain.createSeedNode("seed-vnode")
+    blockchain.createClientNode("client-vnode")
+    blockchain.createLightWallet("light-vnode")
+    emu.addBinding(Binding("seed-vnode", filter=Filter(asn=2, nodeName="seed"), action=Action.FIRST))
+    emu.addBinding(Binding("client-vnode", filter=Filter(asn=2, nodeName="client"), action=Action.FIRST))
+    emu.addBinding(Binding("light-vnode", filter=Filter(asn=2, nodeName="light"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(monero)
+    emu.getServiceNetwork()
+    emu.render()
+
+    return (
+        emu.getRegistry().get("2", "hnode", "client"),
+        emu.getRegistry().get("2", "hnode", "light"),
+    )
+
+
 def _render_chainlink_endpoint_topology(family=AddressFamily.IPv4):
     emu = Emulator()
     base = Base(enableIpv6=True)
@@ -1780,6 +1822,31 @@ def test_monero_endpoints_can_select_ipv6_helpers():
     assert 'UPSTREAMS=("[2000:0:2::71]:28081" "[2000:0:2::72]:28081")' in light_script
     assert 'if [[ "$endpoint" =~ ^\\[(.*)\\]:([0-9]+)$ ]]; then' in client_script
     assert "--add-exclusive-node=10.2.0.71:28080" not in client_script
+
+
+def test_monero_endpoints_fall_back_to_service_network_ipv4():
+    client, light = _render_monero_service_network_endpoint_topology()
+
+    client_script = _file_content(client, "/usr/local/bin/seedemu-monero-node.sh")
+    light_script = _file_content(light, "/usr/local/bin/seedemu-monero-light.sh")
+
+    assert 'DAEMON_ARGS+=("--add-exclusive-node=192.168.66.71:28080")' in client_script
+    assert 'UPSTREAMS=("192.168.66.71:28081" "192.168.66.72:28081")' in light_script
+    assert "fd00:66::71" not in client_script
+    assert "fd00:66::71" not in light_script
+
+
+def test_monero_endpoints_fall_back_to_service_network_ipv6():
+    client, light = _render_monero_service_network_endpoint_topology(AddressFamily.IPv6)
+
+    client_script = _file_content(client, "/usr/local/bin/seedemu-monero-node.sh")
+    light_script = _file_content(light, "/usr/local/bin/seedemu-monero-light.sh")
+
+    assert 'DAEMON_ARGS+=("--add-exclusive-node=[fd00:66::71]:28080")' in client_script
+    assert 'UPSTREAMS=("[fd00:66::71]:28081" "[fd00:66::72]:28081")' in light_script
+    assert "fd00:66::71:28080" not in client_script
+    assert "192.168.66.71:28080" not in client_script
+    assert "192.168.66.71:28081" not in light_script
 
 
 def test_chainlink_generated_urls_default_to_ipv4_on_dual_stack_nodes():

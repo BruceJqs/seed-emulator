@@ -193,9 +193,11 @@ directory URLs preserve domain-name defaults and can bracket explicit IPv6 CA
 endpoint literals, but Web HTTPS and ACME runtime behavior remain compatible
 and not fully migrated.
 
-Monero seed and full-node RPC endpoint lists preserve IPv4 defaults. In a
-dual-stack emulation, call `blockchain.setEndpointAddressFamily(AddressFamily.IPv6)`
-to generate bracketed IPv6 `host:port` endpoints for those lists. Monero daemon
+Monero seed and full-node RPC endpoint lists preserve IPv4 defaults and select
+node addresses through the shared Local-network-first helper, falling back to
+the service network when a node has no Local interface. In a dual-stack
+emulation, call `blockchain.setEndpointAddressFamily(AddressFamily.IPv6)` to
+generate bracketed IPv6 `host:port` endpoints for those lists. Monero daemon
 listener behavior has not been runtime-validated as full IPv6 support.
 
 Chainlink generated URLs preserve IPv4 defaults and select referenced Ethereum,

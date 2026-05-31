@@ -6,8 +6,7 @@ from typing import Dict, Iterator, List, Optional, Tuple
 from seedemu.core.Emulator import Emulator
 from seedemu.core.Node import Node
 from seedemu.core.Service import Server, Service
-from seedemu.core import AddressFamily, getInterfaceAddress, normalizeAddressFamily
-from seedemu.core.enums import NetworkType
+from seedemu.core import AddressFamily, getNodeAddress, normalizeAddressFamily
 from seedemu.core.BaseSystem import BaseSystem
 
 # Import for type hinting only (avoid circular import)
@@ -763,14 +762,11 @@ class MoneroNetwork:
         self._allocated_ports[key] = vnode
 
     def _get_primary_ip(self, node: Node, family: AddressFamily) -> str:
-        """Return the local-network address used for service endpoints."""
+        """Return the preferred address used for service endpoints."""
 
-        for iface in node.getInterfaces():
-            if iface.getNet().getType() == NetworkType.Local:
-                address = getInterfaceAddress(iface, family)
-                assert address is not None, f"Node {node.getName()} has no local {family.value} address."
-                return str(address)
-        raise AssertionError(f"Node {node.getName()} has no local network interface")
+        address = getNodeAddress(node, family, preferLocal=True)
+        assert address is not None, f"Node {node.getName()} has no {family.value} address."
+        return str(address)
 
     def get_network_flag(self) -> Optional[str]:
         net_type = self._defaults.net_type
