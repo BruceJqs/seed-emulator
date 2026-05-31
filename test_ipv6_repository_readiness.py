@@ -831,7 +831,9 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatUrl("http", " example.test ", 8080, "status") == "http://example.test:8080/status"
     assert formatUrl("https", "example.test", path="/health") == "https://example.test/health"
     assert formatMultiaddr("10.0.0.1", 4001) == "/ip4/10.0.0.1/tcp/4001"
+    assert formatMultiaddr(" 10.0.0.1 ", 4001) == "/ip4/10.0.0.1/tcp/4001"
     assert formatMultiaddr("2000::1", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
+    assert formatMultiaddr(" 2000::1 ", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
 
 
 def test_address_family_normalizer_accepts_common_padded_values():

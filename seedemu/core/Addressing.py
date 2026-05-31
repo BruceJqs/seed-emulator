@@ -173,7 +173,7 @@ def formatUrl(
 def formatMultiaddr(host: Union[str, object], tcpPort: Union[str, int], peerId: str = None) -> str:
     """Format an IPFS/libp2p style multiaddr for IPv4 or IPv6 literals."""
 
-    parsed = ip_address(str(host))
+    parsed = ip_address(str(host).strip())
     proto = "ip6" if parsed.version == 6 else "ip4"
     out = "/{}/{}/tcp/{}".format(proto, parsed, tcpPort)
     if peerId is not None:
