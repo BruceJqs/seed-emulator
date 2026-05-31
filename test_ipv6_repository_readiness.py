@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import socket
+import subprocess
 from pathlib import Path
 
 from seedemu.compiler import Docker, Platform
@@ -1500,11 +1501,36 @@ def test_botnet_dga_dropper_runner_accepts_preformatted_urls():
 
     script = BotnetServerFileTemplates["client_dropper_runner_dga"]
 
+    assert "format_dropper_url()" in script
     assert 'if [[ "$host" =~ ^https?:// ]]; then' in script
-    assert 'url="$host"' in script
-    assert 'if [[ "$host" == *:* && "${host:0:1}" != "[" ]]; then' in script
-    assert 'host="[$host]"' in script
-    assert 'url="http://$host/clients/droppers/client.py"' in script
+    assert 'url="$(format_dropper_url "$host")"' in script
+    assert 'local colon_count="${authority//[^:]}"' in script
+    assert 'authority="[$authority]"' in script
+    assert 'url="http://$host/clients/droppers/client.py"' not in script
+
+
+def test_botnet_dga_dropper_runner_preserves_authority_fallbacks():
+    from seedemu.services.BotnetService import BotnetServerFileTemplates
+
+    script = BotnetServerFileTemplates["client_dropper_runner_dga"]
+    function_source = script.split("chmod +x /dga", 1)[0]
+    cases = {
+        "http://c2.example/custom.py": "http://c2.example/custom.py",
+        "https://[2000:0:2::71]:446/custom.py": "https://[2000:0:2::71]:446/custom.py",
+        "c2.example:446": "http://c2.example:446/clients/droppers/client.py",
+        "10.2.0.71:446": "http://10.2.0.71:446/clients/droppers/client.py",
+        "2000:0:2::71": "http://[2000:0:2::71]/clients/droppers/client.py",
+        "[2000:0:2::71]:446": "http://[2000:0:2::71]:446/clients/droppers/client.py",
+    }
+
+    for value, expected in cases.items():
+        completed = subprocess.run(
+            ["bash", "-c", function_source + '\nformat_dropper_url "$1"', "seed-test", value],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.stdout.strip() == expected
 
 
 def test_botnet_dropper_runner_fallback_brackets_ipv6_host_arguments():
