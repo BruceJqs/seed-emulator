@@ -13,6 +13,7 @@ from seedemu.core import (
     Server,
     Service,
     getInterfaceAddress,
+    normalizePrefix,
 )
 from seedemu.layers.Routing import Router
 from seedemu.layers._bgp_metadata import claim_external_bgp_backend, install_router_bgp_session, normalize_bgp_families
@@ -266,8 +267,7 @@ class ExaBgpServer(Server):
         return self
 
     def addAnnouncement(self, prefix: str) -> "ExaBgpServer":
-        ip_network(prefix, strict=False)
-        self.__announce_prefixes.append(str(prefix))
+        self.__announce_prefixes.append(normalizePrefix(prefix, strict=False))
         return self
 
     def enableDashboard(self, port: int = 5000) -> "ExaBgpServer":
@@ -326,7 +326,7 @@ class ExaBgpServer(Server):
     def _announcement_families(self) -> List[str]:
         found = set()
         for prefix in self.__announce_prefixes:
-            found.add("ipv6" if ip_network(prefix, strict=False).version == 6 else "ipv4")
+            found.add("ipv6" if ip_network(prefix).version == 6 else "ipv4")
         return [family for family in ["ipv4", "ipv6"] if family in found]
 
     def _select_peer_families(
@@ -441,7 +441,7 @@ class ExaBgpServer(Server):
         neighbor_blocks: List[str] = []
         routes_by_family = {"ipv4": [], "ipv6": []}
         for prefix in self.__announce_prefixes:
-            family = "ipv6" if ip_network(prefix, strict=False).version == 6 else "ipv4"
+            family = "ipv6" if ip_network(prefix).version == 6 else "ipv4"
             routes_by_family[family].append(f"    route {prefix} next-hop self;")
         for _peer, router, local_address, peer_address, local_ipv6_address, peer_ipv6_address, families in self.__resolved_peers:
             for family in families:

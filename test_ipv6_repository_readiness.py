@@ -24,6 +24,7 @@ from seedemu.core import (
     normalizeAddressFamily,
     normalizeAddressList,
     normalizeAddressRecord,
+    normalizePrefix,
 )
 from seedemu.core.enums import NodeRole
 from seedemu.layers import Base, EtcHosts
@@ -853,6 +854,8 @@ def test_address_record_normalizer_handles_dns_a_aaaa_literals():
     assert normalizeAddressRecord(" web6 aaaa [2000:0:2:0:0:0:0:71] ") == "web6 AAAA 2000:0:2::71"
     assert normalizeAddressRecord("txt TXT  2000:0:2:0:0:0:0:71") == "txt TXT  2000:0:2:0:0:0:0:71"
     assert normalizeAddressRecord(" ns1. NS a.root.example. ", trimNonAddressRecord=True) == "ns1. NS a.root.example."
+    assert normalizePrefix(" [2000:0:2:0:0:0:0:0] / 64 ") == "2000:0:2::/64"
+    assert normalizePrefix(" 10.2.0.71/24 ", strict=False) == "10.2.0.0/24"
 
 
 def test_node_address_match_helpers_cover_ipv4_and_ipv6():
@@ -873,7 +876,7 @@ def test_node_address_match_helpers_cover_ipv4_and_ipv6():
     assert nodeHasAddress(host, " 10.2.0.71 ")
     assert nodeHasAddress(host, " [2000:0:2:0:0:0:0:71] ")
     assert nodeHasAddressInPrefix(host, " 10.2.0.0/24 ")
-    assert nodeHasAddressInPrefix(host, " 2000:0:2::/64 ")
+    assert nodeHasAddressInPrefix(host, " [2000:0:2::]/64 ")
     assert not nodeHasAddress(host, "2000:0:2::72")
     assert not nodeHasAddressInPrefix(host, "2000:0:3::/64")
 
@@ -1118,9 +1121,9 @@ def test_binding_filters_trim_padded_ip_and_prefix_selectors():
         Filter(ipv4=" 10.2.0.71 "),
         Filter(ipv6=" [2000:0:2::71] "),
         Filter(prefix=" 10.2.0.0/24 "),
-        Filter(prefix=" 2000:0:2::/64 "),
+        Filter(prefix=" [2000:0:2::]/64 "),
         Filter(ipv4Prefix=" 10.2.0.0/24 "),
-        Filter(ipv6Prefix=" 2000:0:2::/64 "),
+        Filter(ipv6Prefix=" [2000:0:2::]/64 "),
     ]:
         assert Binding("svc", action=Action.FIRST, filter=filter).getCandidate("svc", emu, peek=True).getName() == "dual"
 
@@ -1151,7 +1154,7 @@ def test_binding_new_trims_padded_prefix_selector():
     as2 = base.createAutonomousSystem(2)
     net0 = as2.createNetwork("net0")
     dns.install("dns").addZone("example.")
-    emu.addBinding(Binding("dns", filter=Filter(asn=2, prefix=" 2000:0:2::/64 "), action=Action.NEW))
+    emu.addBinding(Binding("dns", filter=Filter(asn=2, prefix=" [2000:0:2::]/64 "), action=Action.NEW))
 
     emu.addLayer(base)
     emu.addLayer(dns)
@@ -1171,7 +1174,7 @@ def test_ca_install_cert_filter_matches_ipv4_and_ipv6_targets(tmp_path):
     ca_server.setCAStore(_FakeCAStore(tmp_path / "ca-store"))
     ca_server.installCACert(Filter(ip="10.2.0.71"))
     ca_server.installCACert(Filter(ipv6="[2000:0:3::72]"))
-    ca_server.installCACert(Filter(prefix="2000:0:4::/64"))
+    ca_server.installCACert(Filter(prefix="[2000:0:4::]/64"))
     ca_server._serverConfigure(9, list(node_by_asn.values()))
 
     cert_path = "/usr/local/share/ca-certificates/SEEDEMU_Internal_Root_CA_9.crt"

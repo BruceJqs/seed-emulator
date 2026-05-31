@@ -45,6 +45,16 @@ def normalizeAddressList(addrs: Iterable[Union[str, object]]) -> List[str]:
     return [str(_parseIpLiteral(addr)) for addr in addrs]
 
 
+def normalizePrefix(prefix: Union[str, object], strict: bool = True) -> str:
+    """Normalize an IPv4/IPv6 CIDR prefix literal."""
+
+    value = str(prefix).strip()
+    if "/" in value:
+        addr, slash, prefix_len = value.partition("/")
+        value = "{}{}{}".format(normalizeAddressList([addr])[0], slash, prefix_len.strip())
+    return str(ip_network(value, strict=strict))
+
+
 def normalizeAddressRecord(record: Union[str, object], trimNonAddressRecord: bool = False) -> str:
     """Normalize DNS-style A/AAAA record address literals.
 
@@ -98,7 +108,7 @@ def nodeHasAddress(node: "Node", address: Union[str, object]) -> bool:
 def nodeHasAddressInPrefix(node: "Node", prefix: Union[str, object]) -> bool:
     """Check whether any node address is inside an IPv4 or IPv6 prefix."""
 
-    network = ip_network(str(prefix).strip())
+    network = ip_network(normalizePrefix(prefix))
     family = AddressFamily.IPv4 if network.version == 4 else AddressFamily.IPv6
     for iface in node.getInterfaces():
         iface_addr = getInterfaceAddress(iface, family)

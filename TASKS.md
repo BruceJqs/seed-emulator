@@ -79,6 +79,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - `Filter` / `Binding` address and prefix selectors tolerate padded IPv4/IPv6
   literals, bracketed IPv6 literals, and CIDRs without changing their match
   semantics;
+- shared prefix normalization canonicalizes IPv4/IPv6 CIDR inputs for
+  `Binding`, node prefix matching, and ExaBGP announcements without changing
+  IPv4 defaults;
 - service network compile output remains IPv4-only by default, becomes
   dual-stack only when `serviceNetworkIpv6Prefix` is set, and emits
   per-node `ipv6_address` only for interfaces carrying IPv6 state;
@@ -101,6 +104,7 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 
 - endpoint helper tests cover IPv4, IPv6, padded host literals, DNS names, URL
   paths, bracketed IPv6 host inputs, and padded multiaddr formatting;
+- shared prefix helper tests cover padded and bracketed IPv4/IPv6 CIDR inputs;
 - shared DNS-style address-record normalization covers manual A/AAAA literals,
   including bracketed IPv6 literals, without changing non-address record
   handling;

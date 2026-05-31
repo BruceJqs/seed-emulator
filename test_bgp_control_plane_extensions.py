@@ -226,7 +226,7 @@ def test_exabgp_service_renders_dashboard_and_router_peer():
 
     ebgp.addPrivatePeering(100, 2, 151, abRelationship=PeerRelationship.Provider)
 
-    exabgp.install("observer_tool").attachToRouter("router0").setLocalAsn(65010).addAnnouncement("198.51.100.0/24")
+    exabgp.install("observer_tool").attachToRouter("router0").setLocalAsn(65010).addAnnouncement("198.51.100.71/24")
     emu.addBinding(Binding("observer_tool", filter=Filter(nodeName="observer", asn=151)))
 
     emu.addLayer(base)
@@ -241,6 +241,7 @@ def test_exabgp_service_renders_dashboard_and_router_peer():
 
     exabgp_conf = _file_content(observer, "/etc/exabgp/exabgp.conf")
     assert "198.51.100.0/24" in exabgp_conf
+    assert "198.51.100.71/24" not in exabgp_conf
     assert "process exabgp_json_sink" in exabgp_conf
     assert "peer-as 151" in exabgp_conf
 

@@ -1,5 +1,5 @@
 from .AddressAssignmentConstraint import AddressAssignmentConstraint, Assigner
-from .Addressing import AddressFamily, formatHost, formatHostPort, formatMultiaddr, formatUrl, getInterfaceAddress, getNodeAddress, getNodeAddresses, getNodePreferredAddress, hasInterfaceAddress, nodeHasAddress, nodeHasAddressInPrefix, normalizeAddressFamily, normalizeAddressList, normalizeAddressRecord
+from .Addressing import AddressFamily, formatHost, formatHostPort, formatMultiaddr, formatUrl, getInterfaceAddress, getNodeAddress, getNodeAddresses, getNodePreferredAddress, hasInterfaceAddress, nodeHasAddress, nodeHasAddressInPrefix, normalizeAddressFamily, normalizeAddressList, normalizeAddressRecord, normalizePrefix
 from .AutonomousSystem import AutonomousSystem
 from .ScionAutonomousSystem import ScionAutonomousSystem
 from .IsolationDomain import IsolationDomain
