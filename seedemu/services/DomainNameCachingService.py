@@ -100,6 +100,12 @@ class DomainNameCachingServer(Server, Configurable):
     def __normalizeRootServerRecord(self, record: str) -> str:
         return normalizeAddressRecord(record, trimNonAddressRecord=True)
 
+    def __normalizeForwardZoneName(self, zone: str) -> str:
+        value = str(zone).strip()
+        if value == '' or value == '.':
+            return '.'
+        return value if value[-1] == '.' else '{}.'.format(value)
+
     def addForwardZone(self, zone: str, vnode: str) -> DomainNameCachingServer:
         """!
         @brief Add a new forward zone, forward to the given virtual node name.
@@ -109,7 +115,7 @@ class DomainNameCachingServer(Server, Configurable):
 
         @returns self, for chaining API calls.
         """
-        self.__pending_forward_zones[zone] = vnode
+        self.__pending_forward_zones[self.__normalizeForwardZoneName(zone)] = vnode
 
         return self
     

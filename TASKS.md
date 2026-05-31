@@ -151,6 +151,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - DNS cache forward-zone fallback now resolves canonical zone-server names
   through shared node-address helpers, preserving IPv4 defaults while adding
   IPv6 forwarders only when authoritative zone-server nodes carry IPv6 state.
+  Forward-zone names are normalized to canonical DNS zone names before master
+  lookups and BIND forward-zone output are generated.
 
 ## Phase 4: Control-Plane Runtime Proof
 
