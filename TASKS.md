@@ -228,8 +228,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - Monero seed and full-node RPC endpoint lists now route through shared
   address-family and host-port helpers with Local-network-first,
   service-network fallback address selection, default to IPv4, and explicitly
-  select bracketed IPv6 endpoints when requested; Monero daemon runtime
-  behavior still needs validation before a support claim.
+  select bracketed IPv6 endpoints when requested; generated seed wait probes
+  use the endpoint address family, but Monero daemon runtime behavior still
+  needs validation before a support claim.
 - Chainlink generated RPC, faucet, utility, and WebSocket/HTTP node URLs now
   route through shared address-family and URL helpers with Local-network-first,
   service-network fallback address selection, default to IPv4, and explicitly

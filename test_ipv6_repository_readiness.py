@@ -2571,6 +2571,8 @@ def test_monero_endpoints_default_to_ipv4_on_dual_stack_nodes():
 
     assert 'DAEMON_ARGS+=("--add-exclusive-node=10.2.0.71:28080")' in client_script
     assert 'UPSTREAMS=("10.2.0.71:28081" "10.2.0.72:28081")' in light_script
+    assert 'local nc_family_option="-4"' in client_script
+    assert 'nc "$nc_family_option" -z "$host" "$port"' in client_script
     assert "2000:0:2::71" not in client_script
     assert "2000:0:2::71" not in light_script
 
@@ -2584,6 +2586,8 @@ def test_monero_endpoints_can_select_ipv6_helpers():
     assert 'DAEMON_ARGS+=("--add-exclusive-node=[2000:0:2::71]:28080")' in client_script
     assert 'UPSTREAMS=("[2000:0:2::71]:28081" "[2000:0:2::72]:28081")' in light_script
     assert 'if [[ "$endpoint" =~ ^\\[(.*)\\]:([0-9]+)$ ]]; then' in client_script
+    assert 'nc_family_option="-6"' in client_script
+    assert 'nc "$nc_family_option" -z "$host" "$port"' in client_script
     assert "--add-exclusive-node=10.2.0.71:28080" not in client_script
 
 

@@ -331,14 +331,16 @@ class MoneroBaseServer(Server):
                     for endpoint in "${{seed_endpoints[@]}}"; do
                         local host=""
                         local port=""
+                        local nc_family_option="-4"
                         if [[ "$endpoint" =~ ^\\[(.*)\\]:([0-9]+)$ ]]; then
                             host="${{BASH_REMATCH[1]}}"
                             port="${{BASH_REMATCH[2]}}"
+                            nc_family_option="-6"
                         else
                             host="${{endpoint%:*}}"
                             port="${{endpoint##*:}}"
                         fi
-                        if nc -z "$host" "$port" >/dev/null 2>&1; then
+                        if nc "$nc_family_option" -z "$host" "$port" >/dev/null 2>&1; then
                             echo "[monero] ✓ Seed node $host:$port is reachable (after $tries attempts, $elapsed seconds)" >&2
                             return 0
                         fi
