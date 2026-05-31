@@ -204,7 +204,9 @@ with `ipv6 unicast` when IPv6 is available or IPv6 prefixes are announced.
 
 Looking Glass remains a route-state observer. The proxy queries BIRD route
 state through `birdc` and FRR route state through `vtysh`, including IPv6 BGP
-and OSPFv3 commands.
+and OSPFv3 commands. Frontend-to-proxy traffic keeps an IPv4 endpoint by
+default; scenarios that explicitly select IPv6 proxy endpoints use shared URL
+helpers so IPv6 literals are bracketed correctly.
 
 Other services remain compatible with IPv4 defaults. A service that wants IPv6
 should read IPv6 through `Interface.hasIpv6Address()` and

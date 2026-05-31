@@ -8,7 +8,7 @@ import sys
 import pytest
 
 from seedemu.compiler import Docker, Platform
-from seedemu.core import Binding, Emulator, Filter
+from seedemu.core import AddressFamily, Binding, Emulator, Filter
 from seedemu.layers import Base, Ebgp, FrrBgp, Ibgp, Ospf, PeerRelationship, Routing
 from seedemu.services import BgpLookingGlassService, ExaBgpService
 
@@ -436,10 +436,71 @@ def test_bgp_looking_glass_supports_frr_router_route_state():
     router = reg.get("2", "rnode", "router0")
 
     proxy = _file_content(router, "/opt/seed-lg/proxy.py")
+    frontend = _file_content(lg, "/opt/seed-lg/frontend.py")
+    frontend_cmd = next(cmd for cmd, _ in lg.getStartCommands() if "frontend.py" in cmd)
+    proxy_cmd = next(cmd for cmd, _ in router.getStartCommands() if "proxy.py" in cmd)
+
     assert "show bgp summary" in proxy
     assert "show ip ospf neighbor" in proxy
+    assert "SEED_LG_PROXY_URLS" in frontend
+    assert "http://{host}:{proxy_port}" not in frontend
     assert any("SEED_LG_BACKEND=\"frr\"" in cmd for cmd, _ in router.getStartCommands())
-    assert any("python3 /opt/seed-lg/frontend.py" in cmd for cmd, _ in lg.getStartCommands())
+    assert "SEED_LG_PROXY_BIND_FAMILY=\"ipv4\"" in proxy_cmd
+    assert "SEED_LG_PROXY_URLS" in frontend_cmd
+    assert "http://10.2.0.254:8000" in frontend_cmd
+    assert "python3 /opt/seed-lg/frontend.py" in frontend_cmd
+
+
+def test_bgp_looking_glass_formats_ipv6_proxy_urls(tmp_path):
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base(enableIpv6=True)
+    routing = Routing()
+    looking_glass = BgpLookingGlassService()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createRouter("router0").joinNetwork("net0")
+    as2.createHost("lg").joinNetwork("net0")
+
+    server = (
+        looking_glass
+        .install("bgp_lg")
+        .attach("router0")
+        .useManagementNetwork()
+        .setProxyAddressFamily(AddressFamily.IPv6)
+    )
+    emu.addBinding(Binding("bgp_lg", filter=Filter(nodeName="lg", asn=2)))
+
+    emu.addLayer(base)
+    emu.addLayer(routing)
+    emu.addLayer(looking_glass)
+    emu.render()
+
+    reg = emu.getRegistry()
+    lg = reg.get("2", "hnode", "lg")
+    router = reg.get("2", "rnode", "router0")
+
+    frontend = _file_content(lg, "/opt/seed-lg/frontend.py")
+    frontend_cmd = next(cmd for cmd, _ in lg.getStartCommands() if "frontend.py" in cmd)
+    proxy_cmd = next(cmd for cmd, _ in router.getStartCommands() if "proxy.py" in cmd)
+
+    assert server.getProxyAddressFamily() == AddressFamily.IPv6
+    assert "urlopen(f\"{proxy_url}{path}\"" in frontend
+    assert "http://{host}:{proxy_port}" not in frontend
+    assert "SEED_LG_PROXY_URLS" in frontend_cmd
+    assert "http://[fd00:66::" in frontend_cmd
+    assert "]:8000" in frontend_cmd
+    assert "http://fd00:66::" not in frontend_cmd
+    assert "SEED_LG_PROXY_BIND_FAMILY=\"ipv6\"" in proxy_cmd
+    assert "000_svc|fd00:66::" in _file_content(router, "/ifinfo.txt")
+    assert "000_svc|fd00:66::" in _file_content(lg, "/ifinfo.txt")
+
+    output_dir = tmp_path / "lg-ipv6-proxy-url"
+    emu.compile(Docker(platform=Platform.AMD64), str(output_dir), override=True)
+    compose = (output_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "enable_ipv6: true" in compose
+    assert "fd00:66::/64" in compose
+    assert "ipv6_address:" in compose
 
 
 def test_new_bgp_examples_compile_outputs_exist():

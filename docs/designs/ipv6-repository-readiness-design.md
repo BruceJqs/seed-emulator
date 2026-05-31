@@ -72,7 +72,7 @@ Deferred core items:
 | --- | --- | --- |
 | Routing control plane | Supported | Keep protocol intent family-aware; render backend syntax only in `Routing`. |
 | ExaBGP | Supported | Service speaker may use IPv4 or IPv6 shared peer address. |
-| Looking Glass | Supported | Route-state views separate IPv4/IPv6 output. |
+| Looking Glass | Supported | Route-state views separate IPv4/IPv6 output; frontend-to-proxy URLs use shared URL helpers, default to IPv4, and may explicitly select bracketed IPv6 proxy endpoints. |
 | Docker compiler | Supported | Emit IPv6 only for networks/interfaces carrying IPv6 state. |
 | `/etc/hosts` | Baseline dual-stack | Generate IPv4 and IPv6 local entries when available. |
 | DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; masters may include both families; reverse DNS keeps IPv4 `in-addr.arpa.` PTR records and adds `ip6.arpa.` PTR records only when interfaces carry IPv6 state. |

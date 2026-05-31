@@ -112,6 +112,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   example README or user manual.
 - Validate neighbors and routes, not only generated config.
 - Keep ExaBGP event streams separate from Looking Glass route-state views.
+- Looking Glass frontend-to-proxy URLs now route through shared URL helpers,
+  default to IPv4, and explicitly select bracketed IPv6 proxy URLs with
+  `setProxyAddressFamily(AddressFamily.IPv6)`.
 
 Useful runtime checks:
 

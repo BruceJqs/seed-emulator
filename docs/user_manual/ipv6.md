@@ -171,6 +171,13 @@ bracketed IPv6 dropper URL for binding-based clients. BYOB client/server
 runtime behavior and DGA endpoints have not been validated as full IPv6
 support.
 
+Looking Glass route-state observation remains separate from ExaBGP event
+dashboards. Its frontend-to-proxy traffic preserves the IPv4 default. In a
+dual-stack emulation, call
+`BgpLookingGlassServer.setProxyAddressFamily(AddressFamily.IPv6)` to generate
+bracketed IPv6 proxy URLs for the frontend; this selects only the management
+endpoint family, not the set of route families queried from the router.
+
 CA certificate installation filters accept IPv4 and IPv6 address/prefix
 selectors. For example, `installCACert(Filter(ipv6="2000:0:3::72"))` installs
 the root CA certificate only on nodes with that IPv6 address. Web HTTPS ACME
