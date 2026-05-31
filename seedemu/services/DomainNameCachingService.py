@@ -1,5 +1,5 @@
 from __future__ import annotations
-from seedemu.core import AddressFamily, Configurable, Service, Server, getNodePreferredAddress, normalizeAddressList, normalizeAddressRecord
+from seedemu.core import AddressFamily, Configurable, Service, Server, getNodeAddresses, getNodePreferredAddress, normalizeAddressList, normalizeAddressRecord
 from seedemu.core import Node, ScopedRegistry, Emulator
 from .DomainNameService import DomainNameService
 from typing import List, Dict
@@ -87,6 +87,13 @@ class DomainNameCachingServer(Server, Configurable):
     def __getFirstNodeAddress(self, node: Node) -> str:
         return getNodePreferredAddress(node, (AddressFamily.IPv4, AddressFamily.IPv6), preferLocal=False)
 
+    def __getFirstNodeAddresses(self, node: Node) -> List[str]:
+        return [
+            str(addr)
+            for addr in getNodeAddresses(node, preferLocal=False)
+            if addr is not None
+        ]
+
     def __formatBindAddressList(self, addrs: List[str]) -> str:
         return '; '.join(normalizeAddressList(addrs))
 
@@ -165,9 +172,7 @@ class DomainNameCachingServer(Server, Configurable):
                     for v in server_vnodes:
                         try:
                             pn = self.__emulator.getBindingFor(v)
-                            addr = self.__getFirstNodeAddress(pn)
-                            if addr is not None:
-                                addrs.append(addr)
+                            addrs.extend(self.__getFirstNodeAddresses(pn))
                         except Exception:
                             continue
                 except Exception:

@@ -529,6 +529,7 @@ class DomainNameService(Service):
         """
         info = []
         targets = self.getPendingTargets()
+        target_zone = self.__normalizeZoneName(domain)
 
         for (vnode, sobj) in targets.items():
             server: DomainNameServer = sobj
@@ -536,7 +537,7 @@ class DomainNameService(Service):
             hit = False
 
             for zone in server.getZones():
-                if zone.getName() == domain:
+                if self.__normalizeZoneName(zone) == target_zone:
                     info.append(vnode)
                     hit = True
                     break
@@ -544,6 +545,11 @@ class DomainNameService(Service):
             if hit: continue
         
         return info
+
+    def __normalizeZoneName(self, domain: str) -> str:
+        if domain == '' or domain == '.':
+            return '.'
+        return domain if domain[-1] == '.' else '{}.'.format(domain)
 
     def addMasterIp(self, zone: str, addr: str) -> DomainNameService:
         """!

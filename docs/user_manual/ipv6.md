@@ -173,6 +173,11 @@ registration page also allows users to explicitly choose AAAA records for IPv6
 addresses. The registrar still follows the existing TLD/master-DNS placement
 model; this is not a broader DNS workflow redesign.
 
+DNS cache forward zones preserve IPv4 defaults. When a forward zone falls back
+to authoritative zone-server bindings instead of explicit master IPs, the cache
+uses the same node-address helpers as authoritative DNS and adds IPv6
+forwarders only for zone-server nodes that actually have IPv6 state.
+
 Traffic generators preserve existing raw receiver target lists. For explicit
 address-family selection, use `addReceiverVnodes(..., family=AddressFamily.IPv6)`
 to resolve receiver virtual nodes through the shared node-address helpers.

@@ -2269,6 +2269,46 @@ def test_dns_cache_forward_zone_uses_dual_stack_authoritative_masters():
     assert 'zone "example." { type forward; forwarders { 10.2.0.53; 2000:0:2::53; }; };' in named_local
 
 
+def test_dns_zone_server_names_match_canonical_zone_names():
+    dns = DomainNameService()
+
+    dns.install("ns-example").addZone("example.")
+    dns.install("root-ns").addZone(".")
+
+    assert dns.getZoneServerNames("example.") == ["ns-example"]
+    assert dns.getZoneServerNames("example") == ["ns-example"]
+    assert dns.getZoneServerNames(".") == ["root-ns"]
+    assert dns.getZoneServerNames("") == ["root-ns"]
+
+
+def test_dns_cache_forward_zone_falls_back_to_dual_stack_zone_servers():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+    dns = DomainNameService()
+    cache = DomainNameCachingService(autoRoot=False)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("ns").joinNetwork("net0", address="10.2.0.53", ipv6Address="2000:0:2::53")
+    as2.createHost("cache").joinNetwork("net0", address="10.2.0.54", ipv6Address="2000:0:2::54")
+
+    dns.install("ns-example").addZone("example.")
+    cache.install("cache").addForwardZone("example.", "missing-ns-vnode")
+    emu.addBinding(Binding("ns-example", filter=Filter(asn=2, nodeName="ns"), action=Action.FIRST))
+    emu.addBinding(Binding("cache", filter=Filter(asn=2, nodeName="cache"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(dns)
+    emu.addLayer(cache)
+    emu.render()
+
+    cache_node = emu.getRegistry().get("2", "hnode", "cache")
+    named_local = _file_content(cache_node, "/etc/bind/named.conf.local")
+
+    assert 'zone "example." { type forward; forwarders { 10.2.0.53; 2000:0:2::53; }; };' in named_local
+    assert "missing-ns-vnode" not in named_local
+
+
 def test_dns_cache_on_service_network_keeps_first_interface_fallback():
     emu = Emulator()
     base = Base()
