@@ -98,6 +98,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 
 - endpoint helper tests cover IPv4, IPv6, padded host literals, DNS names, URL
   paths, bracketed IPv6 host inputs, and padded multiaddr formatting;
+- shared DNS-style address-record normalization covers manual A/AAAA literals
+  without changing non-address record handling;
 - address-family normalization accepts common user-facing and socket-family
   spellings such as `ipv4`, `ip6`, `inet`, and `AF_INET6`;
 - migrated service endpoint address-family APIs reuse the shared normalizer
@@ -115,8 +117,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   nodes.
 - explicit Base/AS/Node resolver nameserver inputs normalize padded IPv4/IPv6
   literals before writing `resolv.conf` commands.
-- DNS authoritative and cache service address selection now routes through
-  shared core node-address helpers instead of service-local duplication.
+- DNS authoritative and cache service address selection and A/AAAA record
+  literal normalization now route through shared core helpers instead of
+  service-local duplication.
 - DNS glue records and manual master IPs normalize explicit IPv4/IPv6 address
   literals before generating A/AAAA records, slave master lists, or forwarder
   lists.

@@ -38,6 +38,22 @@ def normalizeAddressList(addrs: Iterable[Union[str, object]]) -> List[str]:
     return [str(ip_address(str(addr).strip())) for addr in addrs]
 
 
+def normalizeAddressRecord(record: Union[str, object], trimNonAddressRecord: bool = False) -> str:
+    """Normalize DNS-style A/AAAA record address literals.
+
+    Non-address records are returned unchanged unless trimNonAddressRecord is
+    set for callers whose historical API already trimmed those records.
+    """
+
+    value = str(record)
+    parts = value.strip().split()
+    if len(parts) >= 3 and parts[-2].upper() in ("A", "AAAA"):
+        parts[-2] = parts[-2].upper()
+        parts[-1] = str(ip_address(parts[-1]))
+        return " ".join(parts)
+    return value.strip() if trimNonAddressRecord else value
+
+
 def _parseHostIpLiteral(host: Union[str, object]):
     value = str(host).strip()
     candidate = value

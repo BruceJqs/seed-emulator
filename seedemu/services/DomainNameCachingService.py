@@ -1,5 +1,5 @@
 from __future__ import annotations
-from seedemu.core import AddressFamily, Configurable, Service, Server, getNodePreferredAddress
+from seedemu.core import AddressFamily, Configurable, Service, Server, getNodePreferredAddress, normalizeAddressRecord
 from seedemu.core import Node, ScopedRegistry, Emulator
 from .DomainNameService import DomainNameService
 from ipaddress import ip_address
@@ -92,12 +92,7 @@ class DomainNameCachingServer(Server, Configurable):
         return '; '.join([str(ip_address(str(addr).strip())) for addr in addrs])
 
     def __normalizeRootServerRecord(self, record: str) -> str:
-        parts = str(record).strip().split()
-        if len(parts) >= 3 and parts[-2].upper() in ('A', 'AAAA'):
-            parts[-2] = parts[-2].upper()
-            parts[-1] = str(ip_address(parts[-1]))
-            return ' '.join(parts)
-        return str(record).strip()
+        return normalizeAddressRecord(record, trimNonAddressRecord=True)
 
     def addForwardZone(self, zone: str, vnode: str) -> DomainNameCachingServer:
         """!

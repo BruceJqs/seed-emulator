@@ -20,6 +20,7 @@ from seedemu.core import (
     getNodeAddresses,
     getNodePreferredAddress,
     normalizeAddressFamily,
+    normalizeAddressRecord,
 )
 from seedemu.core.enums import NodeRole
 from seedemu.layers import Base, EtcHosts
@@ -838,6 +839,13 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatMultiaddr("2000::1", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
     assert formatMultiaddr(" 2000::1 ", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
     assert formatMultiaddr("[2000:0:0::1]", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
+
+
+def test_address_record_normalizer_handles_dns_a_aaaa_literals():
+    assert normalizeAddressRecord(" web a 10.2.0.71 ") == "web A 10.2.0.71"
+    assert normalizeAddressRecord(" web6 aaaa 2000:0:2:0:0:0:0:71 ") == "web6 AAAA 2000:0:2::71"
+    assert normalizeAddressRecord("txt TXT  2000:0:2:0:0:0:0:71") == "txt TXT  2000:0:2:0:0:0:0:71"
+    assert normalizeAddressRecord(" ns1. NS a.root.example. ", trimNonAddressRecord=True) == "ns1. NS a.root.example."
 
 
 def test_address_family_normalizer_accepts_common_padded_values():

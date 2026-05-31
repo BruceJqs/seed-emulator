@@ -1,5 +1,5 @@
 from __future__ import annotations
-from seedemu.core import Node, Printable, Emulator, Service, Server, getNodeAddresses
+from seedemu.core import Node, Printable, Emulator, Service, Server, getNodeAddresses, normalizeAddressRecord
 from typing import List, Dict, Tuple, Set
 from re import sub
 from random import randint
@@ -90,12 +90,7 @@ class Zone(Printable):
         return self
 
     def __normalizeAddressRecord(self, record: str) -> str:
-        parts = str(record).strip().split()
-        if len(parts) >= 3 and parts[-2].upper() in ('A', 'AAAA'):
-            parts[-2] = parts[-2].upper()
-            parts[-1] = str(ip_address(parts[-1]))
-            return ' '.join(parts)
-        return record
+        return normalizeAddressRecord(record)
     
     def deleteRecord(self, record: str) -> Zone:
         """!

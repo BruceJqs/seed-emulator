@@ -249,6 +249,7 @@ from seedemu.core import (
     formatHostPort,
     formatUrl,
     formatMultiaddr,
+    normalizeAddressRecord,
 )
 ```
 
@@ -257,7 +258,9 @@ Use `formatHostPort()` or `formatUrl()` instead of manually concatenating
 `formatMultiaddr()` when generating IPFS/libp2p multiaddrs. Use
 `getNodeAddress()`, `getNodePreferredAddress()`, or `getNodeAddresses()` when a
 service needs stable Local-network-first address selection with service-network
-fallback.
+fallback. Use `normalizeAddressRecord()` when a service accepts DNS-style
+manual A/AAAA records and needs canonical IPv4/IPv6 literals without changing
+other record types.
 
 Do not claim service-level IPv6 support until the service has a minimal IPv6 or
 dual-stack example and a regression check showing that old IPv4 behavior is
