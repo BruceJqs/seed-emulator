@@ -169,11 +169,13 @@ class KuboService(Service):
         str
             String representing the bootstrap bash script.
         """
+        nc_family_option = "-6" if self._bootstrap_address_family == AddressFamily.IPv6 else "-4"
         script = f"""#!/bin/bash
 
 # logfile=/var/log/kubo_bootstrap_$(date +%s).log
 logfile=/var/log/kubo_bootstrap.log
 timeout=60
+nc_family_option={quote(nc_family_option)}
 bootips=({self._shellArray([host for host, _, _ in self._bootstrap_endpoints])})
 booturls=({self._shellArray([url for _, url, _ in self._bootstrap_endpoints])})
 bootmultiaddrs=({self._shellArray([multiaddr for _, _, multiaddr in self._bootstrap_endpoints])})
@@ -221,7 +223,7 @@ getid () {{
    waited=0
    while [[ $up -ne 0 && $waited -lt $timeout ]]
    do
-      nc -z -n "${{ip}}" {self._rpc_api_port}
+      nc "$nc_family_option" -z -n "${{ip}}" {self._rpc_api_port}
       up=$?
       sleep 1
       ((waited++))

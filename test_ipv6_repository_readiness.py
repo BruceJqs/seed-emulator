@@ -2497,6 +2497,8 @@ def test_kubo_bootstrap_endpoints_default_to_ipv4_on_dual_stack_nodes():
     assert kubo.getBootstrapList() == ["10.2.0.71"]
     assert "ipfs config Addresses.API /ip4/0.0.0.0/tcp/5001" in commands
     assert "ipfs config Addresses.Gateway /ip4/0.0.0.0/tcp/8080" in commands
+    assert "nc_family_option=-4" in script
+    assert 'nc "$nc_family_option" -z -n "${ip}" 5001' in script
     assert "http://10.2.0.71:5001/api/v0/config?arg=Identity.PeerID" in script
     assert "/ip4/10.2.0.71/tcp/4001" in script
     assert "2000:0:2::71" not in script
@@ -2520,6 +2522,8 @@ def test_kubo_bootstrap_endpoints_can_select_ipv6_helpers():
     assert kubo.getBootstrapList() == ["2000:0:2::71"]
     assert "ipfs config Addresses.API /ip6/::/tcp/5001" in commands
     assert "ipfs config Addresses.Gateway /ip6/::/tcp/8080" in commands
+    assert "nc_family_option=-6" in script
+    assert 'nc "$nc_family_option" -z -n "${ip}" 5001' in script
     assert "http://[2000:0:2::71]:5001/api/v0/config?arg=Identity.PeerID" in script
     assert "/ip6/2000:0:2::71/tcp/4001" in script
     assert "/ip4/10.2.0.71/tcp/4001" not in script
@@ -2553,6 +2557,7 @@ def test_kubo_bootstrap_endpoints_fall_back_to_service_network_ipv6():
 
     assert kubo.getBootstrapList() == ["fd00:66::71"]
     assert "ipfs config Addresses.API /ip6/::/tcp/5001" in commands
+    assert "nc_family_option=-6" in script
     assert "http://[fd00:66::71]:5001/api/v0/config?arg=Identity.PeerID" in script
     assert "/ip6/fd00:66::71/tcp/4001" in script
     assert "http://fd00:66::71:5001" not in script

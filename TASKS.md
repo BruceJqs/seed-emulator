@@ -205,7 +205,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - Kubo bootstrap RPC URLs, peer multiaddrs, and the legacy `getIP` utility now
   route through shared endpoint helpers with Local-network-first,
   service-network fallback address selection, default to IPv4, and explicitly
-  select IPv6 when requested.
+  select IPv6 when requested; generated bootstrap helper probes use the same
+  explicit address family as the selected bootstrap endpoints.
 - Botnet C2/dropper URLs now route through shared node-address and URL helpers,
   preserve the existing first-interface IPv4 default, and explicitly select
   bracketed IPv6 URLs when requested; DGA dropper runners may consume
