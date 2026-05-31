@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from ipaddress import ip_address
-from typing import Iterable, Optional, TYPE_CHECKING, Tuple, Union
+from typing import Iterable, List, Optional, TYPE_CHECKING, Tuple, Union
 
 from .enums import NetworkType
 
@@ -30,6 +30,12 @@ def normalizeAddressFamily(family: Union[AddressFamily, str, int]) -> AddressFam
         return AddressFamily.IPv6
 
     raise ValueError("unsupported address family {}".format(family))
+
+
+def normalizeAddressList(addrs: Iterable[Union[str, object]]) -> List[str]:
+    """Normalize IPv4/IPv6 address literals while preserving list order."""
+
+    return [str(ip_address(str(addr).strip())) for addr in addrs]
 
 
 def getInterfaceAddress(iface: "Interface", family: Union[AddressFamily, str, int] = AddressFamily.IPv4):

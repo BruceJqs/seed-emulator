@@ -2047,6 +2047,45 @@ def test_dns_cache_resolvconf_prefers_local_ipv6_before_service_ipv4_fallback():
     assert 'echo "nameserver 192.168.66.10" >> /etc/resolv.conf' not in commands
 
 
+def test_explicit_nameservers_normalize_padded_ipv4_ipv6_inputs():
+    emu = Emulator()
+    base = Base()
+
+    base.setNameServers([" 10.2.0.53 ", " 2000:0:2::53 "])
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    inherited = as2.createHost("inherited").joinNetwork("net0", address="10.2.0.71")
+    node_override = as2.createHost("node-override").joinNetwork("net0", address="10.2.0.72")
+    node_override.setNameServers([" 10.2.0.54 ", " 2000:0:2::54 "])
+
+    as3 = base.createAutonomousSystem(3)
+    as3.setNameServers([" 10.3.0.53 ", " 2000:0:3::53 "])
+    as3.createNetwork("net0")
+    as_override = as3.createHost("as-override").joinNetwork("net0", address="10.3.0.71")
+
+    emu.addLayer(base)
+    emu.render()
+
+    inherited_commands = [command for command, _ in inherited.getStartCommands()]
+    node_commands = [command for command, _ in node_override.getStartCommands()]
+    as_commands = [command for command, _ in as_override.getStartCommands()]
+
+    assert base.getNameServers() == ["10.2.0.53", "2000:0:2::53"]
+    assert as2.getNameServers() == ["10.2.0.53", "2000:0:2::53"]
+    assert as3.getNameServers() == ["10.3.0.53", "2000:0:3::53"]
+    assert node_override.getNameServers() == ["10.2.0.54", "2000:0:2::54"]
+    assert 'echo "nameserver 10.2.0.53" >> /etc/resolv.conf' in inherited_commands
+    assert 'echo "nameserver 2000:0:2::53" >> /etc/resolv.conf' in inherited_commands
+    assert 'echo "nameserver 10.2.0.54" >> /etc/resolv.conf' in node_commands
+    assert 'echo "nameserver 2000:0:2::54" >> /etc/resolv.conf' in node_commands
+    assert 'echo "nameserver 10.3.0.53" >> /etc/resolv.conf' in as_commands
+    assert 'echo "nameserver 2000:0:3::53" >> /etc/resolv.conf' in as_commands
+    combined_commands = "\n".join(inherited_commands + node_commands + as_commands)
+    assert 'nameserver  10.' not in combined_commands
+    assert 'nameserver  2000:' not in combined_commands
+    assert ' " >> /etc/resolv.conf' not in combined_commands
+
+
 def test_domain_registrar_dynamic_updates_allow_explicit_aaaa_records():
     node = Node("registrar", NodeRole.Host, 2)
     DomainRegistrarServer().install(node)

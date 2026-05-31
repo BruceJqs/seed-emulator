@@ -1,5 +1,5 @@
 from __future__ import annotations
-from seedemu.core import AutonomousSystem, InternetExchange, AddressAssignmentConstraint, DEFAULT_IPV6_ROOT_PREFIX, Ipv6Addressing, Node, Graphable, Emulator, Layer
+from seedemu.core import AutonomousSystem, InternetExchange, AddressAssignmentConstraint, DEFAULT_IPV6_ROOT_PREFIX, Ipv6Addressing, Node, Graphable, Emulator, Layer, normalizeAddressList
 from ipaddress import IPv6Network
 from typing import Dict, List
 from seedemu.options.Sysctl import SysctlOpts
@@ -172,7 +172,7 @@ class Base(Layer, Graphable):
 
         @returns self, for chaining API calls.
         """
-        self.__name_servers = servers
+        self.__name_servers = normalizeAddressList(servers)
 
         return self
 

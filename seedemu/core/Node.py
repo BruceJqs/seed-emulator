@@ -17,6 +17,7 @@ from typing import List, Dict, Set, Tuple, Optional
 from string import ascii_letters
 from random import choice
 from .BaseSystem import BaseSystem
+from .Addressing import normalizeAddressList
 
 DEFAULT_SOFTWARE: List[str] = ['zsh', 'curl', 'nano', 'vim-nox', 'mtr-tiny', 'iproute2', 'iputils-ping', 'tcpdump', 'termshark', 'dnsutils', 'jq', 'ipcalc', 'netcat']
 
@@ -421,7 +422,7 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         """
         assert not self.__asn == 0, 'This API is only available on a real physical node.'
 
-        self.__name_servers = servers
+        self.__name_servers = normalizeAddressList(servers)
 
         return self
 

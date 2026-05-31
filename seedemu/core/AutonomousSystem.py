@@ -3,6 +3,7 @@ from .Graphable import Graphable
 from .Printable import Printable
 from .Network import Network
 from .Ipv6Addressing import Ipv6Addressing
+from .Addressing import normalizeAddressList
 from .AddressAssignmentConstraint import AddressAssignmentConstraint
 from .enums import NetworkType, NodeRole
 from .Node import Node, Router
@@ -79,7 +80,7 @@ class AutonomousSystem(Printable, Graphable, Configurable, Customizable):
 
         @returns self, for chaining API calls.
         """
-        self.__name_servers = servers
+        self.__name_servers = normalizeAddressList(servers)
 
         return self
 

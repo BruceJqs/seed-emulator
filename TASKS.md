@@ -112,6 +112,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - DNS cache address selection is Local IPv4 first, then Local IPv6, then first
   available interface fallback for compatibility with service-network-only
   nodes.
+- explicit Base/AS/Node resolver nameserver inputs normalize padded IPv4/IPv6
+  literals before writing `resolv.conf` commands.
 - DNS authoritative and cache service address selection now routes through
   shared core node-address helpers instead of service-local duplication.
 - DNS glue records and manual master IPs normalize explicit IPv4/IPv6 address
