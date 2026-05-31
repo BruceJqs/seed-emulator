@@ -84,7 +84,7 @@ Deferred core items:
 | Chainlink | Compatible | Generated Chainlink RPC, faucet, utility, and node WebSocket/HTTP URLs use shared endpoint helpers, default to IPv4, and may explicitly select bracketed IPv6 URLs; Ethereum/Chainlink runtime behavior still needs validation before a full support claim. |
 | Email | IPv4-first | Provider/gateway/default-route logic must be redesigned before IPv6 claim. |
 | Tor | IPv4-first | Bind/listener and directory authority addressing need a separate migration. |
-| Ethereum | IPv4-first | HTTP, ENR, RPC, and peer discovery behavior need helper-based migration and runtime validation. |
+| Ethereum | Compatible | Faucet and utility HTTP URLs use shared endpoint helpers, default to IPv4, and may explicitly select bracketed IPv6; ENR, bootnode, peer discovery, and daemon runtime behavior still need validation before a full support claim. |
 | SCION | Separate design | Underlay, crossConnect, and SCION control tooling currently assume IPv4. |
 | MPLS/EVPN | Separate design | Routing identifiers and dataplane assumptions need dedicated validation. |
 | k8s/internetmap2 | Out of this branch | Do not claim IPv6 support until their own branch validates it. |

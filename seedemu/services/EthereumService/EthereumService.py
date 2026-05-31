@@ -4,7 +4,7 @@ from .EthEnum import ConsensusMechanism, EthUnit
 from .EthUtil import Genesis, EthAccount, AccountStructure
 from .EthereumServer import EthereumServer, PoAServer, PoWServer, PoSServer
 from os import mkdir, path, makedirs, rename
-from seedemu.core import Node, Service, Server, Emulator
+from seedemu.core import AddressFamily, Node, Service, Server, Emulator, getInterfaceAddress, normalizeAddressFamily
 from seedemu.core.enums import NetworkType
 from .FaucetServer import FaucetServer
 from .EthUtilityServer import EthUtilityServer
@@ -36,6 +36,7 @@ class Blockchain:
     _terminal_total_difficulty:int
     _target_aggregater_per_committee:int
     _target_committee_size:int
+    _endpoint_address_family: AddressFamily
 
     def __init__(self, service:EthereumService, chainName: str, chainId: int, consensus:ConsensusMechanism):
         """!
@@ -68,6 +69,7 @@ class Blockchain:
         self._chain_id = chainId
         self._target_aggregater_per_committee = 2
         self._target_committee_size = 3
+        self._endpoint_address_family = AddressFamily.IPv4
         
 
     def _doConfigure(self, node:Node, server:Server):
@@ -162,8 +164,14 @@ class Blockchain:
         for iface in ifaces:
             net = iface.getNet()
             if net.getType() == NetworkType.Local:
-                address = iface.getAddress()
-                return address
+                address = getInterfaceAddress(iface, self._endpoint_address_family)
+                if address is not None:
+                    return str(address)
+
+        assert address is not None, 'Node {} has no {} Local address.'.format(
+            node.getName(),
+            self._endpoint_address_family.value,
+        )
     
     def getAllServerNames(self):
         server_names = {}
@@ -256,6 +264,25 @@ class Blockchain:
         self._genesis = Genesis(self._consensus)
         
         return self
+
+    def setEndpointAddressFamily(self, family) -> Blockchain:
+        """!
+        @brief Select which address family is used for generated HTTP endpoints.
+
+        @param family Address family to use for faucet and utility generated URLs.
+
+        @returns Self, for chaining API calls.
+        """
+        self._endpoint_address_family = normalizeAddressFamily(family)
+        return self
+
+    def getEndpointAddressFamily(self) -> AddressFamily:
+        """!
+        @brief Get the address family used for generated HTTP endpoints.
+
+        @returns AddressFamily.
+        """
+        return self._endpoint_address_family
 
     def getConsensusMechanism(self) -> ConsensusMechanism:
         """!

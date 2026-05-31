@@ -1,9 +1,14 @@
 from typing import Dict
-from seedemu.core import Configurable
+from seedemu.core import AddressFamily, Configurable, formatHost, getInterfaceAddress, normalizeAddressFamily
 from seedemu.core.Emulator import Emulator
 from seedemu.core.enums import NetworkType
 
-from .EthTemplates import FaucetServerFileTemplates
+from .EthTemplates import (
+    FaucetServerFileTemplates,
+    format_faucet_fund_url,
+    format_faucet_url,
+    format_fund_curl,
+)
 
 class FaucetUtil(Configurable):
     __vnode_name:str
@@ -11,14 +16,20 @@ class FaucetUtil(Configurable):
     __fund_list:list
     __faucet_server_address:str
     __is_configured:bool
+    __endpoint_address_family: AddressFamily
 
-    def __init__(self):
+    def __init__(self, endpointAddressFamily=AddressFamily.IPv4):
         super().__init__()
         self.__is_configured = False
         self.__fund_list = []
         self.__vnode_name = ""
         self.__port = -1
         self.__faucet_server_address = ""
+        self.__endpoint_address_family = normalizeAddressFamily(endpointAddressFamily)
+
+    def setEndpointAddressFamily(self, family):
+        self.__endpoint_address_family = normalizeAddressFamily(family)
+        return self
 
     def configure(self, emulator: Emulator):
         super().configure(emulator)
@@ -39,23 +50,19 @@ class FaucetUtil(Configurable):
 
     
     def getFaucetFundUrl(self):
-        return FaucetServerFileTemplates['faucet_fund_url'].format(
-                     address=self.__faucet_server_address,
-                     port = self.__port)
+        return format_faucet_fund_url(self.__faucet_server_address, self.__port)
     
 
     def getFacuetUrl(self):
-        return FaucetServerFileTemplates['faucet_url'].format(
-                     address=self.__faucet_server_address,
-                     port = self.__port)
+        return format_faucet_url(self.__faucet_server_address, self.__port)
      
     
     def getFundApi(self, recipientAddress:str, amount:int):
-        return FaucetServerFileTemplates['fund_curl'].format(
-                     recipient=recipientAddress, 
-                     amount=amount,
-                     address=self.__faucet_server_address,
-                     port = self.__port)
+        return format_fund_curl(
+                     recipientAddress,
+                     amount,
+                     self.__faucet_server_address,
+                     self.__port)
 
 
     def getFundScript(self):
@@ -63,15 +70,12 @@ class FaucetUtil(Configurable):
         
         funds_list = []
         for recipient, amount in self.__fund_list:
-            funds_list.append(FaucetServerFileTemplates['fund_curl'].format(
-                     recipient=recipient, 
-                     amount=amount,
-                     address=self.__faucet_server_address,
-                     port = self.__port))
+            funds_list.append(self.getFundApi(recipient, amount))
             
-        return FaucetServerFileTemplates['fund_script'].format(
-                     address=self.__faucet_server_address, 
+        return FaucetServerFileTemplates['fund_accounts'].format(
+                     address=formatHost(self.__faucet_server_address),
                      port=self.__port,
+                     max_attempts=999999,
                      fund_command=';'.join(funds_list))
 
     
@@ -83,5 +87,11 @@ class FaucetUtil(Configurable):
         for iface in ifaces:
             net = iface.getNet()
             if net.getType() == NetworkType.Local:
-                address = iface.getAddress()
-                return address
+                address = getInterfaceAddress(iface, self.__endpoint_address_family)
+                if address is not None:
+                    return str(address)
+
+        assert address is not None, 'Node {} has no {} Local address.'.format(
+            node.getName(),
+            self.__endpoint_address_family.value,
+        )

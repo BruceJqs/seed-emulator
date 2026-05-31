@@ -22,12 +22,23 @@ from seedemu.layers import Base, EtcHosts
 from seedemu.services import (
     CAServer,
     ChainlinkService,
+    Blockchain,
     DomainNameCachingService,
     DomainNameService,
+    ConsensusMechanism,
+    EthUtilityServer,
+    FaucetServer,
+    FaucetUtil,
     KuboService,
     MoneroService,
     TrafficService,
     TrafficServiceType,
+)
+from seedemu.services.EthereumService.EthTemplates import (
+    FaucetServerFileTemplates,
+    format_faucet_fund_url,
+    format_faucet_url,
+    format_fund_curl,
 )
 import pytest
 
@@ -132,6 +143,11 @@ class _FakeEthereumService(Service):
 
     def getName(self) -> str:
         return "EthereumService"
+
+
+class _FakeAccount:
+    address = "0x1111111111111111111111111111111111111111"
+    privateKey = bytes.fromhex("22" * 32)
 
 
 def _render_kubo_bootstrap_topology(kubo: KuboService):
@@ -251,6 +267,78 @@ def _render_chainlink_endpoint_topology(family=AddressFamily.IPv4):
     )
 
 
+def _new_test_faucet_server(eth_server_address: str):
+    server = object.__new__(FaucetServer)
+    server._FaucetServer__max_fund_amount = 10
+    server._FaucetServer__chain_id = 1337
+    server._FaucetServer__eth_server_url = eth_server_address
+    server._FaucetServer__eth_server_port = 8545
+    server._FaucetServer__consensus = ConsensusMechanism.POA
+    server._FaucetServer__account = _FakeAccount()
+    server._FaucetServer__port = 80
+    server._FaucetServer__fundlist = [("0x3333333333333333333333333333333333333333", 1)]
+    server._FaucetServer__max_fund_attempts = 5
+    return server
+
+
+def _new_test_utility_server(eth_server_address: str, faucet_server_address: str):
+    server = object.__new__(EthUtilityServer)
+    server._EthUtilityServer__contract_to_deploy = {}
+    server._EthUtilityServer__contract_to_deploy_container_path = {}
+    server._EthUtilityServer__contract_to_deploy_content = {}
+    server._EthUtilityServer__eth_node_url = eth_server_address
+    server._EthUtilityServer__eth_node_port = 8545
+    server._EthUtilityServer__faucet_url = faucet_server_address
+    server._EthUtilityServer__faucet_port = 80
+    server._EthUtilityServer__chain_id = 1337
+    server._EthUtilityServer__port = 5000
+    return server
+
+
+def _render_ethereum_endpoint_topology(family=AddressFamily.IPv4):
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+    ethereum = _FakeEthereumService()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("eth").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+    as2.createHost("faucet").joinNetwork("net0", address="10.2.0.72", ipv6Address="2000:0:2::72")
+    as2.createHost("utility").joinNetwork("net0", address="10.2.0.73", ipv6Address="2000:0:2::73")
+
+    for vnode, node_name in (
+        ("eth-vnode", "eth"),
+        ("faucet-vnode", "faucet"),
+        ("utility-vnode", "utility"),
+    ):
+        emu.addBinding(Binding(vnode, filter=Filter(asn=2, nodeName=node_name), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(ethereum)
+    emu.render()
+
+    blockchain = object.__new__(Blockchain)
+    blockchain.setEndpointAddressFamily(family)
+    assert blockchain.getEndpointAddressFamily() == family
+    eth_address = blockchain._Blockchain__getIpByVnodeName(emu, "eth-vnode")
+    faucet_address = blockchain._Blockchain__getIpByVnodeName(emu, "faucet-vnode")
+
+    faucet_node = emu.getRegistry().get("2", "hnode", "faucet")
+    FaucetServer._installScriptFiles(_new_test_faucet_server(eth_address), faucet_node)
+
+    utility_node = emu.getRegistry().get("2", "hnode", "utility")
+    EthUtilityServer._installScriptFile(
+        _new_test_utility_server(eth_address, faucet_address),
+        utility_node,
+    )
+
+    faucet_util = FaucetUtil(endpointAddressFamily=family)
+    faucet_util.setFaucetServerInfo("faucet-vnode", 80)
+    faucet_util.configure(emu)
+
+    return faucet_node, utility_node, faucet_util
+
+
 def test_endpoint_helpers_format_ipv6_safely():
     assert formatHostPort("10.0.0.1", 80) == "10.0.0.1:80"
     assert formatHostPort("2000::1", 80) == "[2000::1]:80"
@@ -258,6 +346,33 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatUrl("https", "example.test", path="/health") == "https://example.test/health"
     assert formatMultiaddr("10.0.0.1", 4001) == "/ip4/10.0.0.1/tcp/4001"
     assert formatMultiaddr("2000::1", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
+
+
+def test_ethereum_faucet_template_legacy_keys_remain_ipv4_compatible():
+    assert FaucetServerFileTemplates["faucet_url"].format(address="10.2.0.72", port=80) == "http://10.2.0.72:80/"
+    assert FaucetServerFileTemplates["faucet_fund_url"].format(address="10.2.0.72", port=80) == "http://10.2.0.72:80/fundme"
+    assert FaucetServerFileTemplates["fund_curl"].format(
+        recipient="0x4444444444444444444444444444444444444444",
+        amount=2,
+        address="10.2.0.72",
+        port=80,
+    ) == "curl -X POST -d 'address=0x4444444444444444444444444444444444444444&amount=2' http://10.2.0.72:80/fundme"
+    fund_accounts = FaucetServerFileTemplates["fund_accounts"].format(
+        address="10.2.0.72",
+        port=80,
+        max_attempts=3,
+        fund_command="true",
+    )
+    assert 'SERVER_URL="http://10.2.0.72:80"' in fund_accounts
+
+    assert format_faucet_url("2000:0:2::72", 80) == "http://[2000:0:2::72]:80/"
+    assert format_faucet_fund_url("2000:0:2::72", 80) == "http://[2000:0:2::72]:80/fundme"
+    assert format_fund_curl(
+        "0x4444444444444444444444444444444444444444",
+        2,
+        "2000:0:2::72",
+        80,
+    ) == "curl -X POST -d 'address=0x4444444444444444444444444444444444444444&amount=2' http://[2000:0:2::72]:80/fundme"
 
 
 def test_node_address_helpers_prefer_local_then_fallback_by_family():
@@ -1168,3 +1283,57 @@ def test_chainlink_generated_urls_can_select_ipv6_helpers():
     assert "http://10.2.0.71:8545" not in combined
     assert "http://10.2.0.72:80" not in combined
     assert "http://10.2.0.73:5000" not in combined
+
+
+def test_ethereum_http_utility_urls_default_to_ipv4_on_dual_stack_nodes():
+    faucet, utility, faucet_util = _render_ethereum_endpoint_topology()
+
+    faucet_app = _file_content(faucet, "/faucet/app.py")
+    fund_script = _file_content(faucet, "/faucet/fund_accounts.sh")
+    utility_fund = _file_content(utility, "/utility_server/fund_account.py")
+    utility_deploy = _file_content(utility, "/utility_server/deploy_contract.py")
+    combined = "\n".join([faucet_app, fund_script, utility_fund, utility_deploy])
+
+    assert "connect_to_geth('http://10.2.0.71:8545', 'POA')" in faucet_app
+    assert 'SERVER_URL="http://localhost:80"' in fund_script
+    assert "curl -X POST -d 'address=0x3333333333333333333333333333333333333333&amount=1' http://localhost:80/fundme" in fund_script
+    assert 'RPC_URL    = "http://10.2.0.71:8545"' in utility_fund
+    assert 'FAUCET_URL = "http://10.2.0.72:80"' in utility_fund
+    assert 'request_url = "http://10.2.0.72:80/fundme"' in utility_fund
+    assert 'RPC_URL    = "http://10.2.0.71:8545"' in utility_deploy
+    assert faucet_util.getFacuetUrl() == "http://10.2.0.72:80/"
+    assert faucet_util.getFaucetFundUrl() == "http://10.2.0.72:80/fundme"
+    assert "curl -X POST -d 'address=0x4444444444444444444444444444444444444444&amount=2' http://10.2.0.72:80/fundme" == faucet_util.getFundApi(
+        "0x4444444444444444444444444444444444444444",
+        2,
+    )
+    assert "2000:0:2::" not in combined
+
+
+def test_ethereum_http_utility_urls_can_select_ipv6_helpers():
+    faucet, utility, faucet_util = _render_ethereum_endpoint_topology(AddressFamily.IPv6)
+
+    faucet_app = _file_content(faucet, "/faucet/app.py")
+    fund_script = _file_content(faucet, "/faucet/fund_accounts.sh")
+    utility_fund = _file_content(utility, "/utility_server/fund_account.py")
+    utility_deploy = _file_content(utility, "/utility_server/deploy_contract.py")
+    combined = "\n".join([faucet_app, fund_script, utility_fund, utility_deploy])
+
+    assert "connect_to_geth('http://[2000:0:2::71]:8545', 'POA')" in faucet_app
+    assert 'SERVER_URL="http://localhost:80"' in fund_script
+    assert 'RPC_URL    = "http://[2000:0:2::71]:8545"' in utility_fund
+    assert 'FAUCET_URL = "http://[2000:0:2::72]:80"' in utility_fund
+    assert 'request_url = "http://[2000:0:2::72]:80/fundme"' in utility_fund
+    assert 'RPC_URL    = "http://[2000:0:2::71]:8545"' in utility_deploy
+    assert faucet_util.getFacuetUrl() == "http://[2000:0:2::72]:80/"
+    assert faucet_util.getFaucetFundUrl() == "http://[2000:0:2::72]:80/fundme"
+    assert "curl -X POST -d 'address=0x4444444444444444444444444444444444444444&amount=2' http://[2000:0:2::72]:80/fundme" == faucet_util.getFundApi(
+        "0x4444444444444444444444444444444444444444",
+        2,
+    )
+    faucet_util.addFund("0x5555555555555555555555555555555555555555", 3)
+    util_fund_script = faucet_util.getFundScript()
+    assert 'SERVER_URL="http://[2000:0:2::72]:80"' in util_fund_script
+    assert "curl -X POST -d 'address=0x5555555555555555555555555555555555555555&amount=3' http://[2000:0:2::72]:80/fundme" in util_fund_script
+    assert "http://10.2.0.71:8545" not in combined
+    assert "http://10.2.0.72:80" not in combined

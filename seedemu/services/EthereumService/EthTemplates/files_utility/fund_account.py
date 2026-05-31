@@ -9,8 +9,8 @@ from eth_account import Account
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-RPC_URL    = "http://{rpc_url}:{rpc_port}"
-FAUCET_URL = "http://{faucet_url}:{faucet_port}"
+RPC_URL    = "{rpc_url}"
+FAUCET_URL = "{faucet_url}"
 DIR_PREFIX = "{dir_prefix}"
 
 def connectEthNode():
@@ -66,7 +66,7 @@ def isFaucetServerUp():
 def send_fundme_request(account_address):
 	data = {{'address': account_address, 'amount': 10}}
 	logging.info(data)
-	request_url = "http://{faucet_url}:{faucet_port}/fundme"
+	request_url = "{faucet_fund_url}"
 	try:
 		response = requests.post(request_url, headers={{"Content-Type": "application/json"}}, data=json.dumps(data))
 		logging.info(response)

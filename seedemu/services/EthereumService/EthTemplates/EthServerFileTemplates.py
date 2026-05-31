@@ -1,6 +1,8 @@
 from typing import Dict
 import os
 
+from seedemu.core import formatUrl
+
 def get_file_content(filename):
     """!
     @brief Get the content of a file
@@ -33,3 +35,19 @@ FaucetServerFileTemplates: Dict[str, str] = {
         'faucet_fund_url': "http://{address}:{port}/fundme",
         'fund_curl': "curl -X POST -d 'address={recipient}&amount={amount}' http://{address}:{port}/fundme"
 }
+
+
+def format_faucet_url(address, port):
+    return formatUrl("http", address, port, "/")
+
+
+def format_faucet_fund_url(address, port):
+    return formatUrl("http", address, port, "/fundme")
+
+
+def format_fund_curl(recipient, amount, address, port):
+    return "curl -X POST -d 'address={}&amount={}' {}".format(
+        recipient,
+        amount,
+        format_faucet_fund_url(address, port),
+    )
