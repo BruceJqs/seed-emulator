@@ -825,15 +825,19 @@ def _render_ethereum_pos_helper_endpoint_topology(family=AddressFamily.IPv4):
 
 def test_endpoint_helpers_format_ipv6_safely():
     assert formatHostPort("10.0.0.1", 80) == "10.0.0.1:80"
+    assert formatHostPort(" 10.0.0.1 ", 80) == "10.0.0.1:80"
     assert formatHostPort("2000::1", 80) == "[2000::1]:80"
     assert formatHostPort(" 2000::1 ", 80) == "[2000::1]:80"
+    assert formatHostPort(" [2000:0:0::1] ", 80) == "[2000::1]:80"
     assert formatUrl("http", "2000::1", 8080, "status") == "http://[2000::1]:8080/status"
+    assert formatUrl("http", "[2000:0:0::1]", 8080, "status") == "http://[2000::1]:8080/status"
     assert formatUrl("http", " example.test ", 8080, "status") == "http://example.test:8080/status"
     assert formatUrl("https", "example.test", path="/health") == "https://example.test/health"
     assert formatMultiaddr("10.0.0.1", 4001) == "/ip4/10.0.0.1/tcp/4001"
     assert formatMultiaddr(" 10.0.0.1 ", 4001) == "/ip4/10.0.0.1/tcp/4001"
     assert formatMultiaddr("2000::1", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
     assert formatMultiaddr(" 2000::1 ", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
+    assert formatMultiaddr("[2000:0:0::1]", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
 
 
 def test_address_family_normalizer_accepts_common_padded_values():

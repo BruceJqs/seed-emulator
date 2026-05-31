@@ -38,6 +38,18 @@ def normalizeAddressList(addrs: Iterable[Union[str, object]]) -> List[str]:
     return [str(ip_address(str(addr).strip())) for addr in addrs]
 
 
+def _parseHostIpLiteral(host: Union[str, object]):
+    value = str(host).strip()
+    candidate = value
+    if value.startswith("[") and value.endswith("]"):
+        candidate = value[1:-1].strip()
+
+    try:
+        return ip_address(candidate)
+    except ValueError:
+        return None
+
+
 def getInterfaceAddress(iface: "Interface", family: Union[AddressFamily, str, int] = AddressFamily.IPv4):
     """Return an interface address for the requested address family."""
 
@@ -146,14 +158,13 @@ def formatHost(host: Union[str, object]) -> str:
     """Format a host/address for endpoint strings, bracketing IPv6 literals."""
 
     value = str(host).strip()
-    try:
-        parsed = ip_address(value)
-    except ValueError:
+    parsed = _parseHostIpLiteral(value)
+    if parsed is None:
         return value
 
     if parsed.version == 6:
-        return "[{}]".format(value)
-    return value
+        return "[{}]".format(parsed)
+    return str(parsed)
 
 
 def formatHostPort(host: Union[str, object], port: Union[str, int]) -> str:
@@ -179,7 +190,10 @@ def formatUrl(
 def formatMultiaddr(host: Union[str, object], tcpPort: Union[str, int], peerId: str = None) -> str:
     """Format an IPFS/libp2p style multiaddr for IPv4 or IPv6 literals."""
 
-    parsed = ip_address(str(host).strip())
+    parsed = _parseHostIpLiteral(host)
+    if parsed is None:
+        raise ValueError("multiaddr host must be an IPv4/IPv6 literal: {}".format(host))
+
     proto = "ip6" if parsed.version == 6 else "ip4"
     out = "/{}/{}/tcp/{}".format(proto, parsed, tcpPort)
     if peerId is not None:

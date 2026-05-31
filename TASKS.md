@@ -97,7 +97,7 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 
 - endpoint helper tests cover IPv4, IPv6, padded host literals, DNS names, URL
-  paths, and padded multiaddr formatting;
+  paths, bracketed IPv6 host inputs, and padded multiaddr formatting;
 - address-family normalization accepts common user-facing and socket-family
   spellings such as `ipv4`, `ip6`, `inet`, and `AF_INET6`;
 - migrated service endpoint address-family APIs reuse the shared normalizer
