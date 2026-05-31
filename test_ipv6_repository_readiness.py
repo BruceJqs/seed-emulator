@@ -29,6 +29,7 @@ from seedemu.services import (
     Blockchain,
     DomainNameCachingService,
     DomainNameService,
+    DomainRegistrarServer,
     ConsensusMechanism,
     EthUtilityServer,
     EthereumServer,
@@ -1412,6 +1413,21 @@ def test_dns_cache_resolvconf_prefers_local_ipv6_before_service_ipv4_fallback():
 
     assert 'echo "nameserver 2000:0:2::10" >> /etc/resolv.conf' in commands
     assert 'echo "nameserver 192.168.66.10" >> /etc/resolv.conf' not in commands
+
+
+def test_domain_registrar_dynamic_updates_allow_explicit_aaaa_records():
+    node = Node("registrar", NodeRole.Host, 2)
+    DomainRegistrarServer().install(node)
+    domain_page = _file_content(node, "/var/www/html/domain.php")
+
+    assert '<option value="A" selected>A</option>' in domain_page
+    assert '<option value="AAAA">AAAA</option>' in domain_page
+    assert "$record_type = $_POST['rtype'] ?? 'A';" in domain_page
+    assert "array('A', 'AAAA')" in domain_page
+    assert '.$record_type.' in domain_page
+    assert '60 A ".$ip_address' not in domain_page
+    assert "printf %s " in domain_page
+    assert "escapeshellarg($update)" in domain_page
 
 
 def test_traffic_service_raw_receiver_targets_remain_unchanged():

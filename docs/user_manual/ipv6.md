@@ -140,10 +140,11 @@ Current categories:
 - supported: core addressing, Docker dual-stack networks, BIRD/FRR BGP,
   OSPFv3, ExaBGP, Looking Glass;
 - baseline dual-stack: DNS authoritative and reverse records, and `/etc/hosts`;
-- compatible but not fully migrated: DNS cache, Web/CA, traffic wrappers,
-  Kubo bootstrap endpoints, Botnet C2/dropper endpoint formatting, Monero
-  seed/RPC endpoint formatting, Chainlink generated URL formatting, Ethereum
-  faucet/utility and bootnode/beacon helper HTTP URL formatting;
+- compatible but not fully migrated: DNS cache, Domain Registrar dynamic A/AAAA
+  updates, Web/CA, traffic wrappers, Kubo bootstrap endpoints, Botnet
+  C2/dropper endpoint formatting, Monero seed/RPC endpoint formatting,
+  Chainlink generated URL formatting, Ethereum faucet/utility and
+  bootnode/beacon helper HTTP URL formatting;
 - IPv4-first pending design: Email; Tor remains IPv4-first with
   directory-authority downloader and hidden-service backend target formatting
   guarded by shared endpoint helpers;
@@ -154,6 +155,11 @@ Reverse DNS preserves existing IPv4 `in-addr.arpa.` PTR generation. When
 interfaces carry IPv6 state, `ReverseDomainNameService` also populates
 `ip6.arpa.` PTR records; IPv4-only topologies do not create the IPv6 reverse
 zone.
+
+Domain Registrar dynamic updates preserve A as the default record type. The
+registration page also allows users to explicitly choose AAAA records for IPv6
+addresses. The registrar still follows the existing TLD/master-DNS placement
+model; this is not a broader DNS workflow redesign.
 
 Traffic generators preserve existing raw receiver target lists. For explicit
 address-family selection, use `addReceiverVnodes(..., family=AddressFamily.IPv6)`

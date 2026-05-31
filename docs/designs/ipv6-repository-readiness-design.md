@@ -76,6 +76,7 @@ Deferred core items:
 | Docker compiler | Supported | Emit IPv6 only for networks/interfaces carrying IPv6 state. |
 | `/etc/hosts` | Baseline dual-stack | Generate IPv4 and IPv6 local entries when available. |
 | DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; masters may include both families; reverse DNS keeps IPv4 `in-addr.arpa.` PTR records and adds `ip6.arpa.` PTR records only when interfaces carry IPv6 state. |
+| Domain Registrar | Compatible | Dynamic DNS updates preserve A as the default record type and allow explicit AAAA submissions; TLD placement and runtime behavior remain the existing Domain Registrar model. |
 | DNS cache | Compatible | Prefer IPv4 for old resolver behavior; accept IPv6 forwarders/root hints. |
 | Web/CA | Compatible | Existing IPv4 behavior preserved; CA certificate-install filters match IPv4/IPv6 address and prefix selectors; ACME directory URLs use shared URL helpers and can bracket explicit IPv6 CA endpoint literals, but Web HTTPS and ACME runtime behavior still need validation before a full support claim. |
 | Traffic services | Compatible | Raw receiver targets are unchanged; receiver vnodes can be resolved to IPv4 or IPv6 targets through shared node-address helpers, but each tool still needs runtime validation before a full support claim. |
