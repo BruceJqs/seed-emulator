@@ -141,8 +141,8 @@ Current categories:
   OSPFv3, ExaBGP, Looking Glass;
 - baseline dual-stack: DNS authoritative records and `/etc/hosts`;
 - compatible but not fully migrated: DNS cache, Web/CA, traffic wrappers,
-  Kubo bootstrap endpoints;
-- IPv4-first pending design: Email, Tor, Ethereum, Monero, Chainlink;
+  Kubo bootstrap endpoints, Monero seed/RPC endpoint formatting;
+- IPv4-first pending design: Email, Tor, Ethereum, Chainlink;
 - separate design required: SCION underlay, cross-connect, DHCPv6, MPLS/EVPN,
   real-world connectivity, OpenVPN, k8s, internetmap2.
 
@@ -159,6 +159,11 @@ CA certificate installation filters accept IPv4 and IPv6 address/prefix
 selectors. For example, `installCACert(Filter(ipv6="2000:0:3::72"))` installs
 the root CA certificate only on nodes with that IPv6 address. Web HTTPS and ACME
 runtime behavior remain compatible but not fully migrated.
+
+Monero seed and full-node RPC endpoint lists preserve IPv4 defaults. In a
+dual-stack emulation, call `blockchain.setEndpointAddressFamily(AddressFamily.IPv6)`
+to generate bracketed IPv6 `host:port` endpoints for those lists. Monero daemon
+listener behavior has not been runtime-validated as full IPv6 support.
 
 See
 [Repository-Wide IPv6 Readiness Design](../designs/ipv6-repository-readiness-design.md)

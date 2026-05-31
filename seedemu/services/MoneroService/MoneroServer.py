@@ -22,7 +22,6 @@ from .MoneroUtil import (
     MoneroBinaryPaths,
     MoneroNodeOptions,
     MoneroWalletSpec,
-    build_endpoint,
     sanitize_extra_args,
 )
 
@@ -330,7 +329,15 @@ class MoneroBaseServer(Server):
                     local elapsed=$((current_time - start_time))
                     
                     for endpoint in "${{seed_endpoints[@]}}"; do
-                        IFS=':' read -r host port <<< "${{endpoint}}"
+                        local host=""
+                        local port=""
+                        if [[ "$endpoint" =~ ^\\[(.*)\\]:([0-9]+)$ ]]; then
+                            host="${{BASH_REMATCH[1]}}"
+                            port="${{BASH_REMATCH[2]}}"
+                        else
+                            host="${{endpoint%:*}}"
+                            port="${{endpoint##*:}}"
+                        fi
                         if nc -z "$host" "$port" >/dev/null 2>&1; then
                             echo "[monero] ✓ Seed node $host:$port is reachable (after $tries attempts, $elapsed seconds)" >&2
                             return 0
@@ -1325,5 +1332,3 @@ class MoneroLightNodeServer(MoneroBaseServer):
             wait
             """
         ).strip() + "\n"
-
-

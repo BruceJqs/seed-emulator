@@ -157,6 +157,10 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - CA `installCACert(Filter(...))` target selection now matches IPv4 and IPv6
   address/prefix filters through shared interface address helpers while keeping
   the existing default of installing on all nodes.
+- Monero seed and full-node RPC endpoint lists now route through shared
+  address-family and host-port helpers, default to IPv4, and explicitly select
+  bracketed IPv6 endpoints when requested; Monero daemon runtime behavior still
+  needs validation before a support claim.
 
 ## Phase 6: Separate Designs Before Code
 

@@ -6,6 +6,7 @@ from typing import Dict, Iterator, List, Optional, Tuple
 from seedemu.core.Emulator import Emulator
 from seedemu.core.Node import Node
 from seedemu.core.Service import Server, Service
+from seedemu.core import AddressFamily, getInterfaceAddress, normalizeAddressFamily
 from seedemu.core.enums import NetworkType
 from seedemu.core.BaseSystem import BaseSystem
 
@@ -114,6 +115,7 @@ class MoneroService(Service):
 
         defaults = defaults.clone() if defaults else infer_default_ports(net_type)
         defaults.net_type = net_type
+        defaults.endpoint_address_family = normalizeAddressFamily(defaults.endpoint_address_family)
 
         network = MoneroNetwork(self, name, defaults)
         self.__networks[name] = network
@@ -301,6 +303,12 @@ class MoneroNetwork:
             ``self`` for fluent chaining.
         """
         self._defaults.use_default_seed_nodes = enabled
+        return self
+
+    def setEndpointAddressFamily(self, family) -> "MoneroNetwork":
+        """Select which address family is used for generated seed/RPC endpoints."""
+
+        self._defaults.endpoint_address_family = normalizeAddressFamily(family)
         return self
 
     def setCustomBaseImage(self, image_name: str) -> "MoneroNetwork":
@@ -563,7 +571,7 @@ class MoneroNetwork:
 
         for vnode, server in self._nodes.items():
             node = emulator.getBindingFor(vnode)
-            ip = self._get_primary_ip(node)
+            ip = self._get_primary_ip(node, self._defaults.endpoint_address_family)
             server.set_binding(node, ip)
             binding_lookup[vnode] = (node, ip)
 
@@ -754,11 +762,14 @@ class MoneroNetwork:
         # else:
         self._allocated_ports[key] = vnode
 
-    def _get_primary_ip(self, node: Node) -> str:
-        """Return the IP address on the local network used for service bindings."""
+    def _get_primary_ip(self, node: Node, family: AddressFamily) -> str:
+        """Return the local-network address used for service endpoints."""
+
         for iface in node.getInterfaces():
             if iface.getNet().getType() == NetworkType.Local:
-                return str(iface.getAddress())
+                address = getInterfaceAddress(iface, family)
+                assert address is not None, f"Node {node.getName()} has no local {family.value} address."
+                return str(address)
         raise AssertionError(f"Node {node.getName()} has no local network interface")
 
     def get_network_flag(self) -> Optional[str]:
@@ -791,6 +802,3 @@ class MoneroNetwork:
     def getFullNodes(self) -> List[str]:
         """Return the names of all nodes that run full/pruned daemons."""
         return [name for name, server in self._nodes.items() if server.is_full_node()]
-
-
-

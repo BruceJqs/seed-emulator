@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+from seedemu.core import AddressFamily, formatHostPort
+
 from .MoneroEnum import (
     MoneroBinarySource,
     MoneroMiningTrigger,
@@ -153,6 +155,7 @@ class MoneroNetworkDefaults:
     persist_data: bool = True
     use_default_seed_nodes: bool = False  # If True, don't pass seed endpoints via CLI, use Monero's built-in defaults
     custom_base_image: Optional[str] = None  # Custom base Docker image name (e.g., 'custom-monero-base:latest') containing custom binaries
+    endpoint_address_family: AddressFamily = AddressFamily.IPv4
 
     def clone(self) -> "MoneroNetworkDefaults":
         return MoneroNetworkDefaults(
@@ -172,6 +175,7 @@ class MoneroNetworkDefaults:
             persist_data=self.persist_data,
             use_default_seed_nodes=self.use_default_seed_nodes,
             custom_base_image=self.custom_base_image,
+            endpoint_address_family=self.endpoint_address_family,
         )
 
 
@@ -218,12 +222,9 @@ def infer_default_ports(net_type: MoneroNetworkType) -> MoneroNetworkDefaults:
 def build_endpoint(address: str, port: int) -> str:
     """Combine IP and port into ``host:port`` form."""
 
-    return f"{address}:{port}"
-
+    return formatHostPort(address, port)
 
 def sanitize_extra_args(args: List[str]) -> List[str]:
     """Filter out empty strings so the resulting command stays compact."""
 
     return [item.strip() for item in args if item and item.strip()]
-
-
