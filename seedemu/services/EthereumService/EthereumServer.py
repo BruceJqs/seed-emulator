@@ -1,5 +1,5 @@
 from __future__ import annotations
-from seedemu.core import Node, Server, BaseSystem
+from seedemu.core import Node, Server, BaseSystem, formatUrl
 from .EthEnum import *
 from .EthUtil import *
 from typing import List
@@ -623,7 +623,10 @@ class PoSServer(EthereumServer):
             # if not self.__is_manual_deposit_for_validator:
             #     validator_deposit_sh = "/tmp/deposit.sh"
         if self.__is_beacon_validator_at_genesis or self.__is_beacon_validator_at_running:     
-            vc_start_command = LIGHTHOUSE_VC_CMD.format(ip_address=addr, acct_address=self._accounts[0].address)
+            vc_start_command = LIGHTHOUSE_VC_CMD.format(
+                beacon_node_url=formatUrl("http", addr, 8000),
+                acct_address=self._accounts[0].address,
+            )
             
         node.setFile('/tmp/beacon-setup-node', beacon_setup_node)
         

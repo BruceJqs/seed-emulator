@@ -230,10 +230,12 @@ preserve IPv4 defaults and select referenced nodes through the shared
 Local-network-first helper, falling back to the service network when a
 referenced node has no Local interface. In a dual-stack emulation, call
 `blockchain.setEndpointAddressFamily(AddressFamily.IPv6)` to generate bracketed
-IPv6 HTTP RPC, faucet, enode-fetch, beacon-identity, and beacon-setup URLs for
-those helpers. Ethereum ENR content, peer discovery, bootnode bind/listener,
-and daemon runtime behavior have not been runtime-validated as full IPv6
-support.
+IPv6 HTTP RPC, faucet, enode-fetch, beacon-identity, and beacon-setup helper
+URLs. The Lighthouse validator beacon-node URL template accepts a preformatted
+helper URL so IPv6 literals are bracketed when supplied, but the current PoS
+validator install path remains IPv4-first. Ethereum ENR content, peer
+discovery, bootnode bind/listener, and daemon runtime behavior have not been
+runtime-validated as full IPv6 support.
 
 Tor remains IPv4-first. Directory-authority fingerprint downloader URLs and
 hidden-service backend targets use shared endpoint helpers so explicit IPv6

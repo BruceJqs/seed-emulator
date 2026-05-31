@@ -2763,6 +2763,7 @@ def test_ethereum_pos_helper_urls_default_to_ipv4_on_dual_stack_nodes():
     assert beacon_nodes == "http://10.2.0.72:8000/eth/v1/node/identity"
     assert 'curl -s "$url"' in fetch_bn_enr
     assert "http://$ip:8000/eth/v1/node/identity" not in fetch_bn_enr
+    assert "--beacon-nodes http://10.2.0.73:8000 " in beacon_bootstrapper
     assert 'curl --http0.9 -sHf "$node"' in beacon_bootstrapper
     assert 'curl --http0.9 -s "$node"' in beacon_bootstrapper
     assert "http://$node/testnet" not in beacon_bootstrapper
@@ -2785,9 +2786,24 @@ def test_ethereum_pos_helper_urls_can_select_ipv6_helpers():
     assert enode_nodes == "http://[2000:0:2::72]:8088/eth-enode-url"
     assert beacon_nodes == "http://[2000:0:2::72]:8000/eth/v1/node/identity"
     assert 'curl -s "$url"' in fetch_bn_enr
+    assert "--beacon-nodes http://10.2.0.73:8000 " in beacon_bootstrapper
     assert 'curl --http0.9 -sHf "$node"' in beacon_bootstrapper
     assert 'curl --http0.9 -s "$node"' in beacon_bootstrapper
     assert "http://2000:0:2::71:8090/testnet" not in beacon_setup_node
     assert "http://2000:0:2::72:8000/eth/v1/node/identity" not in beacon_nodes
     assert "http://10.2.0.71:8090/testnet" not in beacon_setup_node
     assert "http://10.2.0.72:8000/eth/v1/node/identity" not in beacon_nodes
+
+
+def test_ethereum_lighthouse_validator_template_accepts_formatted_ipv6_beacon_url():
+    from seedemu.services.EthereumService.EthTemplates.LighthouseCommandTemplates import (
+        LIGHTHOUSE_VC_CMD,
+    )
+
+    command = LIGHTHOUSE_VC_CMD.format(
+        beacon_node_url=formatUrl("http", "2000:0:2::73", 8000),
+        acct_address="0x0000000000000000000000000000000000000000",
+    )
+
+    assert "--beacon-nodes http://[2000:0:2::73]:8000 " in command
+    assert "http://2000:0:2::73:8000" not in command

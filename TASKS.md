@@ -232,9 +232,12 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - Ethereum faucet/utility HTTP URLs and generated bootnode/beacon helper fetch
   URLs now route through shared address-family and URL helpers with
   Local-network-first, service-network fallback address selection, default to
-  IPv4, and explicitly select bracketed IPv6 URLs when requested; Ethereum ENR
-  content, peer discovery, bootnode bind/listener, and daemon runtime behavior
-  still need validation before a support claim.
+  IPv4, and explicitly select bracketed IPv6 URLs when requested; the
+  Lighthouse validator beacon-node URL template now accepts a preformatted
+  helper URL so IPv6 literals are bracketed when supplied, while the current
+  PoS validator install path remains IPv4-first and Ethereum ENR content, peer
+  discovery, bootnode bind/listener, and daemon runtime behavior still need
+  validation before a support claim.
 - Tor directory-authority fingerprint downloader URLs and hidden-service
   backend targets now route through shared endpoint helpers, preserving IPv4
   defaults, normalizing and bracketing explicit IPv6 literals without
