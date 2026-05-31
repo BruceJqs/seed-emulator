@@ -139,7 +139,7 @@ def getNodePreferredAddress(
 def formatHost(host: Union[str, object]) -> str:
     """Format a host/address for endpoint strings, bracketing IPv6 literals."""
 
-    value = str(host)
+    value = str(host).strip()
     try:
         parsed = ip_address(value)
     except ValueError:
