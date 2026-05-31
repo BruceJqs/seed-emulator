@@ -28,6 +28,11 @@ If a new traffic generator is added, it should be a subclass of the `TrafficGene
   - `rate`: The rate of the traffic generation process.
   - `extra_options`: The extra options to be used for the traffic generation process. This parameter value depends on the type of traffic generator being used.
 - `addReceivers`: Adds traffic receiver host addresses to a traffic generator so that the traffic generator can send traffic to the specified hosts. We can specify the list of receiver hosts for the traffic generator using the `hosts` parameter.
+- `addReceiverVnodes`: Adds receiver virtual node names and resolves them
+  during render through the shared node-address helpers. IPv4 remains the
+  default target family; callers may explicitly select IPv6 with
+  `family=AddressFamily.IPv6`. Raw host targets from `addReceivers` are not
+  rewritten.
 - `install`: Installs the traffic generator application on the host. It creates `/root/traffic-targets` file on the host to store the list of receiver hosts. Any subclass of the `TrafficGenerator` class should implement the `install` method to install necessary packages for the traffic generator application.
 
 - `extend`: Extends the traffic generator with another traffic generator. This method is used to merge multiple traffic generators together.

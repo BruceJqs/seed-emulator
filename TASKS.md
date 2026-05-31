@@ -108,6 +108,10 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 
 - endpoint helper tests cover IPv4, IPv6, padded host literals, DNS names, URL
   paths, bracketed IPv6 host inputs, and padded multiaddr formatting;
+- service-author documentation now records the IPv4-first address API contract
+  and the shared helper rule for URL, host-port, multiaddr, and node-address
+  selection; Kubo and Traffic developer notes align with their current explicit
+  address-family APIs;
 - shared prefix helper tests cover padded and bracketed IPv4/IPv6 CIDR inputs;
 - shared DNS-style address-record normalization covers manual A/AAAA literals,
   including bracketed IPv6 literals, without changing non-address record

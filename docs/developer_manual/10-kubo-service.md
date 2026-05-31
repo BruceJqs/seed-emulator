@@ -72,8 +72,9 @@ particular server, or to override the bootstrap nodes from the service level.
 
 This would involve adding a parameter or setter method in the `KuboServer` class, and
 likely relocating the bootstrap script generation process from the `KuboService` class
-to the `KuboServer` class. A helper method `KuboUtils.isIPv4()` would be helpful here
-to validate user-provided IPv4 addresses.
+to the `KuboServer` class. User-provided bootstrap endpoint validation should use the
+shared address-family helpers where possible; `KuboUtils.isIPv4()` is only suitable
+for inputs that are intentionally IPv4-only.
 
 ## Technical Implementation
 The following includes some technical notes on the implementation, including aspects which might be improved or expanded on in the future.
@@ -109,6 +110,8 @@ The following includes some technical notes on the implementation, including asp
     - We also implement the `dottedItems()` method which functions similarly to the default `items()` method, but returns a list of key-value pairs where keys are in JSON dot notation and values are the deepest value in the nested dictionary.
     - This is used internally by the `KuboServer` class to store and modify the user-defined
       Kubo configuration file.
-- We also implement a few simple utility functions to get a local IPv4 address from a given
-  physical node on the Emulator, and to verify that a given string represents a valid IPv4
-  address.
+- We also implement utility functions to get a preferred node address from a
+  physical node on the Emulator. `getIP(node, family=AddressFamily.IPv4)`
+  remains IPv4 by default, but callers may explicitly request IPv6 and use the
+  same Local-network-first, fallback address selection as the shared core
+  helpers. `isIPv4()` only validates strings that are meant to stay IPv4-only.

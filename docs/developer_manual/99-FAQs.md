@@ -1,23 +1,41 @@
 # Service related FAQs
 
-## Q01. How to get ip address?
+## Q01. How to get an IP address?
 
-If you have access to the Node object, you can retrieve its IP address. For example, in the Server::install(self, node: Node) step, since the node object is passed as a parameter, you can use it within the install method to obtain the IP address as follows:
+If you have access to the Node object, prefer the shared address helpers for
+new service code. `iface.getAddress()` is still the IPv4 accessor. Use
+`getNodeAddress()` when a service should choose one address family explicitly,
+and use `getNodeAddresses()` when it needs both preferred IPv4 and IPv6
+addresses.
 
 ```python
+from seedemu.core import AddressFamily, getNodeAddress, getNodeAddresses
 
 class NewServer(Server):
     def install(self, node:Node):
-        address: str = None
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        for iface in ifaces:
+        ipv4_address = getNodeAddress(node, AddressFamily.IPv4, preferLocal=True)
+        ipv6_address = getNodeAddress(node, AddressFamily.IPv6, preferLocal=True)
+        preferred_ipv4, preferred_ipv6 = getNodeAddresses(node)
+```
+
+`getNodeAddress()` and `getNodeAddresses()` prefer Local-network interfaces by
+default and fall back to the first available interface, which keeps service
+network-only nodes usable. Use `formatHostPort()` or `formatUrl()` when turning
+the address into an endpoint string, because IPv6 literals need brackets in
+host-port and URL forms.
+
+The older direct-interface pattern is still valid for IPv4-only code:
+
+```python
+class NewServer(Server):
+    def install(self, node:Node):
+        address = None
+        for iface in node.getInterfaces():
             net = iface.getNet()
             if net.getType() == NetworkType.Local:
                 address = iface.getAddress()
                 break
 ```
-
 
 ## Q02. How to make a change on all nodes?
 
