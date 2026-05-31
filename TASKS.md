@@ -146,6 +146,13 @@ For each service:
 4. Add tests proving old behavior and the new IPv6 path.
 5. Update the readiness matrix.
 
+Current readiness coverage added in `test_ipv6_repository_readiness.py`:
+
+- Traffic generator raw receiver target lists remain unchanged.
+- Traffic generator receiver vnode targets can be resolved through shared core
+  node-address helpers, default to IPv4, and explicitly select IPv6 when
+  requested.
+
 ## Phase 6: Separate Designs Before Code
 
 Do not implement these as quick patches. Start with a design doc and ask for

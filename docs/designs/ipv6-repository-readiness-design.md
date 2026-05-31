@@ -78,7 +78,7 @@ Deferred core items:
 | DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; masters may include both families. |
 | DNS cache | Compatible | Prefer IPv4 for old resolver behavior; accept IPv6 forwarders/root hints. |
 | Web/CA | Compatible | Existing IPv4 behavior preserved; future work should use endpoint helpers. |
-| Traffic services | Candidate | Tools may support IPv6, but SEED wrappers need address-family selection. |
+| Traffic services | Compatible | Raw receiver targets are unchanged; receiver vnodes can be resolved to IPv4 or IPv6 targets through shared node-address helpers, but each tool still needs runtime validation before a full support claim. |
 | Email | IPv4-first | Provider/gateway/default-route logic must be redesigned before IPv6 claim. |
 | Kubo/IPFS | IPv4-first | Multiaddr generation should move to `formatMultiaddr(...)`. |
 | Tor | IPv4-first | Bind/listener and directory authority addressing need a separate migration. |

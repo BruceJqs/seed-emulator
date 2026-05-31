@@ -145,6 +145,10 @@ Current categories:
 - separate design required: SCION underlay, cross-connect, DHCPv6, MPLS/EVPN,
   real-world connectivity, OpenVPN, k8s, internetmap2.
 
+Traffic generators preserve existing raw receiver target lists. For explicit
+address-family selection, use `addReceiverVnodes(..., family=AddressFamily.IPv6)`
+to resolve receiver virtual nodes through the shared node-address helpers.
+
 See
 [Repository-Wide IPv6 Readiness Design](../designs/ipv6-repository-readiness-design.md)
 for the migration contract.

@@ -32,6 +32,12 @@ class TrafficService(Service):
         self.servers = {}
         self.addDependency("Base", False, False)
 
+    def configure(self, emulator):
+        super().configure(emulator)
+        for server, _ in self.getTargets():
+            if isinstance(server, TrafficGenerator):
+                server.resolveReceiverVnodes(emulator)
+
     def install(self, vnode: str, server_type: TrafficServiceType, **kwargs) -> Server:
         """!
         @brief Install the service.

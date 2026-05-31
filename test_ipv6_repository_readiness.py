@@ -17,7 +17,7 @@ from seedemu.core import (
     getNodePreferredAddress,
 )
 from seedemu.layers import Base, EtcHosts
-from seedemu.services import DomainNameCachingService, DomainNameService
+from seedemu.services import DomainNameCachingService, DomainNameService, TrafficService, TrafficServiceType
 import pytest
 
 
@@ -739,3 +739,75 @@ def test_dns_cache_resolvconf_prefers_local_ipv6_before_service_ipv4_fallback():
 
     assert 'echo "nameserver 2000:0:2::10" >> /etc/resolv.conf' in commands
     assert 'echo "nameserver 192.168.66.10" >> /etc/resolv.conf' not in commands
+
+
+def test_traffic_service_raw_receiver_targets_remain_unchanged():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+    traffic = TrafficService()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("receiver").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+    as2.createHost("generator").joinNetwork("net0", address="10.2.0.72", ipv6Address="2000:0:2::72")
+
+    traffic.install("receiver-vnode", TrafficServiceType.IPERF_RECEIVER)
+    traffic.install("generator-vnode", TrafficServiceType.IPERF_GENERATOR).addReceivers(hosts=["receiver-vnode"])
+    emu.addBinding(Binding("receiver-vnode", filter=Filter(asn=2, nodeName="receiver"), action=Action.FIRST))
+    emu.addBinding(Binding("generator-vnode", filter=Filter(asn=2, nodeName="generator"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(traffic)
+    emu.render()
+
+    generator = emu.getRegistry().get("2", "hnode", "generator")
+    assert _file_content(generator, "/root/traffic-targets").strip() == "receiver-vnode"
+
+
+def test_traffic_service_receiver_vnodes_default_to_ipv4_targets():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+    traffic = TrafficService()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("receiver").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+    as2.createHost("generator").joinNetwork("net0", address="10.2.0.72", ipv6Address="2000:0:2::72")
+
+    traffic.install("receiver-vnode", TrafficServiceType.IPERF_RECEIVER)
+    traffic.install("generator-vnode", TrafficServiceType.IPERF_GENERATOR).addReceiverVnodes(["receiver-vnode"])
+    emu.addBinding(Binding("receiver-vnode", filter=Filter(asn=2, nodeName="receiver"), action=Action.FIRST))
+    emu.addBinding(Binding("generator-vnode", filter=Filter(asn=2, nodeName="generator"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(traffic)
+    emu.render()
+
+    generator = emu.getRegistry().get("2", "hnode", "generator")
+    assert _file_content(generator, "/root/traffic-targets").strip() == "10.2.0.71"
+
+
+def test_traffic_service_receiver_vnodes_can_select_ipv6_targets():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+    traffic = TrafficService()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("receiver").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+    as2.createHost("generator").joinNetwork("net0", address="10.2.0.72", ipv6Address="2000:0:2::72")
+
+    traffic.install("receiver-vnode", TrafficServiceType.IPERF_RECEIVER)
+    traffic.install("generator-vnode", TrafficServiceType.IPERF_GENERATOR).addReceiverVnodes(
+        ["receiver-vnode"],
+        family=AddressFamily.IPv6,
+    )
+    emu.addBinding(Binding("receiver-vnode", filter=Filter(asn=2, nodeName="receiver"), action=Action.FIRST))
+    emu.addBinding(Binding("generator-vnode", filter=Filter(asn=2, nodeName="generator"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(traffic)
+    emu.render()
+
+    generator = emu.getRegistry().get("2", "hnode", "generator")
+    assert _file_content(generator, "/root/traffic-targets").strip() == "2000:0:2::71"
