@@ -324,6 +324,8 @@ used instead of any port embedded in a legacy IPv4, DNS-name, or bracketed IPv6
 authority. Padded explicit port values are trimmed before `host:port`, URL, or
 multiaddr output is generated. Malformed bracketed IPv6 authorities, such as
 `[2000::1]:bad`, are rejected instead of being emitted as ambiguous endpoints.
+Explicit port arguments must be non-empty decimal strings, so invalid
+socket-like endpoints fail before a service writes them into config.
 URL paths that start with `?` or `#` are treated as query or fragment
 components instead of being rewritten as path segments. Use
 `formatMultiaddr()` when generating IPFS/libp2p multiaddrs. Use

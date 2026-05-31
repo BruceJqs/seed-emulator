@@ -907,6 +907,10 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatHostPort(" [2000:0:0::1] ", " 80 ") == "[2000::1]:80"
     with pytest.raises(ValueError, match="malformed bracketed IPv6 authority"):
         formatHostPort(" [2000::1]:bad ", 80)
+    with pytest.raises(ValueError, match="endpoint port must not be empty"):
+        formatHostPort("2000::1", "   ")
+    with pytest.raises(ValueError, match="endpoint port must be numeric"):
+        formatHostPort("2000::1", "http")
     assert formatUrl("http", "2000::1", 8080, "status") == "http://[2000::1]:8080/status"
     assert formatUrl("http", "2000::1", " 8080 ", "status") == "http://[2000::1]:8080/status"
     assert formatUrl("http", "[2000:0:0::1]", 8080, "status") == "http://[2000::1]:8080/status"
@@ -921,6 +925,8 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatUrl("https", " example.test:8443 ", 9443, "health") == "https://example.test:9443/health"
     assert formatHostPort(" 10.0.0.1:8443 ", 9443) == "10.0.0.1:9443"
     assert formatUrl("https", " 10.0.0.1:8443 ", 9443, "health") == "https://10.0.0.1:9443/health"
+    with pytest.raises(ValueError, match="endpoint port must be numeric"):
+        formatUrl("http", "example.test", "api", "health")
     assert formatUrl("https", "example.test", path="/health") == "https://example.test/health"
     assert formatUrl("http", "2000::1", 8080, "?arg=x") == "http://[2000::1]:8080?arg=x"
     assert formatUrl("https", "example.test", path="?arg=x") == "https://example.test?arg=x"
@@ -932,6 +938,8 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatMultiaddr(" 2000::1 ", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
     assert formatMultiaddr("[2000:0:0::1]", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
     assert formatMultiaddr("[2000:0:0::1]", " 4001 ", "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
+    with pytest.raises(ValueError, match="endpoint port must be numeric"):
+        formatMultiaddr("2000::1", "tcp", "peer")
 
 
 def test_address_record_normalizer_handles_dns_a_aaaa_literals():

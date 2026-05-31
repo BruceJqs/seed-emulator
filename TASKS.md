@@ -120,7 +120,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   with ports, explicit-port override for legacy IPv4, DNS-name, and bracketed
   IPv6 authorities, malformed bracketed IPv6 authority rejection, query-only
   and fragment-only URL components, padded explicit ports for host-port, URL,
-  and multiaddr helpers, and padded multiaddr formatting;
+  and multiaddr helpers, empty/non-numeric explicit port rejection, and padded
+  multiaddr formatting;
 - service-author documentation now records the IPv4-first address API contract
   and the shared helper rule for URL, host-port, multiaddr, and node-address
   selection; Kubo and Traffic developer notes align with their current explicit

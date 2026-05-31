@@ -142,6 +142,15 @@ def _formatHostWithExplicitPort(value: str):
     return formatHost(value)
 
 
+def _formatTcpPort(port: Union[str, int]) -> str:
+    value = str(port).strip()
+    if value == "":
+        raise ValueError("endpoint port must not be empty")
+    if not value.isdigit():
+        raise ValueError("endpoint port must be numeric: {}".format(port))
+    return value
+
+
 def getInterfaceAddress(iface: "Interface", family: Union[AddressFamily, str, int] = AddressFamily.IPv4):
     """Return an interface address for the requested address family."""
 
@@ -310,7 +319,7 @@ def formatHost(host: Union[str, object]) -> str:
 def formatHostPort(host: Union[str, object], port: Union[str, int]) -> str:
     """Format host:port with RFC 3986 brackets for IPv6 literals."""
 
-    return "{}:{}".format(_formatHostWithExplicitPort(str(host).strip()), str(port).strip())
+    return "{}:{}".format(_formatHostWithExplicitPort(str(host).strip()), _formatTcpPort(port))
 
 
 def formatUrl(
@@ -335,7 +344,7 @@ def formatMultiaddr(host: Union[str, object], tcpPort: Union[str, int], peerId: 
         raise ValueError("multiaddr host must be an IPv4/IPv6 literal: {}".format(host))
 
     proto = "ip6" if parsed.version == 6 else "ip4"
-    out = "/{}/{}/tcp/{}".format(proto, parsed, str(tcpPort).strip())
+    out = "/{}/{}/tcp/{}".format(proto, parsed, _formatTcpPort(tcpPort))
     if peerId is not None:
         out += "/p2p/{}".format(peerId)
     return out

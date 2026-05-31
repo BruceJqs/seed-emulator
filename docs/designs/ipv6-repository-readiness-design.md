@@ -55,9 +55,11 @@ also supplies a separate port, the separate port overrides the port embedded in
 a legacy IPv4, DNS-name, or bracketed IPv6 authority, and padded explicit port
 values are trimmed before `host:port`, URL, or multiaddr output is generated.
 Malformed bracketed IPv6 authorities, such as `[2000::1]:bad`, are rejected
-instead of being emitted as ambiguous endpoints. URL components beginning with
-`?` or `#` are preserved as query or fragment components rather than being
-rewritten as path segments.
+instead of being emitted as ambiguous endpoints. Explicit port arguments must
+be non-empty decimal strings, so helpers reject invalid socket-like endpoints
+before a service writes them into config. URL components beginning with `?` or
+`#` are preserved as query or fragment components rather than being rewritten
+as path segments.
 
 ## Core Readiness
 
