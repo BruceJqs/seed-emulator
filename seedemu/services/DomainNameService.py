@@ -114,8 +114,10 @@ class Zone(Printable):
         """
         if fqdn[-1] != '.': fqdn += '.'
         zonename = self.__zonename if self.__zonename != '' else '.' 
-        family = 'AAAA' if ip_address(str(addr)).version == 6 else 'A'
-        address_record = '{} {} {}'.format(fqdn, family, addr)
+        parsed = ip_address(str(addr).strip())
+        address = str(parsed)
+        family = 'AAAA' if parsed.version == 6 else 'A'
+        address_record = '{} {} {}'.format(fqdn, family, address)
         ns_record = '{} NS {}'.format(zonename, fqdn)
         if address_record not in self.__gules:
             self.__gules.append(address_record)
@@ -551,10 +553,11 @@ class DomainNameService(Service):
 
         @returns self, for chaining API calls.
         """
+        address = str(ip_address(str(addr).strip()))
         if zone in self.__masters.keys():
-            self.__masters[zone].append(addr)
+            self.__masters[zone].append(address)
         else:
-            self.__masters[zone] = [addr]
+            self.__masters[zone] = [address]
 
         return self
 

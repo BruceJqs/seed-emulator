@@ -1702,8 +1702,8 @@ def test_dns_resolve_to_node_keeps_first_interface_fallback_for_non_local_networ
 def test_dns_glue_records_use_parsed_address_family():
     zone = DomainNameService().getZone("example.")
 
-    zone.addGuleRecord("ns1.example.", "10.2.0.53")
-    zone.addGuleRecord("ns2.example.", "2000:0:2::53")
+    zone.addGuleRecord("ns1.example.", " 10.2.0.53 ")
+    zone.addGuleRecord("ns2.example.", " 2000:0:2::53 ")
 
     glue_records = zone.getGuleRecords()
     assert "ns1.example. A 10.2.0.53" in glue_records
@@ -1711,6 +1711,33 @@ def test_dns_glue_records_use_parsed_address_family():
     assert "ns1.example. NS ns1.example." not in glue_records
     assert "example. NS ns1.example." in glue_records
     assert "example. NS ns2.example." in glue_records
+
+
+def test_dns_manual_master_ips_trim_padded_addresses():
+    emu = Emulator()
+    base = Base()
+    dns = DomainNameService()
+    cache = DomainNameCachingService(autoRoot=False)
+
+    dns.addMasterIp("example.", " 10.2.0.53 ")
+    dns.addMasterIp("example.", " 2000:0:2::53 ")
+    cache.install("cache").addForwardZone("example.", "unused-ns")
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("cache").joinNetwork("net0", address="10.2.0.54")
+    emu.addBinding(Binding("cache", filter=Filter(asn=2, nodeName="cache"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(dns)
+    emu.addLayer(cache)
+    emu.render()
+
+    cache_node = emu.getRegistry().get("2", "hnode", "cache")
+    named_local = _file_content(cache_node, "/etc/bind/named.conf.local")
+
+    assert dns.getMasterIp()["example."] == ["10.2.0.53", "2000:0:2::53"]
+    assert 'forwarders { 10.2.0.53; 2000:0:2::53; };' in named_local
 
 
 def test_reverse_dns_keeps_ipv4_only_default():
