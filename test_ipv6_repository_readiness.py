@@ -1952,7 +1952,8 @@ def test_dns_cache_manual_root_hints_trim_padded_records():
 
     cache_server = cache.install("cache").setRootServers([
         " ns1. A 10.2.0.53 ",
-        " ns1. AAAA 2000:0:2::53 ",
+        " ns1. aaaa 2000:0:2:0:0:0:0:53 ",
+        " ns1. NS a.root.example. ",
     ])
     emu.addBinding(Binding("cache", filter=Filter(asn=2, nodeName="cache"), action=Action.FIRST))
 
@@ -1961,11 +1962,12 @@ def test_dns_cache_manual_root_hints_trim_padded_records():
     emu.render()
 
     cache_node = emu.getRegistry().get("2", "hnode", "cache")
-    expected = "ns1. A 10.2.0.53\nns1. AAAA 2000:0:2::53"
+    expected = "ns1. A 10.2.0.53\nns1. AAAA 2000:0:2::53\nns1. NS a.root.example."
 
     assert cache_server.getRootServers() == [
         "ns1. A 10.2.0.53",
         "ns1. AAAA 2000:0:2::53",
+        "ns1. NS a.root.example.",
     ]
     assert _file_content(cache_node, "/usr/share/dns/root.hints") == expected
     assert _file_content(cache_node, "/etc/bind/db.root") == expected

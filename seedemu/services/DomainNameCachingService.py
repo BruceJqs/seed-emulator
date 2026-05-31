@@ -66,7 +66,7 @@ class DomainNameCachingServer(Server, Configurable):
 
         @returns self, for chaining API calls.
         """
-        self.__root_servers = [str(server).strip() for server in servers]
+        self.__root_servers = [self.__normalizeRootServerRecord(server) for server in servers]
 
         return self
 
@@ -90,6 +90,14 @@ class DomainNameCachingServer(Server, Configurable):
 
     def __formatBindAddressList(self, addrs: List[str]) -> str:
         return '; '.join([str(ip_address(str(addr).strip())) for addr in addrs])
+
+    def __normalizeRootServerRecord(self, record: str) -> str:
+        parts = str(record).strip().split()
+        if len(parts) >= 3 and parts[-2].upper() in ('A', 'AAAA'):
+            parts[-2] = parts[-2].upper()
+            parts[-1] = str(ip_address(parts[-1]))
+            return ' '.join(parts)
+        return str(record).strip()
 
     def addForwardZone(self, zone: str, vnode: str) -> DomainNameCachingServer:
         """!
