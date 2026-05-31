@@ -119,3 +119,42 @@ and service-level `ipv6_address` entries.
 For `selfManagedNetwork=True`, the compiler uses dummy IPv6 subnets and rewrites
 container addresses at startup, matching the existing IPv4 self-managed network
 behavior.
+
+## Repository Readiness
+
+IPv6 support is being expanded as a repository-level contract. The control
+plane, Docker compiler, ExaBGP, Looking Glass, DNS baseline, and `/etc/hosts`
+now have explicit dual-stack behavior. Other services remain IPv4-compatible
+until each service is migrated and tested.
+
+Current categories:
+
+- supported: core addressing, Docker dual-stack networks, BIRD/FRR BGP,
+  OSPFv3, ExaBGP, Looking Glass;
+- baseline dual-stack: DNS authoritative records and `/etc/hosts`;
+- compatible but not fully migrated: DNS cache, Web/CA, traffic wrappers;
+- IPv4-first pending design: Email, Kubo, Tor, Ethereum, Monero, Chainlink;
+- separate design required: SCION underlay, cross-connect, DHCPv6, MPLS/EVPN,
+  real-world connectivity, OpenVPN, k8s, internetmap2.
+
+See
+[Repository-Wide IPv6 Readiness Design](../designs/ipv6-repository-readiness-design.md)
+for the migration contract.
+
+## Service Author Rules
+
+Keep `getAddress()` and `getPrefix()` as IPv4-only APIs. A service that needs
+IPv6 should use `hasIpv6Address()`, `getIpv6Address()`, or the shared helpers in
+`seedemu.core`:
+
+```python
+from seedemu.core import AddressFamily, getInterfaceAddress, formatHostPort, formatUrl, formatMultiaddr
+```
+
+Use `formatHostPort()` or `formatUrl()` instead of manually concatenating
+`host:port`, because IPv6 literals need brackets in URLs. Use
+`formatMultiaddr()` when generating IPFS/libp2p multiaddrs.
+
+Do not claim service-level IPv6 support until the service has a minimal IPv6 or
+dual-stack example and a regression check showing that old IPv4 behavior is
+unchanged.

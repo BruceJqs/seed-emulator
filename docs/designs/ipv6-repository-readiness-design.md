@@ -1,0 +1,113 @@
+# Repository-Wide IPv6 Readiness Design
+
+This document defines how SEED Emulator should evolve from IPv4-first
+examples to optional dual-stack capability across the repository. The current
+branch already provides the control-plane foundation: core topology objects,
+Docker compilation, BIRD/FRR, ExaBGP, and Looking Glass can carry IPv6 when a
+scenario explicitly enables it. This document is the migration contract for
+the rest of the repository.
+
+## 中文摘要
+
+IPv6 不应该被理解成几个示例的局部能力，而是仿真器级别的可选能力。
+默认仍然是 IPv4-only；旧示例、旧 API、旧输出都应保持稳定。只有用户在
+`Base`、网络、接口或相关 service API 中显式启用 IPv6，编译结果才进入
+双栈状态。
+
+全仓库迁移遵守下面的边界：
+
+- core 保存拓扑、地址、前缀、绑定和 endpoint 的通用语义；
+- layer 只表达协议或系统 intent；
+- service 读取地址族能力并生成自身配置；
+- compiler 把已经存在的模型状态编译成运行制品；
+- examples 用新增 IPv6 variant 展示新能力，不改旧示例含义。
+
+## Address-Family Contract
+
+Existing IPv4 APIs remain IPv4 APIs:
+
+- `Network.getPrefix()` returns the IPv4 prefix.
+- `Interface.getAddress()` returns the IPv4 address.
+- `Filter(ip=...)` and `Filter(prefix=...)` remain accepted and now parse either
+  IPv4 or IPv6 literals.
+
+Dual-stack aware code should use the explicit IPv6 APIs or the shared helpers:
+
+- `Network.hasIpv6Prefix()` / `Network.getIpv6Prefix()`.
+- `Interface.hasIpv6Address()` / `Interface.getIpv6Address()`.
+- `AddressFamily`, `getInterfaceAddress(...)`, `formatHostPort(...)`,
+  `formatUrl(...)`, and `formatMultiaddr(...)` from `seedemu.core`.
+
+Services must not assume that the first interface address is the only usable
+address. A service should either select IPv4 explicitly, select IPv6
+explicitly, or generate both families when its daemon supports dual stack.
+
+## Core Readiness
+
+Implemented foundation:
+
+- Optional IPv6 root prefix and deterministic AS/IX `/64` allocation.
+- IPv6 state on `Network` and `Interface`.
+- IPv6-aware BGP/OSPF intent rendering for BIRD and FRR.
+- IPv6-aware ExaBGP speaker service and Looking Glass route-state queries.
+- Docker Compose dual-stack network/IPAM and service `ipv6_address` output.
+- IPv6-aware `Filter` / `Binding` matching and `Action.NEW` placement.
+- Optional IPv6 service network prefix.
+- Optional IPv6 address on `attachCustomContainer(...)` and
+  `attachInternetMap(...)`.
+
+Deferred core items:
+
+- `crossConnect(...)` remains IPv4-only in this branch. It is used heavily by
+  SCION and legacy examples, so dual-stack cross-connect links need a separate
+  design rather than an implicit API change.
+- Real-world connectivity and OpenVPN remain IPv4-oriented.
+- DHCP remains IPv4-only; DHCPv6/SLAAC behavior should be designed separately.
+
+## Service Readiness Matrix
+
+| Area | Status | Migration rule |
+| --- | --- | --- |
+| Routing control plane | Supported | Keep protocol intent family-aware; render backend syntax only in `Routing`. |
+| ExaBGP | Supported | Service speaker may use IPv4 or IPv6 shared peer address. |
+| Looking Glass | Supported | Route-state views separate IPv4/IPv6 output. |
+| Docker compiler | Supported | Emit IPv6 only for networks/interfaces carrying IPv6 state. |
+| `/etc/hosts` | Baseline dual-stack | Generate IPv4 and IPv6 local entries when available. |
+| DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; masters may include both families. |
+| DNS cache | Compatible | Prefer IPv4 for old resolver behavior; accept IPv6 forwarders/root hints. |
+| Web/CA | Compatible | Existing IPv4 behavior preserved; future work should use endpoint helpers. |
+| Traffic services | Candidate | Tools may support IPv6, but SEED wrappers need address-family selection. |
+| Email | IPv4-first | Provider/gateway/default-route logic must be redesigned before IPv6 claim. |
+| Kubo/IPFS | IPv4-first | Multiaddr generation should move to `formatMultiaddr(...)`. |
+| Tor | IPv4-first | Bind/listener and directory authority addressing need a separate migration. |
+| Ethereum/Monero/Chainlink | IPv4-first | HTTP, ENR, RPC, and peer endpoint formatting need helper-based migration. |
+| SCION | Separate design | Underlay, crossConnect, and SCION control tooling currently assume IPv4. |
+| MPLS/EVPN | Separate design | Routing identifiers and dataplane assumptions need dedicated validation. |
+| k8s/internetmap2 | Out of this branch | Do not claim IPv6 support until their own branch validates it. |
+
+## Migration Pattern for Services
+
+A service migration should follow this order:
+
+1. Keep the old IPv4 path unchanged.
+2. Add explicit address-family selection or generate both families only when
+   the target node/interface has IPv6 state.
+3. Use shared endpoint helpers for URLs, `host:port`, and multiaddr strings.
+4. Add a minimal IPv6 example or test without changing old examples.
+5. Document unsupported daemon features clearly instead of generating partial
+   IPv6 config.
+
+The acceptance rule is simple: enabling IPv6 must not make an IPv4-only service
+silently wrong. It may continue using IPv4, or it may clearly expose dual-stack
+support after tests prove it.
+
+## Validation Baseline
+
+Repository-level IPv6 work should keep these checks green:
+
+- Existing IPv4 examples compile without IPv6 Compose fields.
+- A15-A17 keep proving the control-plane path.
+- `Filter` / `Binding` match IPv4 and IPv6 addresses/prefixes.
+- Service network and custom containers compile as IPv4-only by default and
+  dual-stack only when IPv6 is provided.
+- DNS and `/etc/hosts` emit stable A/AAAA and hosts entries when IPv6 exists.

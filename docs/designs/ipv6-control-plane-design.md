@@ -219,3 +219,10 @@ should read IPv6 through `Interface.hasIpv6Address()` and
 | `A17_ipv6_looking_glass` | IPv6 route-state observability | Looking Glass `/api/state` includes BIRD and FRR IPv6 route-state |
 
 Existing A12-A14 remain the IPv4 regression baseline.
+
+## Repository-Level Follow-Up
+
+This document focuses on the control-plane foundation. The repository-wide
+migration contract for services, endpoint formatting, DNS, `/etc/hosts`,
+custom containers, service network IPv6, and IPv4-first components is tracked
+in [Repository-Wide IPv6 Readiness Design](./ipv6-repository-readiness-design.md).

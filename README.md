@@ -89,6 +89,8 @@ For optional IPv6 addressing and dual-stack routing, start with
 [IPv6 dual-stack emulation](./docs/user_manual/ipv6.md). The architectural
 design is recorded in
 [IPv6 Addressing and Control Plane Design](./docs/designs/ipv6-control-plane-design.md).
+The repository-wide migration contract is tracked in
+[Repository-Wide IPv6 Readiness Design](./docs/designs/ipv6-repository-readiness-design.md).
 
 ## Contributing
 
