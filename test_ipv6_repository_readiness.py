@@ -483,6 +483,34 @@ def test_custom_container_ipv4_only_does_not_emit_ipv6_fields(tmp_path):
     assert "enable_ipv6" not in output_text
 
 
+def test_custom_container_on_dual_stack_network_requires_explicit_ipv6_address(tmp_path):
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    emu.addLayer(base)
+    emu.render()
+
+    output_dir = tmp_path / "custom-dual-stack-no-node-ipv6"
+    docker = Docker(platform=Platform.AMD64)
+    docker.attachCustomContainer(
+        "    custom:\n        image: alpine\n",
+        asn=2,
+        net="net0",
+        ip_address="10.2.0.80",
+        show_on_map=True,
+        node_name="custom",
+    )
+    emu.compile(docker, str(output_dir), override=True)
+
+    output_text = _compiled_output_text(output_dir)
+    assert "enable_ipv6: true" in output_text
+    assert "2000:0:2::/64" in output_text
+    assert "ipv4_address: 10.2.0.80" in output_text
+    assert "ipv6_address" not in output_text
+
+
 def test_custom_container_without_static_addresses_keeps_compose_network_valid(tmp_path):
     emu = Emulator()
     base = Base()

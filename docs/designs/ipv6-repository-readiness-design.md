@@ -113,9 +113,10 @@ Repository-level IPv6 work should keep these checks green:
 - IPv6 prefix allocation rejects reserved infrastructure reuse and overlapping
   explicit AS/IX prefixes, including late `Base.enableIpv6()` migration paths.
 - Service network and custom containers compile as IPv4-only by default and
-  dual-stack only when IPv6 is provided; service-network interface opt-out and
-  custom Internet Map attachments without an explicit IPv6 address suppress
-  per-node `ipv6_address` even on a dual-stack network.
+  dual-stack only when IPv6 is provided; service-network interface opt-out,
+  custom container attachments, and custom Internet Map attachments without an
+  explicit IPv6 address suppress per-node `ipv6_address` even on a dual-stack
+  network.
 - DNS and `/etc/hosts` emit stable A/AAAA and hosts entries when IPv6 exists.
 - DNS address selection uses shared core helpers so service code does not
   duplicate Local-vs-service-network fallback rules.

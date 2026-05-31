@@ -73,9 +73,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   dual-stack only when `serviceNetworkIpv6Prefix` is set, and emits
   per-node `ipv6_address` only for interfaces carrying IPv6 state;
 - `attachCustomContainer(...)` and `attachInternetMap(...)` cover explicit
-  IPv6 addresses without changing their IPv4-only default, and
-  `attachInternetMap(...)` does not invent a per-container IPv6 address on a
-  dual-stack network unless one is provided explicitly.
+  IPv6 addresses without changing their IPv4-only default, and neither
+  attachment path invents a per-container IPv6 address on a dual-stack network
+  unless one is provided explicitly.
 
 ## Phase 3: Endpoint and DNS Foundation
 
