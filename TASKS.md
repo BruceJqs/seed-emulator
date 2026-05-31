@@ -91,6 +91,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 
 - endpoint helper tests cover IPv4, IPv6, DNS names, URL paths, and multiaddr
   formatting;
+- address-family normalization accepts common user-facing and socket-family
+  spellings such as `ipv4`, `ip6`, `inet`, and `AF_INET6`;
 - authoritative DNS and `/etc/hosts` keep IPv4-only defaults and emit AAAA only
   when IPv6 interface state exists;
 - reverse DNS keeps the existing IPv4 `in-addr.arpa.` PTR generation and adds

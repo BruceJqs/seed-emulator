@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 from pathlib import Path
 
 from seedemu.compiler import Docker, Platform
@@ -834,7 +835,11 @@ def test_endpoint_helpers_format_ipv6_safely():
 def test_address_family_normalizer_accepts_common_padded_values():
     assert normalizeAddressFamily(" ipv4 ") == AddressFamily.IPv4
     assert normalizeAddressFamily(" IP6 ") == AddressFamily.IPv6
+    assert normalizeAddressFamily("inet") == AddressFamily.IPv4
+    assert normalizeAddressFamily("AF_INET6") == AddressFamily.IPv6
     assert normalizeAddressFamily(4) == AddressFamily.IPv4
+    assert normalizeAddressFamily(socket.AF_INET) == AddressFamily.IPv4
+    assert normalizeAddressFamily(socket.AF_INET6) == AddressFamily.IPv6
     assert normalizeAddressFamily(AddressFamily.IPv6) == AddressFamily.IPv6
 
 
