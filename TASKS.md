@@ -229,8 +229,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   service-network fallback address selection, default to IPv4, and explicitly
   select bracketed IPv6 URLs when requested; Ethereum/Chainlink runtime
   behavior still needs validation before a support claim.
-- Ethereum faucet/utility HTTP URLs and generated bootnode/beacon helper fetch
-  URLs now route through shared address-family and URL helpers with
+- Ethereum faucet/utility HTTP URLs, faucet funding-script server URLs, and
+  generated bootnode/beacon helper fetch URLs now route through shared
+  address-family and URL helpers with
   Local-network-first, service-network fallback address selection, default to
   IPv4, and explicitly select bracketed IPv6 URLs when requested; the
   Lighthouse validator beacon-node URL template now accepts a preformatted

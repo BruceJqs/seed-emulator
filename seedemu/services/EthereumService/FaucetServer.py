@@ -3,7 +3,11 @@ from seedemu.core import Node, Service, Server, formatHost, formatUrl
 from seedemu.core.Emulator import Emulator
 from seedemu.core.enums import NetworkType
 from seedemu.services.EthereumService import *
-from .EthTemplates import FaucetServerFileTemplates, format_fund_curl
+from .EthTemplates import (
+    FaucetServerFileTemplates,
+    format_fund_accounts_script,
+    format_fund_curl,
+)
 from os import path
 
 
@@ -179,12 +183,15 @@ class FaucetServer(Server):
         for recipient, amount in self.__fundlist:
             funds_list.append(format_fund_curl(recipient, amount, "localhost", self.__port))
             
-        node.setFile(self.DIR_PREFIX + '/fund_accounts.sh', 
-            FaucetServerFileTemplates['fund_accounts'].format(
-                    address=formatHost("localhost"),
-                    port=self.__port,
-                    max_attempts = self.__max_fund_attempts,
-                    fund_command=';'.join(funds_list)))
+        node.setFile(
+            self.DIR_PREFIX + '/fund_accounts.sh',
+            format_fund_accounts_script(
+                formatHost("localhost"),
+                self.__port,
+                self.__max_fund_attempts,
+                ';'.join(funds_list),
+            ),
+        )
 
 
         

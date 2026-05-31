@@ -51,3 +51,17 @@ def format_fund_curl(recipient, amount, address, port):
         amount,
         format_faucet_fund_url(address, port),
     )
+
+
+def format_fund_accounts_script(address, port, max_attempts, fund_command):
+    template = FaucetServerFileTemplates["fund_accounts"].replace(
+        'SERVER_URL="http://{address}:{port}"',
+        'SERVER_URL="{server_url}"',
+    )
+    return template.format(
+        address=address,
+        port=port,
+        server_url=formatUrl("http", address, port),
+        max_attempts=max_attempts,
+        fund_command=fund_command,
+    )

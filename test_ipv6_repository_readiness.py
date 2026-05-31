@@ -59,6 +59,7 @@ from seedemu.services import (
 from seedemu.services.CAService import ipsInNetwork
 from seedemu.services.EthereumService.EthTemplates import (
     FaucetServerFileTemplates,
+    format_fund_accounts_script,
     format_faucet_fund_url,
     format_faucet_url,
     format_fund_curl,
@@ -975,6 +976,15 @@ def test_ethereum_faucet_template_legacy_keys_remain_ipv4_compatible():
         "2000:0:2::72",
         80,
     ) == "curl -X POST -d 'address=0x4444444444444444444444444444444444444444&amount=2' http://[2000:0:2::72]:80/fundme"
+
+
+def test_ethereum_faucet_fund_accounts_script_uses_url_helper():
+    ipv4_script = format_fund_accounts_script("10.2.0.72", 80, 3, "true")
+    ipv6_script = format_fund_accounts_script("2000:0:2::72", 80, 3, "true")
+
+    assert 'SERVER_URL="http://10.2.0.72:80"' in ipv4_script
+    assert 'SERVER_URL="http://[2000:0:2::72]:80"' in ipv6_script
+    assert 'SERVER_URL="http://2000:0:2::72:80"' not in ipv6_script
 
 
 def test_node_address_helpers_prefer_local_then_fallback_by_family():

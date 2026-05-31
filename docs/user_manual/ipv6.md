@@ -225,10 +225,11 @@ interface. In a dual-stack emulation, call
 faucet, utility, and WebSocket/HTTP node URLs. The underlying Ethereum and
 Chainlink runtime path has not been validated as full IPv6 support.
 
-Ethereum faucet/utility generated URLs and bootnode/beacon helper fetch URLs
-preserve IPv4 defaults and select referenced nodes through the shared
-Local-network-first helper, falling back to the service network when a
-referenced node has no Local interface. In a dual-stack emulation, call
+Ethereum faucet/utility generated URLs, faucet funding-script server URLs, and
+bootnode/beacon helper fetch URLs preserve IPv4 defaults and select referenced
+nodes through the shared Local-network-first helper, falling back to the service
+network when a referenced node has no Local interface. In a dual-stack
+emulation, call
 `blockchain.setEndpointAddressFamily(AddressFamily.IPv6)` to generate bracketed
 IPv6 HTTP RPC, faucet, enode-fetch, beacon-identity, and beacon-setup helper
 URLs. The Lighthouse validator beacon-node URL template accepts a preformatted
