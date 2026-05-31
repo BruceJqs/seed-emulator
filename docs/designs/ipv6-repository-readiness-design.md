@@ -49,7 +49,9 @@ a legacy API already carries a bracketed IPv6 authority such as
 `[2000::1]:8443`, shared URL helpers preserve that authority and canonicalize
 the IPv6 literal instead of treating it as an unparsed hostname. If the caller
 also supplies a separate port, the separate port overrides the port embedded in
-a legacy IPv4, DNS-name, or bracketed IPv6 authority.
+a legacy IPv4, DNS-name, or bracketed IPv6 authority. URL components beginning
+with `?` or `#` are preserved as query or fragment components rather than being
+rewritten as path segments.
 
 ## Core Readiness
 

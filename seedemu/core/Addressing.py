@@ -302,7 +302,7 @@ def formatUrl(
     """Format a URL from address-family neutral pieces."""
 
     authority = formatHost(host) if port is None else formatHostPort(host, port)
-    if path and not path.startswith("/"):
+    if path and not path.startswith(("/", "?", "#")):
         path = "/" + path
     return "{}://{}{}".format(scheme, authority, path)
 
