@@ -124,6 +124,19 @@ def _formatBracketedIpv6Host(value: str):
     return None
 
 
+def _formatHostWithExplicitPort(value: str):
+    bracketed_host = _formatBracketedIpv6Host(value)
+    if bracketed_host is not None:
+        return bracketed_host
+
+    if value.count(":") == 1:
+        host, _old_port = value.rsplit(":", 1)
+        if host.strip() and _old_port.strip():
+            return formatHost(host)
+
+    return formatHost(value)
+
+
 def getInterfaceAddress(iface: "Interface", family: Union[AddressFamily, str, int] = AddressFamily.IPv4):
     """Return an interface address for the requested address family."""
 
@@ -272,11 +285,7 @@ def formatHost(host: Union[str, object]) -> str:
 def formatHostPort(host: Union[str, object], port: Union[str, int]) -> str:
     """Format host:port with RFC 3986 brackets for IPv6 literals."""
 
-    value = str(host).strip()
-    bracketed_host = _formatBracketedIpv6Host(value)
-    if bracketed_host is not None:
-        return "{}:{}".format(bracketed_host, port)
-    return "{}:{}".format(formatHost(host), port)
+    return "{}:{}".format(_formatHostWithExplicitPort(str(host).strip()), port)
 
 
 def formatUrl(

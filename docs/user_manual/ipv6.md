@@ -297,8 +297,8 @@ Use `formatHostPort()` or `formatUrl()` instead of manually concatenating
 path already passes a bracketed IPv6 authority such as `[2000::1]:8443`, the
 helper preserves the authority and canonicalizes the literal. When a caller
 also supplies a separate port, that separate port is used instead of any port
-embedded in the legacy authority. Use `formatMultiaddr()` when generating
-IPFS/libp2p multiaddrs. Use
+embedded in a legacy IPv4, DNS-name, or bracketed IPv6 authority. Use
+`formatMultiaddr()` when generating IPFS/libp2p multiaddrs. Use
 `getNodeAddress()`, `getNodePreferredAddress()`, or `getNodeAddresses()` when a
 service needs stable Local-network-first address selection with service-network
 fallback. Use `nodeHasAddress()` and `nodeHasAddressInPrefix()` when matching a
