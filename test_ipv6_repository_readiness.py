@@ -895,7 +895,9 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatHostPort(" [2000:0:0::1] ", 80) == "[2000::1]:80"
     assert formatUrl("http", "2000::1", 8080, "status") == "http://[2000::1]:8080/status"
     assert formatUrl("http", "[2000:0:0::1]", 8080, "status") == "http://[2000::1]:8080/status"
+    assert formatUrl("https", " [2000:0:0::1]:8443 ", path="status") == "https://[2000::1]:8443/status"
     assert formatUrl("http", " example.test ", 8080, "status") == "http://example.test:8080/status"
+    assert formatUrl("https", " example.test:8443 ", path="health") == "https://example.test:8443/health"
     assert formatUrl("https", "example.test", path="/health") == "https://example.test/health"
     assert formatMultiaddr("10.0.0.1", 4001) == "/ip4/10.0.0.1/tcp/4001"
     assert formatMultiaddr(" 10.0.0.1 ", 4001) == "/ip4/10.0.0.1/tcp/4001"
@@ -1309,6 +1311,17 @@ def test_ca_https_acme_urls_preserve_domain_default_and_format_ipv6_literals(tmp
     assert "https://[2000:0:2::53]/acme/acme/directory" in ipv6_commands
     assert "https://[2000:0:2:0:0:0:0:53]" not in ipv6_commands
     assert "https://2000:0:2::53/acme/acme/directory" not in ipv6_commands
+
+    ipv6_authority_ca = CAServer("0.26.1")
+    ipv6_authority_ca.setCAStore(
+        _FakeCAStoreWithDomain(tmp_path / "ipv6-ca-port", " [2000:0:2:0:0:0:0:53]:8443 ")
+    )
+    ipv6_authority_node = Node("web-ipv6-authority", NodeRole.Host, 2)
+    ipv6_authority_ca.enableHTTPSFunc(ipv6_authority_node, web)
+    ipv6_authority_commands = _start_commands(ipv6_authority_node)
+
+    assert "https://[2000:0:2::53]:8443/acme/acme/directory" in ipv6_authority_commands
+    assert "https://[2000:0:2:0:0:0:0:53]:8443" not in ipv6_authority_commands
 
 
 def test_root_ca_store_normalizes_domain_inputs(monkeypatch, tmp_path):

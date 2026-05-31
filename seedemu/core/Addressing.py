@@ -78,6 +78,30 @@ def _parseHostIpLiteral(host: Union[str, object]):
         return None
 
 
+def _formatBracketedIpv6Authority(value: str):
+    if not value.startswith("["):
+        return None
+
+    end = value.find("]")
+    if end < 0:
+        return None
+
+    try:
+        parsed = ip_address(value[1:end].strip())
+    except ValueError:
+        return None
+
+    if parsed.version != 6:
+        return None
+
+    suffix = value[end + 1 :].strip()
+    if suffix == "":
+        return "[{}]".format(parsed)
+    if suffix.startswith(":") and len(suffix) > 1:
+        return "[{}]{}".format(parsed, suffix)
+    return None
+
+
 def getInterfaceAddress(iface: "Interface", family: Union[AddressFamily, str, int] = AddressFamily.IPv4):
     """Return an interface address for the requested address family."""
 
@@ -210,6 +234,10 @@ def formatHost(host: Union[str, object]) -> str:
     """Format a host/address for endpoint strings, bracketing IPv6 literals."""
 
     value = str(host).strip()
+    authority = _formatBracketedIpv6Authority(value)
+    if authority is not None:
+        return authority
+
     parsed = _parseHostIpLiteral(value)
     if parsed is None:
         return value

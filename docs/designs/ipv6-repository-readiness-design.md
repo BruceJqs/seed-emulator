@@ -44,7 +44,10 @@ Dual-stack aware code should use the explicit IPv6 APIs or the shared helpers:
 
 Services must not assume that the first interface address is the only usable
 address. A service should either select IPv4 explicitly, select IPv6
-explicitly, or generate both families when its daemon supports dual stack.
+explicitly, or generate both families when its daemon supports dual stack. When
+a legacy API already carries a bracketed IPv6 authority such as
+`[2000::1]:8443`, shared URL helpers preserve that authority and canonicalize
+the IPv6 literal instead of treating it as an unparsed hostname.
 
 ## Core Readiness
 

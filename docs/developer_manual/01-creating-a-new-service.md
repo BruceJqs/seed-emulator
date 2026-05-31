@@ -44,6 +44,9 @@ Recommended patterns:
   available service-network or other interface.
 - Use `formatHostPort(host, port)` and `formatUrl(scheme, host, port, path)`
   for host/port or URL text. IPv6 literals require brackets in these forms.
+  Prefer separate host and port arguments for new APIs; if a legacy value
+  already carries a bracketed IPv6 authority such as `[2000::1]:8443`,
+  `formatUrl()` preserves the authority and canonicalizes the literal.
 - Use `formatMultiaddr(host, port)` for IPFS/libp2p multiaddrs.
 - Normalize public address-family inputs with `normalizeAddressFamily()` so
   aliases such as `ipv4`, `ip6`, `inet`, and `AF_INET6` behave consistently.

@@ -293,6 +293,9 @@ from seedemu.core import (
 
 Use `formatHostPort()` or `formatUrl()` instead of manually concatenating
 `host:port`, because IPv6 literals need brackets in URLs. Use
+`formatUrl()` with separate host and port arguments when possible; if a legacy
+path already passes a bracketed IPv6 authority such as `[2000::1]:8443`, the
+helper preserves the authority and canonicalizes the literal. Use
 `formatMultiaddr()` when generating IPFS/libp2p multiaddrs. Use
 `getNodeAddress()`, `getNodePreferredAddress()`, or `getNodeAddresses()` when a
 service needs stable Local-network-first address selection with service-network
