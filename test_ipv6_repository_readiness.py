@@ -896,6 +896,8 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatUrl("http", "2000::1", 8080, "status") == "http://[2000::1]:8080/status"
     assert formatUrl("http", "[2000:0:0::1]", 8080, "status") == "http://[2000::1]:8080/status"
     assert formatUrl("https", " [2000:0:0::1]:8443 ", path="status") == "https://[2000::1]:8443/status"
+    assert formatHostPort(" [2000:0:0::1]:8443 ", 9443) == "[2000::1]:9443"
+    assert formatUrl("https", " [2000:0:0::1]:8443 ", 9443, "status") == "https://[2000::1]:9443/status"
     assert formatUrl("http", " example.test ", 8080, "status") == "http://example.test:8080/status"
     assert formatUrl("https", " example.test:8443 ", path="health") == "https://example.test:8443/health"
     assert formatUrl("https", "example.test", path="/health") == "https://example.test/health"

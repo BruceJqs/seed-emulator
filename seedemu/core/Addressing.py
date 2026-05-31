@@ -102,6 +102,28 @@ def _formatBracketedIpv6Authority(value: str):
     return None
 
 
+def _formatBracketedIpv6Host(value: str):
+    if not value.startswith("["):
+        return None
+
+    end = value.find("]")
+    if end < 0:
+        return None
+
+    try:
+        parsed = ip_address(value[1:end].strip())
+    except ValueError:
+        return None
+
+    if parsed.version != 6:
+        return None
+
+    suffix = value[end + 1 :].strip()
+    if suffix == "" or (suffix.startswith(":") and len(suffix) > 1):
+        return "[{}]".format(parsed)
+    return None
+
+
 def getInterfaceAddress(iface: "Interface", family: Union[AddressFamily, str, int] = AddressFamily.IPv4):
     """Return an interface address for the requested address family."""
 
@@ -250,6 +272,10 @@ def formatHost(host: Union[str, object]) -> str:
 def formatHostPort(host: Union[str, object], port: Union[str, int]) -> str:
     """Format host:port with RFC 3986 brackets for IPv6 literals."""
 
+    value = str(host).strip()
+    bracketed_host = _formatBracketedIpv6Host(value)
+    if bracketed_host is not None:
+        return "{}:{}".format(bracketed_host, port)
     return "{}:{}".format(formatHost(host), port)
 
 
