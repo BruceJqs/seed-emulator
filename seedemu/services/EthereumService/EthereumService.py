@@ -4,7 +4,17 @@ from .EthEnum import ConsensusMechanism, EthUnit
 from .EthUtil import Genesis, EthAccount, AccountStructure
 from .EthereumServer import EthereumServer, PoAServer, PoWServer, PoSServer
 from os import mkdir, path, makedirs, rename
-from seedemu.core import AddressFamily, Node, Service, Server, Emulator, getInterfaceAddress, normalizeAddressFamily
+from seedemu.core import (
+    AddressFamily,
+    Node,
+    Service,
+    Server,
+    Emulator,
+    formatHostPort,
+    formatUrl,
+    getInterfaceAddress,
+    normalizeAddressFamily,
+)
 from seedemu.core.enums import NetworkType
 from .FaucetServer import FaucetServer
 from .EthUtilityServer import EthUtilityServer
@@ -20,10 +30,13 @@ class Blockchain:
     _genesis: Genesis
     _eth_service: EthereumService
     _boot_node_addresses: Dict[ConsensusMechanism, List[str]]
+    _boot_node_enode_urls: List[str]
+    _beacon_node_api_urls: List[str]
     _joined_accounts: List[AccountStructure]
     _joined_signer_accounts: List[AccountStructure]
     _validator_ids: List[str]
     _beacon_setup_node_address: str
+    _beacon_setup_node_url: str
     _chain_id:int
     _pending_targets:list
     _chain_name:str
@@ -54,11 +67,14 @@ class Blockchain:
         self._chain_name = chainName 
         self._genesis = Genesis(self._consensus)
         self._boot_node_addresses = [] 
+        self._boot_node_enode_urls = []
+        self._beacon_node_api_urls = []
         self._miner_node_address = [] 
         self._joined_accounts = []
         self._joined_signer_accounts = [] 
         self._validator_ids = [] 
-        self._beacon_setup_node_address = ''  
+        self._beacon_setup_node_address = ''
+        self._beacon_setup_node_url = ''
         self._pending_targets = [] #
         self._emu_mnemonic = "great awesome fun seed security lab protect system network prevent attack future"
         self._total_accounts_per_node = 1
@@ -86,18 +102,34 @@ class Blockchain:
 
         ifaces = node.getInterfaces()
         assert len(ifaces) > 0, 'EthereumService::_doConfigure(): node as{}/{} has not interfaces'.format()
-        addr = '{}:{}'.format(str(ifaces[0].getAddress()), server.getBootNodeHttpPort())
         
         if server.isBootNode():
+            endpoint_address = self.__getNodeEndpointAddress(node)
             self._log('adding as{}/{} as consensus-{} bootnode...'.format(node.getAsn(), node.getName(), self._consensus.value))
             self._boot_node_addresses.append(str(ifaces[0].getAddress()))
+            self._boot_node_enode_urls.append(
+                formatUrl("http", endpoint_address, server.getBootNodeHttpPort(), "/eth-enode-url")
+            )
+            self._beacon_node_api_urls.append(
+                formatUrl("http", endpoint_address, 8000, "/eth/v1/node/identity")
+            )
         
         if self._consensus == ConsensusMechanism.POS:
             if server.isStartMiner():
                 self._log('adding as{}/{} as consensus-{} miner...'.format(node.getAsn(), node.getName(), self._consensus.value))
                 self._miner_node_address.append(str(ifaces[0].getAddress())) 
             if server.isBeaconSetupNode():
-                self._beacon_setup_node_address = '{}:{}'.format(ifaces[0].getAddress(), server.getBeaconSetupHttpPort())
+                endpoint_address = self.__getNodeEndpointAddress(node)
+                self._beacon_setup_node_address = formatHostPort(
+                    str(ifaces[0].getAddress()),
+                    server.getBeaconSetupHttpPort(),
+                )
+                self._beacon_setup_node_url = formatUrl(
+                    "http",
+                    endpoint_address,
+                    server.getBeaconSetupHttpPort(),
+                    "/testnet",
+                )
 
         server._createAccounts(self)
         
@@ -120,6 +152,18 @@ class Blockchain:
             node.addSharedFolder('/root/.ethash', '../{}/{}/{}/ethash'.format(save_path, self._chain_name, server.getId()))
             makedirs('{}/{}/{}/ethereum'.format(save_path, self._chain_name, server.getId()))
             makedirs('{}/{}/{}/ethash'.format(save_path, self._chain_name, server.getId()))
+
+    def __getNodeEndpointAddress(self, node: Node) -> str:
+        ifaces = node.getInterfaces()
+        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
+        for iface in ifaces:
+            address = getInterfaceAddress(iface, self._endpoint_address_family)
+            if address is not None:
+                return str(address)
+        assert False, 'Node {} has no {} address.'.format(
+            node.getName(),
+            self._endpoint_address_family.value,
+        )
 
     def configure(self, emulator:Emulator):
         pending_targets = self._eth_service.getPendingTargets()
@@ -192,6 +236,22 @@ class Blockchain:
         """
         return self._boot_node_addresses
 
+    def getBootNodeEnodeUrls(self) -> List[str]:
+        """!
+        @brief Get bootnode HTTP URLs for fetching enode URLs.
+
+        @returns List of URLs.
+        """
+        return self._boot_node_enode_urls
+
+    def getBeaconNodeApiUrls(self) -> List[str]:
+        """!
+        @brief Get beacon node HTTP API URLs for fetching ENRs.
+
+        @returns List of URLs.
+        """
+        return self._beacon_node_api_urls
+
     def getMinerNodes(self) -> List[str]:
         """!
         @brief Get miner node IPs.
@@ -232,6 +292,14 @@ class Blockchain:
         """
         return self._beacon_setup_node_address
 
+    def getBeaconSetupNodeUrl(self) -> str:
+        """!
+        @brief Get the beacon setup HTTP URL.
+
+        @returns The URL.
+        """
+        return self._beacon_setup_node_url
+
     def setGenesis(self, genesis:str) -> EthereumServer:
         """!
         @brief Set the custom genesis.
@@ -269,7 +337,7 @@ class Blockchain:
         """!
         @brief Select which address family is used for generated HTTP endpoints.
 
-        @param family Address family to use for faucet and utility generated URLs.
+        @param family Address family to use for generated Ethereum helper URLs.
 
         @returns Self, for chaining API calls.
         """

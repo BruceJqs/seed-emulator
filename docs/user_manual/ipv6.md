@@ -143,7 +143,7 @@ Current categories:
 - compatible but not fully migrated: DNS cache, Web/CA, traffic wrappers,
   Kubo bootstrap endpoints, Botnet C2/dropper endpoint formatting, Monero
   seed/RPC endpoint formatting, Chainlink generated URL formatting, Ethereum
-  faucet/utility HTTP URL formatting;
+  faucet/utility and bootnode/beacon helper HTTP URL formatting;
 - IPv4-first pending design: Email; Tor remains IPv4-first with
   directory-authority downloader and hidden-service backend target formatting
   guarded by shared endpoint helpers;
@@ -196,11 +196,13 @@ call `chainlink.setEndpointAddressFamily(AddressFamily.IPv6)` or pass
 faucet, utility, and WebSocket/HTTP node URLs. The underlying Ethereum and
 Chainlink runtime path has not been validated as full IPv6 support.
 
-Ethereum faucet and utility generated URLs preserve IPv4 defaults. In a
-dual-stack emulation, call `blockchain.setEndpointAddressFamily(AddressFamily.IPv6)`
-to generate bracketed IPv6 HTTP RPC and faucet URLs for those helpers. Ethereum
-bootnode, ENR, peer discovery, and daemon runtime behavior have not been
-runtime-validated as full IPv6 support.
+Ethereum faucet/utility generated URLs and bootnode/beacon helper fetch URLs
+preserve IPv4 defaults. In a dual-stack emulation, call
+`blockchain.setEndpointAddressFamily(AddressFamily.IPv6)` to generate bracketed
+IPv6 HTTP RPC, faucet, enode-fetch, beacon-identity, and beacon-setup URLs for
+those helpers. Ethereum ENR content, peer discovery, bootnode bind/listener,
+and daemon runtime behavior have not been runtime-validated as full IPv6
+support.
 
 Tor remains IPv4-first. Directory-authority fingerprint downloader URLs and
 hidden-service backend targets use shared endpoint helpers so explicit IPv6

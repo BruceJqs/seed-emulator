@@ -3,7 +3,7 @@ while read -r node; do {{
     let count=0
     ok=true
     validator=false
-    until curl --http0.9 -sHf http://$node/testnet > /dev/null; do {{
+    until curl --http0.9 -sHf "$node" > /dev/null; do {{
         echo "eth: beacon-setup node $node not ready, waiting..."
         sleep 10
         let count++
@@ -17,7 +17,7 @@ while read -r node; do {{
         validatorAtGenesis={is_validator_at_genesis}
         validatorAtRunning={is_validator_at_running}
 
-        curl --http0.9 -s http://$node/testnet > /tmp/testnet.tar.gz
+        curl --http0.9 -s "$node" > /tmp/testnet.tar.gz
         mkdir /tmp/bn
         tar -xzvf /tmp/testnet.tar.gz -C /tmp/bn
 
@@ -60,5 +60,4 @@ while read -r node; do {{
         
     }}
 }}; done < /tmp/beacon-setup-node
-
 

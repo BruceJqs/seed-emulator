@@ -31,10 +31,12 @@ from seedemu.services import (
     DomainNameService,
     ConsensusMechanism,
     EthUtilityServer,
+    EthereumServer,
     FaucetServer,
     FaucetUtil,
     KuboService,
     MoneroService,
+    PoSServer,
     ReverseDomainNameService,
     TorNodeType,
     TorServer,
@@ -159,10 +161,22 @@ class _FakeEthereumService(Service):
     def getName(self) -> str:
         return "EthereumService"
 
+    def isSave(self) -> bool:
+        return False
+
 
 class _FakeAccount:
     address = "0x1111111111111111111111111111111111111111"
     privateKey = bytes.fromhex("22" * 32)
+    keystore_filename = "fake-keystore.json"
+    keystore_content = "{}"
+    password = "admin"
+    balance = 32
+
+
+class _FakeGenesis:
+    def getGenesis(self) -> str:
+        return "{}"
 
 
 def _render_kubo_bootstrap_topology(kubo: KuboService):
@@ -398,6 +412,103 @@ def _render_ethereum_endpoint_topology(family=AddressFamily.IPv4):
     faucet_util.configure(emu)
 
     return faucet_node, utility_node, faucet_util
+
+
+def _render_ethereum_bootstrap_endpoint_topology(family=AddressFamily.IPv4):
+    base = Base(enableIpv6=True)
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    boot = as2.createHost("boot").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+    peer = as2.createHost("peer").joinNetwork("net0", address="10.2.0.72", ipv6Address="2000:0:2::72")
+    base.configure(Emulator())
+
+    blockchain = object.__new__(Blockchain)
+    blockchain._consensus = ConsensusMechanism.POA
+    blockchain._chain_id = 1337
+    blockchain._chain_name = "poa-helper"
+    blockchain._genesis = _FakeGenesis()
+    blockchain._eth_service = _FakeEthereumService()
+    blockchain._boot_node_addresses = []
+    blockchain._boot_node_enode_urls = []
+    blockchain._beacon_node_api_urls = []
+    blockchain._joined_accounts = []
+    blockchain._joined_signer_accounts = []
+    blockchain._validator_ids = []
+    blockchain._beacon_setup_node_address = ""
+    blockchain._beacon_setup_node_url = ""
+    blockchain._miner_node_address = []
+    blockchain._emu_mnemonic = "test mnemonic"
+    blockchain._emu_account_balance = 0
+    blockchain._total_accounts_per_node = 0
+    blockchain.setEndpointAddressFamily(family)
+
+    boot_server = object.__new__(EthereumServer)
+    EthereumServer.__init__(boot_server, 1, blockchain)
+    boot_server.setBootNode(True)
+    boot_server._mnemonic_accounts = []
+    peer_server = object.__new__(EthereumServer)
+    EthereumServer.__init__(peer_server, 2, blockchain)
+    peer_server._mnemonic_accounts = []
+
+    blockchain._doConfigure(boot, boot_server)
+    blockchain._doConfigure(peer, peer_server)
+    boot_server.install(boot, _FakeEthereumService())
+    peer_server.install(peer, _FakeEthereumService())
+
+    return boot, peer, blockchain
+
+
+def _render_ethereum_pos_helper_endpoint_topology(family=AddressFamily.IPv4):
+    base = Base(enableIpv6=True)
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    setup = as2.createHost("setup").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+    boot = as2.createHost("boot").joinNetwork("net0", address="10.2.0.72", ipv6Address="2000:0:2::72")
+    validator = as2.createHost("validator").joinNetwork("net0", address="10.2.0.73", ipv6Address="2000:0:2::73")
+    base.configure(Emulator())
+
+    blockchain = object.__new__(Blockchain)
+    blockchain._consensus = ConsensusMechanism.POS
+    blockchain._chain_id = 1337
+    blockchain._chain_name = "pos-helper"
+    blockchain._genesis = _FakeGenesis()
+    blockchain._eth_service = _FakeEthereumService()
+    blockchain._boot_node_addresses = []
+    blockchain._boot_node_enode_urls = []
+    blockchain._beacon_node_api_urls = []
+    blockchain._joined_accounts = []
+    blockchain._joined_signer_accounts = []
+    blockchain._validator_ids = []
+    blockchain._beacon_setup_node_address = ""
+    blockchain._beacon_setup_node_url = ""
+    blockchain._miner_node_address = []
+    blockchain._emu_mnemonic = "test mnemonic"
+    blockchain._emu_account_balance = 0
+    blockchain._total_accounts_per_node = 0
+    blockchain.setEndpointAddressFamily(family)
+
+    setup_server = object.__new__(PoSServer)
+    PoSServer.__init__(setup_server, 1, blockchain)
+    setup_server._mnemonic_accounts = []
+    setup_server.setBeaconSetupNode()
+
+    boot_server = object.__new__(PoSServer)
+    PoSServer.__init__(boot_server, 2, blockchain)
+    boot_server._mnemonic_accounts = []
+    boot_server.setBootNode(True)
+
+    validator_server = object.__new__(PoSServer)
+    PoSServer.__init__(validator_server, 3, blockchain)
+    validator_server._mnemonic_accounts = []
+    validator_server._accounts = [_FakeAccount()]
+    validator_server.enablePOSValidatorAtGenesis()
+
+    blockchain._doConfigure(setup, setup_server)
+    blockchain._doConfigure(boot, boot_server)
+    blockchain._doConfigure(validator, validator_server)
+    validator_server.install(validator, _FakeEthereumService())
+
+    return setup, boot, validator, blockchain
 
 
 def test_endpoint_helpers_format_ipv6_safely():
@@ -1547,3 +1658,82 @@ def test_ethereum_http_utility_urls_can_select_ipv6_helpers():
     assert "curl -X POST -d 'address=0x5555555555555555555555555555555555555555&amount=3' http://[2000:0:2::72]:80/fundme" in util_fund_script
     assert "http://10.2.0.71:8545" not in combined
     assert "http://10.2.0.72:80" not in combined
+
+
+def test_ethereum_bootstrap_helper_urls_default_to_ipv4_on_dual_stack_nodes():
+    boot, peer, blockchain = _render_ethereum_bootstrap_endpoint_topology()
+
+    peer_nodes = _file_content(peer, "/tmp/eth-nodes")
+    bootstrapper = _file_content(peer, "/tmp/eth-bootstrapper")
+
+    assert blockchain.getBootNodes() == ["10.2.0.71"]
+    assert blockchain.getBootNodeEnodeUrls() == ["http://10.2.0.71:8088/eth-enode-url"]
+    assert _file_content(boot, "/tmp/eth-nodes") == "http://10.2.0.71:8088/eth-enode-url"
+    assert peer_nodes == "http://10.2.0.71:8088/eth-enode-url"
+    assert 'curl -sHf "$node"' in bootstrapper
+    assert '$(curl -s "$node")' in bootstrapper
+    assert "http://$node:8088/eth-enode-url" not in bootstrapper
+    assert "2000:0:2::" not in peer_nodes
+
+
+def test_ethereum_bootstrap_helper_urls_can_select_ipv6_helpers():
+    boot, peer, blockchain = _render_ethereum_bootstrap_endpoint_topology(AddressFamily.IPv6)
+
+    peer_nodes = _file_content(peer, "/tmp/eth-nodes")
+    bootstrapper = _file_content(peer, "/tmp/eth-bootstrapper")
+
+    assert blockchain.getBootNodes() == ["10.2.0.71"]
+    assert blockchain.getBootNodeEnodeUrls() == ["http://[2000:0:2::71]:8088/eth-enode-url"]
+    assert _file_content(boot, "/tmp/eth-nodes") == "http://[2000:0:2::71]:8088/eth-enode-url"
+    assert peer_nodes == "http://[2000:0:2::71]:8088/eth-enode-url"
+    assert 'curl -sHf "$node"' in bootstrapper
+    assert '$(curl -s "$node")' in bootstrapper
+    assert "http://2000:0:2::71:8088/eth-enode-url" not in peer_nodes
+    assert "http://10.2.0.71:8088/eth-enode-url" not in peer_nodes
+
+
+def test_ethereum_pos_helper_urls_default_to_ipv4_on_dual_stack_nodes():
+    _setup, _boot, validator, blockchain = _render_ethereum_pos_helper_endpoint_topology()
+
+    beacon_setup_node = _file_content(validator, "/tmp/beacon-setup-node")
+    enode_nodes = _file_content(validator, "/tmp/eth-nodes")
+    beacon_nodes = _file_content(validator, "/tmp/beacon-nodes")
+    fetch_bn_enr = _file_content(validator, "/tmp/fetch_bn_enr")
+    beacon_bootstrapper = _file_content(validator, "/tmp/beacon-bootstrapper")
+
+    assert blockchain.getBeaconSetupNodeIp() == "10.2.0.71:8090"
+    assert blockchain.getBeaconSetupNodeUrl() == "http://10.2.0.71:8090/testnet"
+    assert blockchain.getBeaconNodeApiUrls() == ["http://10.2.0.72:8000/eth/v1/node/identity"]
+    assert beacon_setup_node == "http://10.2.0.71:8090/testnet"
+    assert enode_nodes == "http://10.2.0.72:8088/eth-enode-url"
+    assert beacon_nodes == "http://10.2.0.72:8000/eth/v1/node/identity"
+    assert 'curl -s "$url"' in fetch_bn_enr
+    assert "http://$ip:8000/eth/v1/node/identity" not in fetch_bn_enr
+    assert 'curl --http0.9 -sHf "$node"' in beacon_bootstrapper
+    assert 'curl --http0.9 -s "$node"' in beacon_bootstrapper
+    assert "http://$node/testnet" not in beacon_bootstrapper
+    assert "2000:0:2::" not in "\n".join([beacon_setup_node, beacon_nodes])
+
+
+def test_ethereum_pos_helper_urls_can_select_ipv6_helpers():
+    _setup, _boot, validator, blockchain = _render_ethereum_pos_helper_endpoint_topology(AddressFamily.IPv6)
+
+    beacon_setup_node = _file_content(validator, "/tmp/beacon-setup-node")
+    enode_nodes = _file_content(validator, "/tmp/eth-nodes")
+    beacon_nodes = _file_content(validator, "/tmp/beacon-nodes")
+    fetch_bn_enr = _file_content(validator, "/tmp/fetch_bn_enr")
+    beacon_bootstrapper = _file_content(validator, "/tmp/beacon-bootstrapper")
+
+    assert blockchain.getBeaconSetupNodeIp() == "10.2.0.71:8090"
+    assert blockchain.getBeaconSetupNodeUrl() == "http://[2000:0:2::71]:8090/testnet"
+    assert blockchain.getBeaconNodeApiUrls() == ["http://[2000:0:2::72]:8000/eth/v1/node/identity"]
+    assert beacon_setup_node == "http://[2000:0:2::71]:8090/testnet"
+    assert enode_nodes == "http://[2000:0:2::72]:8088/eth-enode-url"
+    assert beacon_nodes == "http://[2000:0:2::72]:8000/eth/v1/node/identity"
+    assert 'curl -s "$url"' in fetch_bn_enr
+    assert 'curl --http0.9 -sHf "$node"' in beacon_bootstrapper
+    assert 'curl --http0.9 -s "$node"' in beacon_bootstrapper
+    assert "http://2000:0:2::71:8090/testnet" not in beacon_setup_node
+    assert "http://2000:0:2::72:8000/eth/v1/node/identity" not in beacon_nodes
+    assert "http://10.2.0.71:8090/testnet" not in beacon_setup_node
+    assert "http://10.2.0.72:8000/eth/v1/node/identity" not in beacon_nodes

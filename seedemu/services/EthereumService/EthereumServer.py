@@ -172,10 +172,10 @@ class EthereumServer(Server):
             node.appendStartCommand('bootnode -nodekey /root/.ethereum/geth/bootkey -verbosity 9 -addr {}:30301 2> /tmp/bootnode-logs &'.format(addr))          
             node.appendStartCommand('python3 -m http.server {} -d /tmp'.format(self._bootnode_http_port), True)
 
-        # get other nodes IP for the bootstrapper.
-        bootnodes = self._blockchain.getBootNodes()[:]
-        if len(bootnodes) > 0:
-            node.setFile('/tmp/eth-nodes', '\n'.join(bootnodes))
+        # get other nodes' enode URLs through their generated HTTP endpoints.
+        bootnode_enode_urls = self._blockchain.getBootNodeEnodeUrls()[:]
+        if len(bootnode_enode_urls) > 0:
+            node.setFile('/tmp/eth-nodes', '\n'.join(bootnode_enode_urls))
             
             node.setFile('/tmp/eth-bootstrapper', EthServerFileTemplates['bootstrapper'])
 
@@ -587,7 +587,7 @@ class PoSServer(EthereumServer):
         assert len(ifaces) > 0, 'EthereumServer::install: node as{}/{} has no interfaces'.format(node.getAsn(), node.getName())
         addr = str(ifaces[0].getAddress())
 
-        beacon_setup_node = self._blockchain.getBeaconSetupNodeIp()
+        beacon_setup_node = self._blockchain.getBeaconSetupNodeUrl()
 
         assert beacon_setup_node != "", 'EthereumServer::install: Ethereum Service has no beacon_setup_node.'
 
@@ -600,6 +600,7 @@ class PoSServer(EthereumServer):
         validator_deposit_sh = ""
 
         if not self._is_bootnode:
+            node.setFile('/tmp/beacon-nodes', '\n'.join(self._blockchain.getBeaconNodeApiUrls()))
             node.setFile('/tmp/fetch_bn_enr', EthServerFileTemplates['fetch_bn_enr'])
             node.appendStartCommand('chmod +x /tmp/fetch_bn_enr')
             node.appendStartCommand('/tmp/fetch_bn_enr')
