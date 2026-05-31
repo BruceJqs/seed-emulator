@@ -139,5 +139,8 @@ Repository-level IPv6 work should keep these checks green:
   and manual A/AAAA records reject mismatched address families.
 - DNS address selection uses shared core helpers so service code does not
   duplicate Local-vs-service-network fallback rules.
+- Explicit resolver nameserver inputs, including `ResolvConfHook` and
+  `ResolvConfHookByAs`, use shared address-list normalization before writing
+  `resolv.conf` commands.
 - DNS cache forward-zone fallback resolves canonical authoritative zone-server
   names and emits IPv6 forwarders only for zone-server nodes with IPv6 state.

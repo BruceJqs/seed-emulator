@@ -29,6 +29,7 @@ from seedemu.core import (
     normalizePrefix,
 )
 from seedemu.core.enums import NodeRole
+from seedemu.hooks import ResolvConfHook, ResolvConfHookByAs
 from seedemu.layers import Base, EtcHosts
 from seedemu.services import (
     BotnetClientService,
@@ -2478,6 +2479,38 @@ def test_explicit_nameservers_normalize_padded_ipv4_ipv6_inputs():
     assert 'nameserver  10.' not in combined_commands
     assert 'nameserver  2000:' not in combined_commands
     assert ' " >> /etc/resolv.conf' not in combined_commands
+
+
+def test_resolv_conf_hooks_normalize_padded_ipv4_ipv6_nameservers():
+    all_emu = Emulator()
+    all_base = Base()
+
+    all_as2 = all_base.createAutonomousSystem(2)
+    all_as2.createNetwork("net0")
+    host2 = all_as2.createHost("host2").joinNetwork("net0", address="10.2.0.71")
+    all_emu.addHook(ResolvConfHook([" 10.2.0.53 ", " [2000:0:2:0:0:0:0:53] "]))
+    all_emu.addLayer(all_base)
+    all_emu.render()
+
+    by_as_emu = Emulator()
+    by_as_base = Base()
+    by_as_as3 = by_as_base.createAutonomousSystem(3)
+    by_as_as3.createNetwork("net0")
+    host3 = by_as_as3.createHost("host3").joinNetwork("net0", address="10.3.0.71")
+    by_as_emu.addHook(ResolvConfHookByAs([" 10.3.0.53 ", " [2000:0:3:0:0:0:0:53] "], 3))
+    by_as_emu.addLayer(by_as_base)
+    by_as_emu.render()
+
+    host2_commands = [command for command, _ in host2.getStartCommands()]
+    host3_commands = [command for command, _ in host3.getStartCommands()]
+    combined_commands = "\n".join(host2_commands + host3_commands)
+
+    assert 'echo "nameserver 10.2.0.53" >> /etc/resolv.conf' in host2_commands
+    assert 'echo "nameserver 2000:0:2::53" >> /etc/resolv.conf' in host2_commands
+    assert 'echo "nameserver 10.3.0.53" >> /etc/resolv.conf' in host3_commands
+    assert 'echo "nameserver 2000:0:3::53" >> /etc/resolv.conf' in host3_commands
+    assert 'nameserver  10.' not in combined_commands
+    assert 'nameserver  [2000:' not in combined_commands
 
 
 def test_domain_registrar_dynamic_updates_allow_explicit_aaaa_records():

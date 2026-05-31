@@ -178,7 +178,10 @@ model; this is not a broader DNS workflow redesign.
 DNS cache forward zones preserve IPv4 defaults. When a forward zone falls back
 to authoritative zone-server bindings instead of explicit master IPs, the cache
 uses the same node-address helpers as authoritative DNS and adds IPv6
-forwarders only for zone-server nodes that actually have IPv6 state.
+forwarders only for zone-server nodes that actually have IPv6 state. Explicit
+resolver nameserver inputs, including `Base`, AS, node, `ResolvConfHook`, and
+`ResolvConfHookByAs` paths, normalize padded IPv4/IPv6 literals before writing
+`resolv.conf` commands.
 
 Traffic generators preserve existing raw receiver target lists. For explicit
 address-family selection, use `addReceiverVnodes(..., family=AddressFamily.IPv6)`
