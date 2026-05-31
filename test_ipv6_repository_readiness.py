@@ -35,6 +35,7 @@ from seedemu.services import (
     FaucetUtil,
     KuboService,
     MoneroService,
+    ReverseDomainNameService,
     TorNodeType,
     TorServer,
     TorService,
@@ -1108,6 +1109,60 @@ def test_dns_resolve_to_node_keeps_first_interface_fallback_for_non_local_networ
 
     assert "web A 192.168.66.10" in records
     assert "web AAAA fd00:100::10" in records
+
+
+def test_reverse_dns_keeps_ipv4_only_default():
+    emu = Emulator()
+    base = Base()
+    dns = DomainNameService()
+    rdns = ReverseDomainNameService()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("web").joinNetwork("net0", address="10.2.0.71")
+
+    emu.addLayer(base)
+    emu.addLayer(dns)
+    emu.addLayer(rdns)
+    emu.render()
+
+    arpa_subzones = dns.getRootZone().getSubZones()["arpa"].getSubZones()
+    ipv4_records = dns.getZone("in-addr.arpa.").getRecords()
+
+    assert "ip6" not in arpa_subzones
+    assert "71.0.2.10 PTR web-net0.hnode.as2.net." in ipv4_records
+
+
+def test_reverse_dns_emits_ipv6_ptr_records_when_available():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+    dns = DomainNameService()
+    rdns = ReverseDomainNameService()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("ns").joinNetwork("net0", address="10.2.0.53", ipv6Address="2000:0:2::53")
+    as2.createHost("web").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+
+    dns.install("ns-rev").addZone("in-addr.arpa.").addZone("ip6.arpa.")
+    emu.addBinding(Binding("ns-rev", filter=Filter(asn=2, nodeName="ns"), action=Action.FIRST))
+    emu.addLayer(base)
+    emu.addLayer(dns)
+    emu.addLayer(rdns)
+    emu.render()
+
+    ns = emu.getRegistry().get("2", "hnode", "ns")
+    ipv4_records = dns.getZone("in-addr.arpa.").getRecords()
+    ipv6_records = dns.getZone("ip6.arpa.").getRecords()
+    ipv6_zone_file = _file_content(ns, "/etc/bind/zones/ip6.arpa.")
+    expected_ipv6_ptr = (
+        "1.7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.2.0.0.0.0.0.0.0.0.0.0.2 "
+        "PTR web-net0.hnode.as2.net."
+    )
+
+    assert "71.0.2.10 PTR web-net0.hnode.as2.net." in ipv4_records
+    assert expected_ipv6_ptr in ipv6_records
+    assert expected_ipv6_ptr in ipv6_zone_file
 
 
 def test_dns_and_etc_hosts_keep_ipv4_only_default():

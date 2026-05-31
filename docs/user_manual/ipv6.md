@@ -139,7 +139,7 @@ Current categories:
 
 - supported: core addressing, Docker dual-stack networks, BIRD/FRR BGP,
   OSPFv3, ExaBGP, Looking Glass;
-- baseline dual-stack: DNS authoritative records and `/etc/hosts`;
+- baseline dual-stack: DNS authoritative and reverse records, and `/etc/hosts`;
 - compatible but not fully migrated: DNS cache, Web/CA, traffic wrappers,
   Kubo bootstrap endpoints, Botnet C2/dropper endpoint formatting, Monero
   seed/RPC endpoint formatting, Chainlink generated URL formatting, Ethereum
@@ -149,6 +149,11 @@ Current categories:
   guarded by shared endpoint helpers;
 - separate design required: SCION underlay, cross-connect, DHCPv6, MPLS/EVPN,
   real-world connectivity, OpenVPN, k8s, internetmap2.
+
+Reverse DNS preserves existing IPv4 `in-addr.arpa.` PTR generation. When
+interfaces carry IPv6 state, `ReverseDomainNameService` also populates
+`ip6.arpa.` PTR records; IPv4-only topologies do not create the IPv6 reverse
+zone.
 
 Traffic generators preserve existing raw receiver target lists. For explicit
 address-family selection, use `addReceiverVnodes(..., family=AddressFamily.IPv6)`

@@ -1,5 +1,23 @@
+from ipaddress import IPv6Address
+
 from .DomainNameService import DomainNameService, DomainNameServer
-from seedemu.core import Node, Emulator, Service, Server
+from seedemu.core import (
+    AddressFamily,
+    Node,
+    Emulator,
+    Service,
+    Server,
+    getInterfaceAddress,
+)
+
+
+def _reverseIpv4Address(address) -> str:
+    return '.'.join(reversed(str(address).split('.')))
+
+
+def _reverseIpv6Address(address) -> str:
+    return '.'.join(reversed(IPv6Address(str(address)).exploded.replace(':', '')))
+
 
 class ReverseDomainNameServer(Server):
     """!
@@ -11,8 +29,8 @@ class ReverseDomainNameServer(Server):
 
 class ReverseDomainNameService(Service):
     """!
-    @brief Reverse DNS. This service hosts the in-addr.arpa. zone and resolve
-    IP addresses to nodename-netname.nodetype.asn.net
+    @brief Reverse DNS. This service populates the in-addr.arpa. and ip6.arpa.
+    zones and resolves IP addresses to nodename-netname.nodetype.asn.net
     """
 
     __dns: DomainNameService
@@ -32,14 +50,15 @@ class ReverseDomainNameService(Service):
         return ReverseDomainNameServer()
 
     def install(self, vnode: str) -> Server:
-        assert False, 'ReverseDomainNameService is not a real service and should not be installed this way. Please install a DomainNameService on the node and host the zone "in-addr.arpa." yourself.'
+        assert False, 'ReverseDomainNameService is not a real service and should not be installed this way. Please install a DomainNameService on the node and host the zones "in-addr.arpa." and "ip6.arpa." yourself.'
 
     def configure(self, emulator: Emulator):
         reg = emulator.getRegistry()
 
         self._log('Creating "in-addr.arpa." zone...')
         self.__dns = reg.get('seedemu', 'layer', 'DomainNameService')
-        zone = self.__dns.getZone('in-addr.arpa.')
+        ipv4_zone = self.__dns.getZone('in-addr.arpa.')
+        ipv6_zone = None
 
         self._log('Collecting IP addresses...')
         for ([scope, type, name], obj) in reg.getAll().items():
@@ -53,10 +72,21 @@ class ReverseDomainNameService(Service):
 
             node: Node = obj
             for iface in node.getInterfaces():
-                addr = '.'.join(reversed(str(iface.getAddress()).split('.')))
                 netname = iface.getNet().getName()
-                record = '{} PTR {}-{}.{}.{}.net.'.format(addr, name, netname, type, scope).replace('_', '-')
-                zone.addRecord(record)
+                ptr_name = '{}-{}.{}.{}.net.'.format(name, netname, type, scope).replace('_', '-')
+
+                ipv4_addr = getInterfaceAddress(iface, AddressFamily.IPv4)
+                if ipv4_addr is not None:
+                    record = '{} PTR {}'.format(_reverseIpv4Address(ipv4_addr), ptr_name)
+                    ipv4_zone.addRecord(record)
+
+                ipv6_addr = getInterfaceAddress(iface, AddressFamily.IPv6)
+                if ipv6_addr is not None:
+                    if ipv6_zone is None:
+                        self._log('Creating "ip6.arpa." zone...')
+                        ipv6_zone = self.__dns.getZone('ip6.arpa.')
+                    record = '{} PTR {}'.format(_reverseIpv6Address(ipv6_addr), ptr_name)
+                    ipv6_zone.addRecord(record)
 
         return super().configure(emulator)
 
@@ -65,4 +95,3 @@ class ReverseDomainNameService(Service):
         out += 'ReverseDomainNameService\n'
 
         return out
-    
