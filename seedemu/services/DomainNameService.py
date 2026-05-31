@@ -1,6 +1,5 @@
 from __future__ import annotations
-from seedemu.core import Node, Printable, Emulator, Service, Server
-from seedemu.core.enums import NetworkType
+from seedemu.core import Node, Printable, Emulator, Service, Server, getNodeAddresses
 from typing import List, Dict, Tuple, Set
 from re import sub
 from random import randint
@@ -125,30 +124,7 @@ class Zone(Printable):
         return self
 
     def __getNodeLocalAddresses(self, node: Node) -> Tuple[str, str]:
-        address4: str = None
-        address6: str = None
-        fallback4: str = None
-        fallback6: str = None
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node has no interfaces.'
-        for iface in ifaces:
-            net = iface.getNet()
-            if fallback4 is None and iface.getAddress() is not None:
-                fallback4 = iface.getAddress()
-            if fallback6 is None and iface.hasIpv6Address():
-                fallback6 = iface.getIpv6Address()
-            if net.getType() == NetworkType.Local:
-                if address4 is None and iface.getAddress() is not None:
-                    address4 = iface.getAddress()
-                if address6 is None and iface.hasIpv6Address():
-                    address6 = iface.getIpv6Address()
-                if address4 is not None and address6 is not None:
-                    break
-        if address4 is None:
-            address4 = fallback4
-        if address6 is None:
-            address6 = fallback6
-        return (address4, address6)
+        return getNodeAddresses(node)
 
     def resolveTo(self, name: str, node: Node) -> Zone:
         """!
@@ -379,17 +355,7 @@ class DomainNameServer(Server):
             zonename = zone.getName()
 
             if auto_ns_soa:
-                ifaces = node.getInterfaces()
-                assert len(ifaces) > 0, 'node has not interfaces'
-                addr = None
-                ipv6_addr = None
-                for iface in ifaces:
-                    if addr is None and iface.getAddress() is not None:
-                        addr = iface.getAddress()
-                    if ipv6_addr is None and iface.hasIpv6Address():
-                        ipv6_addr = iface.getIpv6Address()
-                    if addr is not None and ipv6_addr is not None:
-                        break
+                addr, ipv6_addr = getNodeAddresses(node, preferLocal=False)
 
                 assert addr is not None or ipv6_addr is not None, 'node has no valid DNS service address'
 

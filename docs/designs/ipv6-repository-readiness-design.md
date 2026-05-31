@@ -36,6 +36,7 @@ Dual-stack aware code should use the explicit IPv6 APIs or the shared helpers:
 - `Network.hasIpv6Prefix()` / `Network.getIpv6Prefix()`.
 - `Interface.hasIpv6Address()` / `Interface.getIpv6Address()`.
 - `AddressFamily`, `getInterfaceAddress(...)`, `formatHostPort(...)`,
+  `getNodeAddress(...)`, `getNodeAddresses(...)`, `getNodePreferredAddress(...)`,
   `formatUrl(...)`, and `formatMultiaddr(...)` from `seedemu.core`.
 
 Services must not assume that the first interface address is the only usable
@@ -111,3 +112,5 @@ Repository-level IPv6 work should keep these checks green:
 - Service network and custom containers compile as IPv4-only by default and
   dual-stack only when IPv6 is provided.
 - DNS and `/etc/hosts` emit stable A/AAAA and hosts entries when IPv6 exists.
+- DNS address selection uses shared core helpers so service code does not
+  duplicate Local-vs-service-network fallback rules.

@@ -1,9 +1,8 @@
 from __future__ import annotations
-from seedemu.core import Configurable, Service, Server
+from seedemu.core import AddressFamily, Configurable, Service, Server, getNodePreferredAddress
 from seedemu.core import Node, ScopedRegistry, Emulator
 from .DomainNameService import DomainNameService
 from typing import List, Dict
-from seedemu.core.enums import NetworkType
 
 DomainNameCachingServiceFileTemplates: Dict[str, str] = {}
 
@@ -83,34 +82,10 @@ class DomainNameCachingServer(Server, Configurable):
         return self.__root_servers
 
     def __getPreferredLocalAddress(self, node: Node) -> str:
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        local_ipv6 = None
-        fallback_ipv4 = None
-        fallback_ipv6 = None
-        for iface in ifaces:
-            net = iface.getNet()
-            if fallback_ipv4 is None and iface.getAddress() is not None:
-                fallback_ipv4 = iface.getAddress()
-            if fallback_ipv6 is None and iface.hasIpv6Address():
-                fallback_ipv6 = iface.getIpv6Address()
-            if net.getType() == NetworkType.Local:
-                if iface.getAddress() is not None:
-                    return iface.getAddress()
-                if iface.hasIpv6Address() and local_ipv6 is None:
-                    local_ipv6 = iface.getIpv6Address()
-        return local_ipv6 or fallback_ipv4 or fallback_ipv6
+        return getNodePreferredAddress(node, (AddressFamily.IPv4, AddressFamily.IPv6))
 
     def __getFirstNodeAddress(self, node: Node) -> str:
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        for iface in ifaces:
-            if iface.getAddress() is not None:
-                return iface.getAddress()
-        for iface in ifaces:
-            if iface.hasIpv6Address():
-                return iface.getIpv6Address()
-        return None
+        return getNodePreferredAddress(node, (AddressFamily.IPv4, AddressFamily.IPv6), preferLocal=False)
 
     def __formatBindAddressList(self, addrs: List[str]) -> str:
         return '; '.join([str(addr) for addr in addrs])
@@ -231,8 +206,6 @@ class DomainNameCachingServer(Server, Configurable):
         reg = self.__emulator.getRegistry()
         (scope, _, _) = node.getRegistryInfo()
         sr = ScopedRegistry(scope, reg)
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
         addr = self.__getFirstNodeAddress(node)
 
         for rnode in sr.getByType('rnode'):
@@ -278,24 +251,7 @@ class DomainNameCachingService(Service):
         return ['DomainNameService']
 
     def __getIpAddr(self, node:Node) -> str:
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        local_ipv6 = ""
-        fallback_ipv4 = ""
-        fallback_ipv6 = ""
-        for iface in ifaces:
-            net = iface.getNet()
-            if fallback_ipv4 == "" and iface.getAddress() is not None:
-                fallback_ipv4 = iface.getAddress()
-            if fallback_ipv6 == "" and iface.hasIpv6Address():
-                fallback_ipv6 = iface.getIpv6Address()
-            if net.getType() == NetworkType.Local:
-                if iface.getAddress() is not None:
-                    return iface.getAddress()
-                if iface.hasIpv6Address() and local_ipv6 == "":
-                    local_ipv6 = iface.getIpv6Address()
-            
-        return local_ipv6 or fallback_ipv4 or fallback_ipv6
+        return getNodePreferredAddress(node, (AddressFamily.IPv4, AddressFamily.IPv6))
     
     def configure(self, emulator: Emulator):
         super().configure(emulator)
@@ -306,7 +262,7 @@ class DomainNameCachingService(Service):
             server.configure(emulator, node)
 
             address = self.__getIpAddr(node)
-            assert address != "", 'address is not configured.'
+            assert address is not None and address != "", 'address is not configured.'
             ipaddrs.append(address)
 
         # For the nodes that are not covered, all the local DNS servers will be added to them (the default behavior).

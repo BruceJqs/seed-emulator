@@ -148,12 +148,24 @@ IPv6 should use `hasIpv6Address()`, `getIpv6Address()`, or the shared helpers in
 `seedemu.core`:
 
 ```python
-from seedemu.core import AddressFamily, getInterfaceAddress, formatHostPort, formatUrl, formatMultiaddr
+from seedemu.core import (
+    AddressFamily,
+    getInterfaceAddress,
+    getNodeAddress,
+    getNodeAddresses,
+    getNodePreferredAddress,
+    formatHostPort,
+    formatUrl,
+    formatMultiaddr,
+)
 ```
 
 Use `formatHostPort()` or `formatUrl()` instead of manually concatenating
 `host:port`, because IPv6 literals need brackets in URLs. Use
-`formatMultiaddr()` when generating IPFS/libp2p multiaddrs.
+`formatMultiaddr()` when generating IPFS/libp2p multiaddrs. Use
+`getNodeAddress()`, `getNodePreferredAddress()`, or `getNodeAddresses()` when a
+service needs stable Local-network-first address selection with service-network
+fallback.
 
 Do not claim service-level IPv6 support until the service has a minimal IPv6 or
 dual-stack example and a regression check showing that old IPv4 behavior is

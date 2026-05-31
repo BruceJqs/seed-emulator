@@ -5,12 +5,16 @@ from pathlib import Path
 from seedemu.compiler import Docker, Platform
 from seedemu.core import (
     Action,
+    AddressFamily,
     Binding,
     Emulator,
     Filter,
     formatHostPort,
     formatMultiaddr,
     formatUrl,
+    getNodeAddress,
+    getNodeAddresses,
+    getNodePreferredAddress,
 )
 from seedemu.layers import Base, EtcHosts
 from seedemu.services import DomainNameCachingService, DomainNameService
@@ -40,6 +44,56 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatUrl("https", "example.test", path="/health") == "https://example.test/health"
     assert formatMultiaddr("10.0.0.1", 4001) == "/ip4/10.0.0.1/tcp/4001"
     assert formatMultiaddr("2000::1", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
+
+
+def test_node_address_helpers_prefer_local_then_fallback_by_family():
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    host = (
+        as2.createHost("host0")
+        .joinNetwork("000_svc", address="192.168.66.10", ipv6Address="fd00:66::10")
+        .joinNetwork("net0", address="10.2.0.10", ipv6Address="2000:0:2::10")
+    )
+
+    emu.getServiceNetwork()
+    emu.addLayer(base)
+    emu.render()
+
+    local_ipv4, local_ipv6 = getNodeAddresses(host)
+    first_ipv4, first_ipv6 = getNodeAddresses(host, preferLocal=False)
+
+    assert str(local_ipv4) == "10.2.0.10"
+    assert str(local_ipv6) == "2000:0:2::10"
+    assert str(first_ipv4) == "192.168.66.10"
+    assert str(first_ipv6) == "fd00:66::10"
+    assert str(getNodeAddress(host, AddressFamily.IPv6)) == "2000:0:2::10"
+    assert str(getNodePreferredAddress(host)) == "10.2.0.10"
+    assert str(getNodePreferredAddress(host, (AddressFamily.IPv6, AddressFamily.IPv4))) == "2000:0:2::10"
+
+
+def test_node_preferred_address_uses_local_ipv6_before_fallback_ipv4():
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    host = (
+        as2.createHost("host0")
+        .joinNetwork("000_svc", address="192.168.66.10", ipv6Address="fd00:66::10")
+        .joinNetwork("net0", address="dhcp", ipv6Address="2000:0:2::10")
+    )
+
+    emu.getServiceNetwork()
+    emu.addLayer(base)
+    emu.render()
+
+    assert str(getNodeAddress(host, AddressFamily.IPv4)) == "192.168.66.10"
+    assert str(getNodeAddress(host, AddressFamily.IPv6)) == "2000:0:2::10"
+    assert str(getNodePreferredAddress(host)) == "2000:0:2::10"
+    assert str(getNodePreferredAddress(host, preferLocal=False)) == "192.168.66.10"
 
 
 def test_binding_filter_matches_ipv6_address_and_prefix():
@@ -492,3 +546,32 @@ def test_dns_cache_on_service_network_keeps_first_interface_fallback():
     commands = [command for command, _ in client.getStartCommands()]
 
     assert 'echo "nameserver 192.168.66.10" >> /etc/resolv.conf' in commands
+
+
+def test_dns_cache_resolvconf_prefers_local_ipv6_before_service_ipv4_fallback():
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base(enableIpv6=True)
+    cache = DomainNameCachingService(autoRoot=False)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    (
+        as2.createHost("cache")
+        .joinNetwork("000_svc", address="192.168.66.10", ipv6Address="fd00:66::10")
+        .joinNetwork("net0", address="dhcp", ipv6Address="2000:0:2::10")
+    )
+    as2.createHost("client").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+
+    emu.getServiceNetwork()
+    cache.install("cache")
+    emu.addBinding(Binding("cache", filter=Filter(asn=2, nodeName="cache"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(cache)
+    emu.render()
+
+    client = emu.getRegistry().get("2", "hnode", "client")
+    commands = [command for command, _ in client.getStartCommands()]
+
+    assert 'echo "nameserver 2000:0:2::10" >> /etc/resolv.conf' in commands
+    assert 'echo "nameserver 192.168.66.10" >> /etc/resolv.conf' not in commands

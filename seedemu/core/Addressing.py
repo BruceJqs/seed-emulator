@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from enum import Enum
 from ipaddress import ip_address
-from typing import Optional, TYPE_CHECKING, Union
+from typing import Iterable, Optional, TYPE_CHECKING, Tuple, Union
+
+from .enums import NetworkType
 
 if TYPE_CHECKING:
-    from .Node import Interface
+    from .Node import Interface, Node
 
 
 class AddressFamily(Enum):
@@ -43,6 +45,95 @@ def hasInterfaceAddress(iface: "Interface", family: Union[AddressFamily, str, in
     """Check if an interface has an address for the requested address family."""
 
     return getInterfaceAddress(iface, family) is not None
+
+
+def _getNodeAddressCandidates(node: "Node"):
+    ifaces = node.getInterfaces()
+    assert len(ifaces) > 0, "Node {} has no IP address.".format(node.getName())
+
+    local_ipv4 = None
+    local_ipv6 = None
+    fallback_ipv4 = None
+    fallback_ipv6 = None
+
+    for iface in ifaces:
+        ipv4_addr = getInterfaceAddress(iface, AddressFamily.IPv4)
+        ipv6_addr = getInterfaceAddress(iface, AddressFamily.IPv6)
+
+        if fallback_ipv4 is None and ipv4_addr is not None:
+            fallback_ipv4 = ipv4_addr
+        if fallback_ipv6 is None and ipv6_addr is not None:
+            fallback_ipv6 = ipv6_addr
+
+        if iface.getNet().getType() == NetworkType.Local:
+            if local_ipv4 is None and ipv4_addr is not None:
+                local_ipv4 = ipv4_addr
+            if local_ipv6 is None and ipv6_addr is not None:
+                local_ipv6 = ipv6_addr
+
+    return {
+        "local": {
+            AddressFamily.IPv4: local_ipv4,
+            AddressFamily.IPv6: local_ipv6,
+        },
+        "fallback": {
+            AddressFamily.IPv4: fallback_ipv4,
+            AddressFamily.IPv6: fallback_ipv6,
+        },
+    }
+
+
+def getNodeAddresses(node: "Node", preferLocal: bool = True) -> Tuple[object, object]:
+    """Return preferred IPv4 and IPv6 addresses for a node.
+
+    Local-network interfaces are preferred by default. When a requested family
+    has no local address, the first address from any interface is returned.
+    """
+
+    candidates = _getNodeAddressCandidates(node)
+    if not preferLocal:
+        return (
+            candidates["fallback"][AddressFamily.IPv4],
+            candidates["fallback"][AddressFamily.IPv6],
+        )
+
+    local_ipv4 = candidates["local"][AddressFamily.IPv4]
+    local_ipv6 = candidates["local"][AddressFamily.IPv6]
+    fallback_ipv4 = candidates["fallback"][AddressFamily.IPv4]
+    fallback_ipv6 = candidates["fallback"][AddressFamily.IPv6]
+    return (local_ipv4 or fallback_ipv4, local_ipv6 or fallback_ipv6)
+
+
+def getNodeAddress(
+    node: "Node",
+    family: Union[AddressFamily, str, int] = AddressFamily.IPv4,
+    preferLocal: bool = True,
+):
+    """Return the node address for one address family."""
+
+    selected = normalizeAddressFamily(family)
+    candidates = _getNodeAddressCandidates(node)
+    if not preferLocal:
+        return candidates["fallback"][selected]
+    return candidates["local"][selected] or candidates["fallback"][selected]
+
+
+def getNodePreferredAddress(
+    node: "Node",
+    families: Iterable[Union[AddressFamily, str, int]] = (AddressFamily.IPv4, AddressFamily.IPv6),
+    preferLocal: bool = True,
+):
+    """Return the first available node address in the requested family order."""
+
+    selected_families = [normalizeAddressFamily(family) for family in families]
+    candidates = _getNodeAddressCandidates(node)
+    scopes = ("local", "fallback") if preferLocal else ("fallback",)
+    for scope in scopes:
+        for family in selected_families:
+            address = candidates[scope][family]
+            if address is not None:
+                return address
+    return None
 
 
 def formatHost(host: Union[str, object]) -> str:
