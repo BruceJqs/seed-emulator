@@ -1,6 +1,6 @@
 from __future__ import annotations
 from seedemu.core.Emulator import Emulator
-from seedemu.core import Node, Network, Compiler, BaseSystem, BaseOption, Scope, ScopeType, ScopeTier, OptionHandling, BaseVolume, OptionMode
+from seedemu.core import Node, Network, Compiler, BaseSystem, BaseOption, Scope, ScopeType, ScopeTier, OptionHandling, BaseVolume, OptionMode, normalizeAddressList
 from seedemu.core.enums import NodeRole, NetworkType
 from .DockerImage import DockerImage
 from .DockerImageConstant import *
@@ -9,7 +9,7 @@ from hashlib import md5
 from functools import cmp_to_key
 from os import mkdir, chdir
 from re import sub
-from ipaddress import IPv4Network, IPv4Address, IPv6Network
+from ipaddress import IPv4Network, IPv4Address, IPv6Network, IPv6Address
 from shutil import copyfile
 import json
 from yaml import dump
@@ -1559,6 +1559,14 @@ class Docker(Compiler):
         """
 
         self._log('attaching an existing container to {}:{}'.format(asn, net))
+
+        if asn >= 0:
+            if ip_address != '':
+                ip_address = normalizeAddressList([ip_address])[0]
+                IPv4Address(ip_address)
+            if ipv6_address != '':
+                ipv6_address = normalizeAddressList([ipv6_address])[0]
+                IPv6Address(ipv6_address)
 
         self.__custom_services += compose_entry
 

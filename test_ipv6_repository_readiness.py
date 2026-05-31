@@ -1795,8 +1795,8 @@ def test_custom_container_accepts_ipv6_address(tmp_path):
         "    custom:\n        image: alpine\n",
         asn=2,
         net="net0",
-        ip_address="10.2.0.80",
-        ipv6_address="2000:0:2::80",
+        ip_address=" 10.2.0.80 ",
+        ipv6_address=" [2000:0:2::80] ",
         show_on_map=True,
         node_name="custom",
     )
@@ -1821,8 +1821,8 @@ def test_internet_map_attachment_accepts_ipv6_address(tmp_path):
     docker.attachInternetMap(
         asn=2,
         net="net0",
-        ip_address="10.2.0.81",
-        ipv6_address="2000:0:2::81",
+        ip_address=" 10.2.0.81 ",
+        ipv6_address=" [2000:0:2::81] ",
         show_on_map=True,
         node_name="internet-map",
     )
@@ -1833,6 +1833,26 @@ def test_internet_map_attachment_accepts_ipv6_address(tmp_path):
     assert "ipv4_address: 10.2.0.81" in output_text
     assert "ipv6_address: 2000:0:2::81" in output_text
     assert 'org.seedsecuritylabs.seedemu.meta.net.0.ipv6_address: "2000:0:2::81"' in output_text
+
+
+def test_custom_container_static_address_fields_reject_wrong_family():
+    docker = Docker(platform=Platform.AMD64)
+
+    with pytest.raises(ValueError):
+        docker.attachCustomContainer(
+            "    custom:\n        image: alpine\n",
+            asn=2,
+            net="net0",
+            ip_address="2000:0:2::80",
+        )
+
+    with pytest.raises(ValueError):
+        docker.attachCustomContainer(
+            "    custom:\n        image: alpine\n",
+            asn=2,
+            net="net0",
+            ipv6_address="10.2.0.80",
+        )
 
 
 def test_internet_map_attachment_ipv4_only_does_not_emit_ipv6_fields(tmp_path):

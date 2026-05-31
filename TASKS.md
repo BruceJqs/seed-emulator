@@ -92,7 +92,10 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - `attachCustomContainer(...)` and `attachInternetMap(...)` cover explicit
   IPv6 addresses without changing their IPv4-only default, and neither
   attachment path invents a per-container IPv6 address on a dual-stack network
-  unless one is provided explicitly.
+  unless one is provided explicitly. Explicit static IPv4/IPv6 attachment
+  addresses now route through shared address-literal normalization before
+  compose fields and metadata labels are generated, and mismatched address
+  families are rejected.
 
 ## Phase 3: Endpoint and DNS Foundation
 

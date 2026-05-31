@@ -68,7 +68,9 @@ Implemented foundation:
 - Optional IPv6 service network prefix, with per-node `ipv6_address` emitted
   only for service-network attachments that carry IPv6 state.
 - Optional IPv6 address on `attachCustomContainer(...)` and
-  `attachInternetMap(...)`.
+  `attachInternetMap(...)`; explicit static IPv4/IPv6 attachment addresses are
+  normalized before compose fields and metadata labels are emitted, and
+  mismatched address-family inputs are rejected.
 
 Deferred core items:
 
@@ -138,7 +140,9 @@ Repository-level IPv6 work should keep these checks green:
   dual-stack only when IPv6 is provided; service-network interface opt-out,
   custom container attachments, and custom Internet Map attachments without an
   explicit IPv6 address suppress per-node `ipv6_address` even on a dual-stack
-  network.
+  network. Explicit static attachment addresses normalize padded or bracketed
+  IPv4/IPv6 literals before compose and metadata output, and reject IPv4/IPv6
+  field mismatches.
 - DNS and `/etc/hosts` emit stable A/AAAA and hosts entries when IPv6 exists,
   and manual A/AAAA records reject mismatched address families.
 - DNS address selection uses shared core helpers so service code does not

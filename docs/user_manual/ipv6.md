@@ -134,6 +134,10 @@ state. Interfaces that opt out with `ipv6Address=None` remain IPv4-only even on
 a dual-stack service network. Custom container and Internet Map attachments
 follow the same explicit-address rule: a dual-stack network does not imply a
 static per-container `ipv6_address` unless `ipv6_address` is provided.
+Explicit static `ip_address` and `ipv6_address` values on those attachment
+APIs are normalized before compose and metadata output, including padded values
+and bracketed IPv6 literals. The IPv4 field rejects IPv6 literals, and the IPv6
+field rejects IPv4 literals.
 
 For `selfManagedNetwork=True`, the compiler uses dummy IPv6 subnets and rewrites
 container addresses at startup, matching the existing IPv4 self-managed network
