@@ -138,11 +138,19 @@ DomainRegistrarServerFileTemplates['web_app_file2'] = '''\
 </html>
 <?php
 if(!empty($_POST['dname']) && !empty($_POST['dvalue']) ){
-  $domain_name = $_POST['dname'];
-  $ip_address = $_POST['dvalue'];
+  $domain_name = trim($_POST['dname']);
+  $ip_address = trim($_POST['dvalue']);
   $record_type = $_POST['rtype'] ?? 'A';
   if (!in_array($record_type, array('A', 'AAAA'), true)) {
     $record_type = 'A';
+  }
+  if (strlen($ip_address) > 1 && substr($ip_address, 0, 1) === '[' && substr($ip_address, -1) === ']') {
+    $ip_address = trim(substr($ip_address, 1, -1));
+  }
+  $ip_flag = $record_type === 'AAAA' ? FILTER_FLAG_IPV6 : FILTER_FLAG_IPV4;
+  if (filter_var($ip_address, FILTER_VALIDATE_IP, $ip_flag) === false) {
+    echo "<script>alert('record type does not match IP address family');window.history.back();</script>";
+    exit;
   }
   $update = "update add ".$domain_name.".com 60 ".$record_type." ".$ip_address."\\nsend\\n";
   $register_command = 'printf %s ' . escapeshellarg($update) . ' | nsupdate';

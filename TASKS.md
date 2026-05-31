@@ -145,8 +145,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   literals, including bracketed IPv6 literals, before generating A/AAAA records,
   slave master lists, or forwarder lists.
 - Domain Registrar dynamic DNS updates preserve A as the default record type
-  and allow users to explicitly submit AAAA records without changing DNS server
-  placement or runtime assumptions.
+  and allow users to explicitly submit AAAA records while rejecting A/AAAA
+  updates whose submitted IP address does not match the selected record family,
+  without changing DNS server placement or runtime assumptions.
 - DNS cache forward-zone fallback now resolves canonical zone-server names
   through shared node-address helpers, preserving IPv4 defaults while adding
   IPv6 forwarders only when authoritative zone-server nodes carry IPv6 state.

@@ -172,8 +172,9 @@ with an IPv4 literal.
 
 Domain Registrar dynamic updates preserve A as the default record type. The
 registration page also allows users to explicitly choose AAAA records for IPv6
-addresses. The registrar still follows the existing TLD/master-DNS placement
-model; this is not a broader DNS workflow redesign.
+addresses, and rejects submitted IP addresses whose family does not match the
+selected A/AAAA record type. The registrar still follows the existing
+TLD/master-DNS placement model; this is not a broader DNS workflow redesign.
 
 DNS cache forward zones preserve IPv4 defaults. When a forward zone falls back
 to authoritative zone-server bindings instead of explicit master IPs, the cache

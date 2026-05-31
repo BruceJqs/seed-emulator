@@ -2522,6 +2522,11 @@ def test_domain_registrar_dynamic_updates_allow_explicit_aaaa_records():
     assert '<option value="AAAA">AAAA</option>' in domain_page
     assert "$record_type = $_POST['rtype'] ?? 'A';" in domain_page
     assert "array('A', 'AAAA')" in domain_page
+    assert "$ip_address = trim($_POST['dvalue']);" in domain_page
+    assert "FILTER_FLAG_IPV6" in domain_page
+    assert "FILTER_FLAG_IPV4" in domain_page
+    assert "FILTER_VALIDATE_IP" in domain_page
+    assert "record type does not match IP address family" in domain_page
     assert '.$record_type.' in domain_page
     assert '60 A ".$ip_address' not in domain_page
     assert "printf %s " in domain_page
