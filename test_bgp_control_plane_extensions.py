@@ -521,6 +521,16 @@ def test_bgp_looking_glass_formats_ipv6_proxy_urls(tmp_path):
     assert "ipv6_address:" in compose
 
 
+def test_bgp_looking_glass_proxy_family_uses_shared_normalizer():
+    server = BgpLookingGlassService().install("bgp_lg")
+
+    server.setProxyAddressFamily(" AF_INET6 ")
+    assert server.getProxyAddressFamily() == AddressFamily.IPv6
+
+    server.setProxyAddressFamily(socket.AF_INET)
+    assert server.getProxyAddressFamily() == AddressFamily.IPv4
+
+
 def test_new_bgp_examples_compile_outputs_exist():
     repo_root = Path(__file__).resolve().parent
     examples = [
