@@ -166,7 +166,9 @@ Current categories:
 Reverse DNS preserves existing IPv4 `in-addr.arpa.` PTR generation. When
 interfaces carry IPv6 state, `ReverseDomainNameService` also populates
 `ip6.arpa.` PTR records; IPv4-only topologies do not create the IPv6 reverse
-zone.
+zone. Manual DNS A/AAAA records use shared normalization and reject mismatched
+address families, such as an A record with an IPv6 literal or an AAAA record
+with an IPv4 literal.
 
 Domain Registrar dynamic updates preserve A as the default record type. The
 registration page also allows users to explicitly choose AAAA records for IPv6
@@ -307,7 +309,9 @@ node against IPv4 or IPv6 address/prefix selectors. Use
 including bracketed IPv6 address literals. Use `normalizePrefix()` when a
 service accepts IPv4/IPv6 CIDR prefixes, and use `normalizeAddressRecord()` when
 a service accepts DNS-style manual A/AAAA records and needs canonical IPv4/IPv6
-literals without changing other record types.
+literals without changing other record types. `normalizeAddressRecord()` also
+rejects A/AAAA records whose address literal does not match the requested
+record family.
 
 Do not claim service-level IPv6 support until the service has a minimal IPv6 or
 dual-stack example and a regression check showing that old IPv4 behavior is

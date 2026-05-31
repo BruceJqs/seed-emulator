@@ -921,6 +921,10 @@ def test_address_record_normalizer_handles_dns_a_aaaa_literals():
     assert normalizeAddressRecord(" web6 aaaa [2000:0:2:0:0:0:0:71] ") == "web6 AAAA 2000:0:2::71"
     assert normalizeAddressRecord("txt TXT  2000:0:2:0:0:0:0:71") == "txt TXT  2000:0:2:0:0:0:0:71"
     assert normalizeAddressRecord(" ns1. NS a.root.example. ", trimNonAddressRecord=True) == "ns1. NS a.root.example."
+    with pytest.raises(ValueError, match="A record must use an IPv4 address"):
+        normalizeAddressRecord("web A 2000:0:2::71")
+    with pytest.raises(ValueError, match="AAAA record must use an IPv6 address"):
+        normalizeAddressRecord("web AAAA 10.2.0.71")
     assert normalizePrefix(" [2000:0:2:0:0:0:0:0] / 64 ") == "2000:0:2::/64"
     assert normalizePrefix(" 10.2.0.71/24 ", strict=False) == "10.2.0.0/24"
 
@@ -2065,6 +2069,18 @@ def test_dns_manual_a_aaaa_records_normalize_address_literals():
     assert "txt TXT  2000:0:2:0:0:0:0:71" in records
     assert " web a 10.2.0.71 " not in records
     assert "web6 aaaa 2000:0:2:0:0:0:0:71" not in records
+
+
+def test_dns_manual_a_aaaa_records_reject_wrong_address_family():
+    zone = DomainNameService().getZone("example.")
+
+    with pytest.raises(ValueError, match="A record must use an IPv4 address"):
+        zone.addRecord("web A 2000:0:2::71")
+    with pytest.raises(ValueError, match="AAAA record must use an IPv6 address"):
+        zone.addRecord("web AAAA 10.2.0.71")
+
+    assert "web A 2000:0:2::71" not in zone.getRecords()
+    assert "web AAAA 10.2.0.71" not in zone.getRecords()
 
 
 def test_dns_manual_a_aaaa_record_deletion_uses_normalized_address_literals():

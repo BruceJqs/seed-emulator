@@ -66,7 +66,12 @@ def normalizeAddressRecord(record: Union[str, object], trimNonAddressRecord: boo
     parts = value.strip().split()
     if len(parts) >= 3 and parts[-2].upper() in ("A", "AAAA"):
         parts[-2] = parts[-2].upper()
-        parts[-1] = str(_parseIpLiteral(parts[-1]))
+        parsed = _parseIpLiteral(parts[-1])
+        if parts[-2] == "A" and parsed.version != 4:
+            raise ValueError("A record must use an IPv4 address: {}".format(record))
+        if parts[-2] == "AAAA" and parsed.version != 6:
+            raise ValueError("AAAA record must use an IPv6 address: {}".format(record))
+        parts[-1] = str(parsed)
         return " ".join(parts)
     return value.strip() if trimNonAddressRecord else value
 

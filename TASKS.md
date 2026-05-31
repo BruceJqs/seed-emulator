@@ -117,7 +117,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - shared prefix helper tests cover padded and bracketed IPv4/IPv6 CIDR inputs;
 - shared DNS-style address-record normalization covers manual A/AAAA literals,
   including bracketed IPv6 literals, without changing non-address record
-  handling;
+  handling, and rejects manual A/AAAA records whose address literal does not
+  match the requested record family;
 - address-family normalization accepts common user-facing and socket-family
   spellings such as `ipv4`, `ip6`, `inet`, and `AF_INET6`;
 - migrated service endpoint address-family APIs reuse the shared normalizer
