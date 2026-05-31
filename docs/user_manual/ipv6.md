@@ -314,8 +314,10 @@ if a legacy path already passes a bracketed IPv6 authority such as
 `[2000::1]:8443`, the helper preserves the authority and canonicalizes the
 literal. When a caller also supplies a separate port, that separate port is
 used instead of any port embedded in a legacy IPv4, DNS-name, or bracketed IPv6
-authority. URL paths that start with `?` or `#` are treated as query or
-fragment components instead of being rewritten as path segments. Use
+authority. Malformed bracketed IPv6 authorities, such as `[2000::1]:bad`, are
+rejected instead of being emitted as ambiguous endpoints. URL paths that start
+with `?` or `#` are treated as query or fragment components instead of being
+rewritten as path segments. Use
 `formatMultiaddr()` when generating IPFS/libp2p multiaddrs. Use
 `getNodeAddress()`, `getNodePreferredAddress()`, or `getNodeAddresses()` when a
 service needs stable Local-network-first address selection with service-network

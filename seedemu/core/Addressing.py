@@ -89,7 +89,7 @@ def _formatBracketedIpv6Authority(value: str):
 
     end = value.find("]")
     if end < 0:
-        return None
+        raise ValueError("malformed bracketed IPv6 authority: {}".format(value))
 
     try:
         parsed = ip_address(value[1:end].strip())
@@ -102,9 +102,9 @@ def _formatBracketedIpv6Authority(value: str):
     suffix = value[end + 1 :].strip()
     if suffix == "":
         return "[{}]".format(parsed)
-    if suffix.startswith(":") and len(suffix) > 1:
+    if suffix.startswith(":") and len(suffix) > 1 and suffix[1:].isdigit():
         return "[{}]{}".format(parsed, suffix)
-    return None
+    raise ValueError("malformed bracketed IPv6 authority: {}".format(value))
 
 
 def _formatBracketedIpv6Host(value: str):
@@ -113,7 +113,7 @@ def _formatBracketedIpv6Host(value: str):
 
     end = value.find("]")
     if end < 0:
-        return None
+        raise ValueError("malformed bracketed IPv6 authority: {}".format(value))
 
     try:
         parsed = ip_address(value[1:end].strip())
@@ -124,9 +124,9 @@ def _formatBracketedIpv6Host(value: str):
         return None
 
     suffix = value[end + 1 :].strip()
-    if suffix == "" or (suffix.startswith(":") and len(suffix) > 1):
+    if suffix == "" or (suffix.startswith(":") and len(suffix) > 1 and suffix[1:].isdigit()):
         return "[{}]".format(parsed)
-    return None
+    raise ValueError("malformed bracketed IPv6 authority: {}".format(value))
 
 
 def _formatHostWithExplicitPort(value: str):
