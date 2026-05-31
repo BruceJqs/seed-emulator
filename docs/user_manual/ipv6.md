@@ -204,10 +204,10 @@ CA certificate installation filters accept IPv4 and IPv6 address/prefix
 selectors. For example, `installCACert(Filter(ipv6="2000:0:3::72"))` installs
 the root CA certificate only on nodes with that IPv6 address; CA address and
 prefix matching, including helper utilities, normalize padded and bracketed
-IPv6 literals through the shared address helpers. Web HTTPS ACME directory URLs
-preserve domain-name defaults and can bracket explicit IPv6 CA endpoint
-literals, but Web HTTPS and ACME runtime behavior remain compatible and not
-fully migrated.
+IPv6 literals through the shared address helpers. CA domain inputs trim DNS
+names and normalize padded or bracketed IPv4/IPv6 endpoint literals before Web
+HTTPS ACME directory URLs use shared URL helpers, but Web HTTPS and ACME runtime
+behavior remain compatible and not fully migrated.
 
 Monero seed and full-node RPC endpoint lists preserve IPv4 defaults and select
 node addresses through the shared Local-network-first helper, falling back to

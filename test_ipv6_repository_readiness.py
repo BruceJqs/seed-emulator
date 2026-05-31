@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import socket
 from pathlib import Path
 
@@ -47,6 +48,7 @@ from seedemu.services import (
     MoneroService,
     PoSServer,
     ReverseDomainNameService,
+    RootCAStore,
     TorNodeType,
     TorServer,
     TorService,
@@ -1216,7 +1218,7 @@ def test_ca_https_acme_urls_preserve_domain_default_and_format_ipv6_literals(tmp
     web.setServerNames(["web.example"])
 
     default_ca = CAServer("0.26.1")
-    default_ca.setCAStore(_FakeCAStoreWithDomain(tmp_path / "default-ca", "ca.internal"))
+    default_ca.setCAStore(_FakeCAStoreWithDomain(tmp_path / "default-ca", " ca.internal "))
     default_node = Node("web-default", NodeRole.Host, 2)
     default_ca.enableHTTPSFunc(default_node, web)
     default_commands = _start_commands(default_node)
@@ -1225,13 +1227,42 @@ def test_ca_https_acme_urls_preserve_domain_default_and_format_ipv6_literals(tmp
     assert "https://[ca.internal]" not in default_commands
 
     ipv6_ca = CAServer("0.26.1")
-    ipv6_ca.setCAStore(_FakeCAStoreWithDomain(tmp_path / "ipv6-ca", "2000:0:2::53"))
+    ipv6_ca.setCAStore(_FakeCAStoreWithDomain(tmp_path / "ipv6-ca", " [2000:0:2:0:0:0:0:53] "))
     ipv6_node = Node("web-ipv6", NodeRole.Host, 2)
     ipv6_ca.enableHTTPSFunc(ipv6_node, web)
     ipv6_commands = _start_commands(ipv6_node)
 
     assert "https://[2000:0:2::53]/acme/acme/directory" in ipv6_commands
+    assert "https://[2000:0:2:0:0:0:0:53]" not in ipv6_commands
     assert "https://2000:0:2::53/acme/acme/directory" not in ipv6_commands
+
+
+def test_root_ca_store_normalizes_domain_inputs(monkeypatch, tmp_path):
+    class _FakeContainer:
+        def container(self):
+            return self
+
+        def user(self, *_args):
+            return self
+
+        def mountVolume(self, *_args):
+            return self
+
+        def env(self, *_args):
+            return self
+
+        def entrypoint(self, *_args):
+            return self
+
+    ca_module = importlib.import_module("seedemu.services.CAService")
+    monkeypatch.setattr(
+        ca_module,
+        "BuildtimeDockerImage",
+        lambda *_args, **_kwargs: _FakeContainer(),
+    )
+    store = RootCAStore(caDomain=" [2000:0:2:0:0:0:0:53] ")
+
+    assert store._caDomain == "2000:0:2::53"
 
 
 def test_tor_da_downloader_urls_use_shared_endpoint_helpers():

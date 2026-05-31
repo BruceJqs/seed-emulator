@@ -212,9 +212,10 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   keeping the existing default of installing on all nodes; CA IP/network helper
   parsing also reuses shared address and prefix normalization for padded and
   bracketed IPv6 literals.
-- Web/CA ACME directory URLs now route through shared URL helpers, preserve
-  domain-name defaults, and bracket explicit IPv6 CA endpoint literals; Web
-  HTTPS and ACME runtime behavior still need validation before a support claim.
+- Web/CA CA domain inputs trim DNS names and normalize padded or bracketed
+  IPv4/IPv6 endpoint literals before ACME directory URLs route through shared
+  URL helpers; explicit IPv6 CA endpoint literals are bracketed, and Web HTTPS
+  and ACME runtime behavior still need validation before a support claim.
 - Cymru IP origin mapping remains IPv4-only but now routes accepted IPv4 prefix
   inputs through shared prefix normalization, including padded or bracketed
   literals, and rejects IPv6 prefixes explicitly.

@@ -57,6 +57,14 @@ def _acmeDirectoryUrl(ca_domain: str) -> str:
     return formatUrl("https", ca_domain, path="/acme/acme/directory")
 
 
+def _normalizeCaDomain(ca_domain: str) -> str:
+    value = str(ca_domain).strip()
+    try:
+        return normalizeAddressList([value])[0]
+    except ValueError:
+        return value
+
+
 def ipsInNetwork(ips: Iterable, network: str) -> bool:
     """!
     @brief Check if any of the IPs in the iterable is in the network.
@@ -148,7 +156,7 @@ class CAServer(Server):
     def setCAStore(self, caStore: RootCAStore) -> CAServer:
         self.__ca_store = caStore
         self.__ca_store.initialize()
-        self.__ca_domain = self.__ca_store._caDomain
+        self.__ca_domain = _normalizeCaDomain(self.__ca_store._caDomain)
         return self
 
     def setCertDuration(self, duration: str) -> CAServer:
@@ -351,7 +359,7 @@ class RootCAStore:
 
         @param caDomain The domain name of the CA.
         """
-        self._caDomain = caDomain
+        self._caDomain = _normalizeCaDomain(caDomain)
         self.__caDir = tempfile.mkdtemp(prefix="seedemu-ca-")
         self.__password = "".join(
             secrets.choice(string.ascii_letters + string.digits) for _ in range(64)
