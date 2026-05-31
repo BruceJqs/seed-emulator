@@ -145,7 +145,7 @@ class KuboService(Service):
         # Must be called during render stage only!
         for server, node in self.getTargets():
             if server.isBootNode():
-                address = getNodeAddress(node, self._bootstrap_address_family)
+                address = getNodeAddress(node, self._bootstrap_address_family, preferLocal=True)
                 assert address is not None, 'Kubo bootstrap node {} has no {} address.'.format(
                     node.getName(),
                     self._bootstrap_address_family.value,

@@ -201,6 +201,35 @@ def _render_kubo_bootstrap_topology(kubo: KuboService):
     return kubo, emu.getRegistry().get("2", "hnode", "peer")
 
 
+def _render_kubo_service_network_bootstrap_topology(kubo: KuboService):
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createHost("boot").joinNetwork(
+        "000_svc",
+        address="192.168.66.71",
+        ipv6Address="fd00:66::71",
+    )
+    as2.createHost("peer").joinNetwork(
+        "000_svc",
+        address="192.168.66.72",
+        ipv6Address="fd00:66::72",
+    )
+
+    kubo.install("boot-vnode").setBootNode(True)
+    kubo.install("peer-vnode")
+    emu.addBinding(Binding("boot-vnode", filter=Filter(asn=2, nodeName="boot"), action=Action.FIRST))
+    emu.addBinding(Binding("peer-vnode", filter=Filter(asn=2, nodeName="peer"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(kubo)
+    emu.getServiceNetwork()
+    emu.render()
+
+    return kubo, emu.getRegistry().get("2", "hnode", "peer")
+
+
 def _render_ca_filter_topology():
     emu = Emulator()
     base = Base(enableIpv6=True)
@@ -1530,6 +1559,32 @@ def test_kubo_bootstrap_endpoints_can_select_ipv6_helpers():
     assert "http://[2000:0:2::71]:5001/api/v0/config?arg=Identity.PeerID" in script
     assert "/ip6/2000:0:2::71/tcp/4001" in script
     assert "/ip4/10.2.0.71/tcp/4001" not in script
+
+
+def test_kubo_bootstrap_endpoints_fall_back_to_service_network_ipv4():
+    kubo, peer = _render_kubo_service_network_bootstrap_topology(KuboService())
+
+    script = _file_content(peer, "/tmp/kubo/bootstrap.sh")
+
+    assert kubo.getBootstrapList() == ["192.168.66.71"]
+    assert "http://192.168.66.71:5001/api/v0/config?arg=Identity.PeerID" in script
+    assert "/ip4/192.168.66.71/tcp/4001" in script
+    assert "fd00:66::71" not in script
+
+
+def test_kubo_bootstrap_endpoints_fall_back_to_service_network_ipv6():
+    kubo, peer = _render_kubo_service_network_bootstrap_topology(
+        KuboService(bootstrapAddressFamily=AddressFamily.IPv6)
+    )
+
+    commands = _start_commands(peer)
+    script = _file_content(peer, "/tmp/kubo/bootstrap.sh")
+
+    assert kubo.getBootstrapList() == ["fd00:66::71"]
+    assert "ipfs config Addresses.API /ip6/::/tcp/5001" in commands
+    assert "http://[fd00:66::71]:5001/api/v0/config?arg=Identity.PeerID" in script
+    assert "/ip6/fd00:66::71/tcp/4001" in script
+    assert "http://fd00:66::71:5001" not in script
 
 
 def test_monero_endpoints_default_to_ipv4_on_dual_stack_nodes():

@@ -165,8 +165,10 @@ Traffic generators preserve existing raw receiver target lists. For explicit
 address-family selection, use `addReceiverVnodes(..., family=AddressFamily.IPv6)`
 to resolve receiver virtual nodes through the shared node-address helpers.
 
-Kubo bootstrap endpoints preserve IPv4 defaults. For explicit IPv6 bootstrap
-RPC URLs and peer multiaddrs, use
+Kubo bootstrap endpoints preserve IPv4 defaults and select bootstrap node
+addresses through the shared Local-network-first helper, falling back to the
+service network when a bootstrap node has no Local interface. For explicit IPv6
+bootstrap RPC URLs and peer multiaddrs, use
 `KuboService(bootstrapAddressFamily=AddressFamily.IPv6)` or
 `setBootstrapAddressFamily(AddressFamily.IPv6)`.
 
