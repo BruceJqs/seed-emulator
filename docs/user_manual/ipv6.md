@@ -221,7 +221,10 @@ support.
 
 Tor remains IPv4-first. Directory-authority fingerprint downloader URLs and
 hidden-service backend targets use shared endpoint helpers so explicit IPv6
-literals are bracketed correctly, but Tor bind/listener, directory authority,
+literals are bracketed correctly. Hidden-service backends linked with
+`linkByVnode(..., family=AddressFamily.IPv6)` resolve through the shared
+Local-network-first helper and fall back to the service network when the
+backend node has no Local interface. Tor bind/listener, directory authority,
 consensus, and daemon runtime behavior still require a separate migration.
 
 See

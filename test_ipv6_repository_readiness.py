@@ -132,6 +132,23 @@ class _FakePortServer(Server):
         return self._port
 
 
+class _NoopServer(Server):
+    def install(self, node):
+        pass
+
+
+class _NoopService(Service):
+    def __init__(self, name: str):
+        super().__init__()
+        self._name = name
+
+    def _createServer(self) -> Server:
+        return _NoopServer()
+
+    def getName(self) -> str:
+        return self._name
+
+
 class _FakeUtilityServer(_FakePortServer):
     def __init__(self, port: int):
         super().__init__(port)
@@ -265,6 +282,55 @@ def _render_tor_host(name: str, address: str = "10.2.0.80", ipv6Address: str = "
     emu.render()
 
     return emu.getRegistry().get("2", "hnode", name)
+
+
+def _render_tor_hidden_service_vnode_topology(
+    family=AddressFamily.IPv4,
+    service_network_only=False,
+):
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64") if service_network_only else Emulator()
+    base = Base(enableIpv6=True)
+    tor = TorService()
+    backend_service = _NoopService("NoopService")
+
+    as2 = base.createAutonomousSystem(2)
+    if service_network_only:
+        as2.createHost("backend").joinNetwork(
+            "000_svc",
+            address="192.168.66.80",
+            ipv6Address="fd00:66::80",
+        )
+        as2.createHost("hs").joinNetwork(
+            "000_svc",
+            address="192.168.66.81",
+            ipv6Address="fd00:66::81",
+        )
+    else:
+        as2.createNetwork("net0")
+        as2.createHost("backend").joinNetwork(
+            "net0",
+            address="10.2.0.80",
+            ipv6Address="2000:0:2::80",
+        )
+        as2.createHost("hs").joinNetwork(
+            "net0",
+            address="10.2.0.81",
+            ipv6Address="2000:0:2::81",
+        )
+
+    backend_service.install("backend-vnode")
+    tor.install("hs-vnode").setRole(TorNodeType.HS).linkByVnode("backend-vnode", 8080, family=family)
+    emu.addBinding(Binding("backend-vnode", filter=Filter(asn=2, nodeName="backend"), action=Action.FIRST))
+    emu.addBinding(Binding("hs-vnode", filter=Filter(asn=2, nodeName="hs"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(backend_service)
+    emu.addLayer(tor)
+    if service_network_only:
+        emu.getServiceNetwork()
+    emu.render()
+
+    return emu.getRegistry().get("2", "hnode", "hs")
 
 
 def _render_botnet_endpoint_topology(family=AddressFamily.IPv4):
@@ -1010,6 +1076,51 @@ def test_tor_hidden_service_backend_targets_use_shared_endpoint_helpers():
     assert "export TOR_HS_PORT=8080" in ipv6_commands
     assert "export TOR_HS_TARGET=[2000:0:2::80]:8080" in ipv6_commands
     assert "export TOR_HS_TARGET=2000:0:2::80:8080" not in ipv6_commands
+
+
+def test_tor_hidden_service_vnode_targets_default_to_ipv4():
+    node = _render_tor_hidden_service_vnode_topology()
+    commands = _start_commands(node)
+
+    assert "export TOR_HS_ADDR=10.2.0.80" in commands
+    assert "export TOR_HS_PORT=8080" in commands
+    assert "export TOR_HS_TARGET=10.2.0.80:8080" in commands
+    assert "2000:0:2::80" not in commands
+
+
+def test_tor_hidden_service_vnode_targets_can_select_ipv6():
+    node = _render_tor_hidden_service_vnode_topology(AddressFamily.IPv6)
+    commands = _start_commands(node)
+
+    assert "export TOR_HS_ADDR=2000:0:2::80" in commands
+    assert "export TOR_HS_PORT=8080" in commands
+    assert "export TOR_HS_TARGET=[2000:0:2::80]:8080" in commands
+    assert "export TOR_HS_TARGET=2000:0:2::80:8080" not in commands
+    assert "export TOR_HS_TARGET=10.2.0.80:8080" not in commands
+
+
+def test_tor_hidden_service_vnode_targets_fall_back_to_service_network_ipv4():
+    node = _render_tor_hidden_service_vnode_topology(service_network_only=True)
+    commands = _start_commands(node)
+
+    assert "export TOR_HS_ADDR=192.168.66.80" in commands
+    assert "export TOR_HS_PORT=8080" in commands
+    assert "export TOR_HS_TARGET=192.168.66.80:8080" in commands
+    assert "fd00:66::80" not in commands
+
+
+def test_tor_hidden_service_vnode_targets_fall_back_to_service_network_ipv6():
+    node = _render_tor_hidden_service_vnode_topology(
+        AddressFamily.IPv6,
+        service_network_only=True,
+    )
+    commands = _start_commands(node)
+
+    assert "export TOR_HS_ADDR=fd00:66::80" in commands
+    assert "export TOR_HS_PORT=8080" in commands
+    assert "export TOR_HS_TARGET=[fd00:66::80]:8080" in commands
+    assert "export TOR_HS_TARGET=fd00:66::80:8080" not in commands
+    assert "export TOR_HS_TARGET=192.168.66.80:8080" not in commands
 
 
 def test_botnet_dropper_endpoint_defaults_to_ipv4_url_helper():

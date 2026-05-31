@@ -3,8 +3,18 @@
 # __author__ = 'Demon'
 
 from __future__ import annotations
-from seedemu.core import Node, Emulator, Service, Server, formatHostPort, formatUrl
-from typing import List, Dict, Set
+from seedemu.core import (
+    AddressFamily,
+    Node,
+    Emulator,
+    Service,
+    Server,
+    formatHostPort,
+    formatUrl,
+    getNodeAddress,
+    normalizeAddressFamily,
+)
+from typing import List, Dict, Tuple, Union
 from enum import Enum
 
 TorServerFileTemplates: Dict[str, str] = {}
@@ -302,7 +312,9 @@ class TorServer(Server):
     """
 
     __role: TorNodeType
-    __hs_link: Set
+    __hs_link: Tuple
+    __hs_link_address_family: AddressFamily
+    __hs_link_is_vnode: bool
 
     def __init__(self):
         """!
@@ -312,6 +324,8 @@ class TorServer(Server):
 
         self.__role = TorNodeType.RELAY.value
         self.__hs_link = ()
+        self.__hs_link_address_family = AddressFamily.IPv4
+        self.__hs_link_is_vnode = False
 
     def setRole(self, role: TorNodeType) -> TorServer:
         """!
@@ -333,13 +347,23 @@ class TorServer(Server):
         """
         return self.__role
 
-    def getLink(self) -> str:
+    def getLink(self) -> Tuple:
         """!
         @brief Get the link of HS server, only HS role node has this feature.
 
         @returns hidden service dest.
         """
         return self.__hs_link
+
+    def getLinkAddressFamily(self) -> AddressFamily:
+        """Return the address family used when resolving vnode HS links."""
+
+        return self.__hs_link_address_family
+
+    def isLinkByVnode(self) -> bool:
+        """Return whether the hidden-service link still references a vnode."""
+
+        return self.__hs_link_is_vnode
 
     def setLink(self, addr: str, port: int) -> TorServer:
         """!
@@ -351,10 +375,16 @@ class TorServer(Server):
         @returns self, for chaining API calls.
         """
         self.__hs_link = (addr, port)
+        self.__hs_link_is_vnode = False
 
         return self
 
-    def linkByVnode(self, vname: str, port: int) -> TorServer:
+    def linkByVnode(
+        self,
+        vname: str,
+        port: int,
+        family: Union[AddressFamily, str, int] = AddressFamily.IPv4,
+    ) -> TorServer:
         """!
         @brief set Vnode link of HS server.
         
@@ -364,12 +394,15 @@ class TorServer(Server):
 
         @param vname virtual node name.
         @param port port.
+        @param family address family used when resolving the vnode.
 
         @returns self, for chaining API calls.
         """
         assert self.getRole() == "HS", "linkByVnode(): only HS type node can bind a host."
         assert len(self.__hs_link) == 0, "linkByVnode(): TorServer already has linked a host."
         self.__hs_link = (vname, port)
+        self.__hs_link_address_family = normalizeAddressFamily(family)
+        self.__hs_link_is_vnode = True
 
         return self
 
@@ -482,13 +515,19 @@ class TorService(Service):
 
         """
         for server in self.getPendingTargets().values():
-            if server.getRole() == "HS" and len(server.getLink()) != 0:
+            if server.getRole() == "HS" and server.isLinkByVnode() and len(server.getLink()) != 0:
                 vname, port = server.getLink()
                 pnode = emulator.resolvVnode(vname)
-                ifaces = pnode.getInterfaces()
-                assert len(ifaces) > 0, '__resolveHSLink(): node as{}/{} has no interfaces'.format(pnode.getAsn(), pnode.getName())
-                addr = ifaces[0].getAddress()
-                server.setLink(addr, port)
+                family = server.getLinkAddressFamily()
+                addr = getNodeAddress(pnode, family, preferLocal=True)
+                assert addr is not None, (
+                    '__resolveHSLink(): node as{}/{} has no {} address'.format(
+                        pnode.getAsn(),
+                        pnode.getName(),
+                        family.value,
+                    )
+                )
+                server.setLink(str(addr), port)
 
     def configure(self, emulator: Emulator):
         self.__resolveHSLink(emulator)

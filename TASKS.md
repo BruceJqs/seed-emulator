@@ -191,9 +191,11 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   still need validation before a support claim.
 - Tor directory-authority fingerprint downloader URLs and hidden-service
   backend targets now route through shared endpoint helpers, preserving IPv4
-  defaults and bracketing explicit IPv6 literals; Tor bind/listener,
-  directory authority, consensus, and daemon runtime behavior remain
-  IPv4-first and need a separate migration before any support claim.
+  defaults, bracketing explicit IPv6 literals, and resolving
+  `linkByVnode(..., family=AddressFamily.IPv6)` targets with
+  Local-network-first, service-network fallback address selection; Tor
+  bind/listener, directory authority, consensus, and daemon runtime behavior
+  remain IPv4-first and need a separate migration before any support claim.
 
 ## Phase 6: Separate Designs Before Code
 
