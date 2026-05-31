@@ -52,6 +52,7 @@ from seedemu.services.EthereumService.EthTemplates import (
     format_faucet_url,
     format_fund_curl,
 )
+from seedemu.services.KuboService.KuboUtils import getIP
 import pytest
 
 
@@ -1869,6 +1870,13 @@ def test_kubo_bootstrap_endpoints_default_to_ipv4_on_dual_stack_nodes():
     assert "2000:0:2::71" not in script
 
 
+def test_kubo_getip_utility_defaults_to_ipv4_on_dual_stack_nodes():
+    _, peer = _render_kubo_bootstrap_topology(KuboService())
+
+    assert str(getIP(peer)) == "10.2.0.72"
+    assert str(getIP(peer, AddressFamily.IPv6)) == "2000:0:2::72"
+
+
 def test_kubo_bootstrap_endpoints_can_select_ipv6_helpers():
     kubo, peer = _render_kubo_bootstrap_topology(
         KuboService(bootstrapAddressFamily=AddressFamily.IPv6)
@@ -1883,6 +1891,13 @@ def test_kubo_bootstrap_endpoints_can_select_ipv6_helpers():
     assert "http://[2000:0:2::71]:5001/api/v0/config?arg=Identity.PeerID" in script
     assert "/ip6/2000:0:2::71/tcp/4001" in script
     assert "/ip4/10.2.0.71/tcp/4001" not in script
+
+
+def test_kubo_getip_utility_falls_back_to_service_network():
+    _, peer = _render_kubo_service_network_bootstrap_topology(KuboService())
+
+    assert str(getIP(peer)) == "192.168.66.72"
+    assert str(getIP(peer, AddressFamily.IPv6)) == "fd00:66::72"
 
 
 def test_kubo_bootstrap_endpoints_fall_back_to_service_network_ipv4():
