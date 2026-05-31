@@ -310,7 +310,7 @@ def formatHost(host: Union[str, object]) -> str:
 def formatHostPort(host: Union[str, object], port: Union[str, int]) -> str:
     """Format host:port with RFC 3986 brackets for IPv6 literals."""
 
-    return "{}:{}".format(_formatHostWithExplicitPort(str(host).strip()), port)
+    return "{}:{}".format(_formatHostWithExplicitPort(str(host).strip()), str(port).strip())
 
 
 def formatUrl(
@@ -335,7 +335,7 @@ def formatMultiaddr(host: Union[str, object], tcpPort: Union[str, int], peerId: 
         raise ValueError("multiaddr host must be an IPv4/IPv6 literal: {}".format(host))
 
     proto = "ip6" if parsed.version == 6 else "ip4"
-    out = "/{}/{}/tcp/{}".format(proto, parsed, tcpPort)
+    out = "/{}/{}/tcp/{}".format(proto, parsed, str(tcpPort).strip())
     if peerId is not None:
         out += "/p2p/{}".format(peerId)
     return out

@@ -900,12 +900,15 @@ def test_endpoint_helpers_format_ipv6_safely():
         formatHost(" [2000::1]/path ")
     assert formatHostPort("10.0.0.1", 80) == "10.0.0.1:80"
     assert formatHostPort(" 10.0.0.1 ", 80) == "10.0.0.1:80"
+    assert formatHostPort("10.0.0.1", " 80 ") == "10.0.0.1:80"
     assert formatHostPort("2000::1", 80) == "[2000::1]:80"
     assert formatHostPort(" 2000::1 ", 80) == "[2000::1]:80"
     assert formatHostPort(" [2000:0:0::1] ", 80) == "[2000::1]:80"
+    assert formatHostPort(" [2000:0:0::1] ", " 80 ") == "[2000::1]:80"
     with pytest.raises(ValueError, match="malformed bracketed IPv6 authority"):
         formatHostPort(" [2000::1]:bad ", 80)
     assert formatUrl("http", "2000::1", 8080, "status") == "http://[2000::1]:8080/status"
+    assert formatUrl("http", "2000::1", " 8080 ", "status") == "http://[2000::1]:8080/status"
     assert formatUrl("http", "[2000:0:0::1]", 8080, "status") == "http://[2000::1]:8080/status"
     assert formatUrl("https", " [2000:0:0::1]:8443 ", path="status") == "https://[2000::1]:8443/status"
     assert formatHostPort(" [2000:0:0::1]:8443 ", 9443) == "[2000::1]:9443"
@@ -923,10 +926,12 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatUrl("https", "example.test", path="?arg=x") == "https://example.test?arg=x"
     assert formatUrl("https", "10.0.0.1", path="#ready") == "https://10.0.0.1#ready"
     assert formatMultiaddr("10.0.0.1", 4001) == "/ip4/10.0.0.1/tcp/4001"
+    assert formatMultiaddr("10.0.0.1", " 4001 ") == "/ip4/10.0.0.1/tcp/4001"
     assert formatMultiaddr(" 10.0.0.1 ", 4001) == "/ip4/10.0.0.1/tcp/4001"
     assert formatMultiaddr("2000::1", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
     assert formatMultiaddr(" 2000::1 ", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
     assert formatMultiaddr("[2000:0:0::1]", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
+    assert formatMultiaddr("[2000:0:0::1]", " 4001 ", "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
 
 
 def test_address_record_normalizer_handles_dns_a_aaaa_literals():
