@@ -1,4 +1,4 @@
-from seedemu.core import Emulator, Layer, Node
+from seedemu.core import AddressFamily, Emulator, Layer, Node, getInterfaceAddress
 from seedemu.core.enums import NetworkType
 from typing import List
 from ipaddress import ip_address
@@ -34,10 +34,12 @@ class EtcHosts(Layer):
             if iface.getNet().getType() == NetworkType.InternetExchange:
                 pass
             else:
-                if iface.getAddress() is not None:
-                    addresses.append(str(iface.getAddress()))
-                if iface.hasIpv6Address():
-                    addresses.append(str(iface.getIpv6Address()))
+                ipv4_address = getInterfaceAddress(iface, AddressFamily.IPv4)
+                if ipv4_address is not None:
+                    addresses.append(str(ipv4_address))
+                ipv6_address = getInterfaceAddress(iface, AddressFamily.IPv6)
+                if ipv6_address is not None:
+                    addresses.append(str(ipv6_address))
 
         return addresses
 

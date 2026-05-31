@@ -387,22 +387,24 @@ class BgpLookingGlassServer(Server):
             assert svc_iface is not None, 'failed to attach looking glass management interface'
             if not node.getAttribute('__looking_glass_management_ifinfo', False):
                 [l, b, d] = svc_iface.getLinkProperties()
-                if svc_iface.getAddress() is not None:
+                svc_ipv4_address = getInterfaceAddress(svc_iface, AddressFamily.IPv4)
+                if svc_ipv4_address is not None:
                     node.appendFile(
                         '/ifinfo.txt',
                         '{}|{}/{}|{}|{}|{}\n'.format(
-                            svc_net.getName(), svc_iface.getAddress(), svc_net.getPrefix().prefixlen, l, b, d
+                            svc_net.getName(), svc_ipv4_address, svc_net.getPrefix().prefixlen, l, b, d
                         )
                     )
                 node.appendFile(
                     '/ifinfo.txt',
                     '{}|{}|{}|{}|{}\n'.format(svc_net.getName(), svc_net.getPrefix(), l, b, d)
                 )
-                if svc_iface.hasIpv6Address():
+                svc_ipv6_address = getInterfaceAddress(svc_iface, AddressFamily.IPv6)
+                if svc_ipv6_address is not None:
                     node.appendFile(
                         '/ifinfo.txt',
                         '{}|{}/{}|{}|{}|{}\n'.format(
-                            svc_net.getName(), svc_iface.getIpv6Address(), svc_net.getIpv6Prefix().prefixlen, l, b, d
+                            svc_net.getName(), svc_ipv6_address, svc_net.getIpv6Prefix().prefixlen, l, b, d
                         )
                     )
                 node.setAttribute('__looking_glass_management_ifinfo', True)
