@@ -18,6 +18,7 @@ from seedemu.core import (
     getNodeAddress,
     getNodeAddresses,
     getNodePreferredAddress,
+    normalizeAddressFamily,
 )
 from seedemu.core.enums import NodeRole
 from seedemu.layers import Base, EtcHosts
@@ -828,6 +829,13 @@ def test_endpoint_helpers_format_ipv6_safely():
     assert formatUrl("https", "example.test", path="/health") == "https://example.test/health"
     assert formatMultiaddr("10.0.0.1", 4001) == "/ip4/10.0.0.1/tcp/4001"
     assert formatMultiaddr("2000::1", 4001, "peer") == "/ip6/2000::1/tcp/4001/p2p/peer"
+
+
+def test_address_family_normalizer_accepts_common_padded_values():
+    assert normalizeAddressFamily(" ipv4 ") == AddressFamily.IPv4
+    assert normalizeAddressFamily(" IP6 ") == AddressFamily.IPv6
+    assert normalizeAddressFamily(4) == AddressFamily.IPv4
+    assert normalizeAddressFamily(AddressFamily.IPv6) == AddressFamily.IPv6
 
 
 def test_ethereum_faucet_template_legacy_keys_remain_ipv4_compatible():

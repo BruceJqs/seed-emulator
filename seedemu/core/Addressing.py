@@ -23,7 +23,7 @@ def normalizeAddressFamily(family: Union[AddressFamily, str, int]) -> AddressFam
     if isinstance(family, AddressFamily):
         return family
 
-    value = str(family).lower()
+    value = str(family).strip().lower()
     if value in ("4", "ip4", "ipv4", "v4"):
         return AddressFamily.IPv4
     if value in ("6", "ip6", "ipv6", "v6"):
