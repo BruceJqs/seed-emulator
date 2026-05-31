@@ -215,6 +215,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - Web/CA ACME directory URLs now route through shared URL helpers, preserve
   domain-name defaults, and bracket explicit IPv6 CA endpoint literals; Web
   HTTPS and ACME runtime behavior still need validation before a support claim.
+- Cymru IP origin mapping remains IPv4-only but now routes accepted IPv4 prefix
+  inputs through shared prefix normalization, including padded or bracketed
+  literals, and rejects IPv6 prefixes explicitly.
 - Monero seed and full-node RPC endpoint lists now route through shared
   address-family and host-port helpers with Local-network-first,
   service-network fallback address selection, default to IPv4, and explicitly

@@ -1,8 +1,8 @@
 from __future__ import annotations
 from .DomainNameService import DomainNameService
-from seedemu.core import Node, Network, Emulator, Service, Server
+from seedemu.core import Node, Network, Emulator, Service, Server, normalizePrefix
 from typing import List, Tuple
-from ipaddress import IPv4Network
+from ipaddress import IPv4Network, ip_network
 
 class CymruIpOriginServer(Server):
     """!
@@ -53,10 +53,10 @@ class CymruIpOriginService(Service):
 
         @returns self, for chaining API calls.
         """
-        [pfx, cidr] = prefix.split('/')
-        cidr = int(cidr)
+        prefix = ip_network(normalizePrefix(prefix))
+        assert isinstance(prefix, IPv4Network), 'CymruIpOriginService only supports IPv4 prefixes.'
+        cidr = prefix.prefixlen
         assert cidr <= 24, 'Invalid prefix.'
-        prefix = IPv4Network(prefix)
 
         sub_cidr = 24
         num_8s = 3
@@ -144,4 +144,3 @@ class CymruIpOriginService(Service):
         out += 'CymruIpOriginService\n'
 
         return out
-

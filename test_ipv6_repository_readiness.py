@@ -38,6 +38,7 @@ from seedemu.services import (
     DomainNameService,
     DomainRegistrarServer,
     ConsensusMechanism,
+    CymruIpOriginService,
     EthUtilityServer,
     EthereumServer,
     FaucetServer,
@@ -857,6 +858,21 @@ def test_address_record_normalizer_handles_dns_a_aaaa_literals():
     assert normalizeAddressRecord(" ns1. NS a.root.example. ", trimNonAddressRecord=True) == "ns1. NS a.root.example."
     assert normalizePrefix(" [2000:0:2:0:0:0:0:0] / 64 ") == "2000:0:2::/64"
     assert normalizePrefix(" 10.2.0.71/24 ", strict=False) == "10.2.0.0/24"
+
+
+def test_cymru_origin_mapping_uses_shared_prefix_normalizer_for_ipv4():
+    cymru = CymruIpOriginService()
+    cymru.addMapping(" [10.2.0.0] / 24 ", 2)
+
+    records = cymru.getRecords()
+    assert records == ['*.0.2.10.origin.asn TXT "2 | 10.2.0.0/24 | ZZ | SEED | 0000-00-00"']
+
+
+def test_cymru_origin_mapping_remains_ipv4_only_for_ipv6_prefixes():
+    cymru = CymruIpOriginService()
+
+    with pytest.raises(AssertionError, match="only supports IPv4 prefixes"):
+        cymru.addMapping(" [2000:0:2::] / 64 ", 2)
 
 
 def test_node_address_match_helpers_cover_ipv4_and_ipv6():

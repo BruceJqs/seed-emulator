@@ -156,7 +156,8 @@ Current categories:
   C2/dropper endpoint formatting, Monero seed/RPC endpoint formatting,
   Chainlink generated URL formatting, Ethereum faucet/utility and
   bootnode/beacon helper HTTP URL formatting;
-- IPv4-first pending design: Email; Tor remains IPv4-first with
+- IPv4-first pending design: Email; Cymru IP origin ASN mapping remains
+  IPv4-only with normalized IPv4 prefix inputs; Tor remains IPv4-first with
   directory-authority downloader and hidden-service backend target formatting
   guarded by shared endpoint helpers;
 - separate design required: SCION underlay, cross-connect, DHCPv6, MPLS/EVPN,
