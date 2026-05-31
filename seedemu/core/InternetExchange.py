@@ -38,7 +38,7 @@ class InternetExchange(Printable, Configurable):
         network = IPv4Network(prefix) if prefix != "auto" else IPv4Network("10.{}.0.0/24".format(self.__id))
         ipv6_network = None
         if ipv6Prefix is not None:
-            ipv6_network = ipv6Prefix if isinstance(ipv6Prefix, IPv6Network) else IPv6Network(ipv6Prefix)
+            ipv6_network = ipv6Prefix if isinstance(ipv6Prefix, IPv6Network) else IPv6Network(str(ipv6Prefix).strip())
 
         self.__name = 'ix{}'.format(str(self.__id))
         if ipv6PrefixIntent is not None:

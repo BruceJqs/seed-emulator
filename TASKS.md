@@ -68,6 +68,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - late `Base.enableIpv6()` rejects overlapping explicit AS/IX IPv6 prefixes;
 - late `Base.enableIpv6()` claims existing explicit prefixes before future
   automatic allocation;
+- explicit IPv6 root, AS/IX network, route-server, service-network, and
+  interface topology inputs tolerate padded literals and CIDRs;
 - `Filter` / `Binding` can require explicit IPv4 and IPv6 matches together;
 - `Filter` / `Binding` candidate matching uses shared interface address
   helpers and preserves mixed legacy `ip` / explicit IPv4/IPv6 prefix AND

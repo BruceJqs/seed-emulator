@@ -213,7 +213,7 @@ class AutonomousSystem(Printable, Graphable, Configurable, Customizable):
             if ipv6Prefix == "auto":
                 ipv6_network = self.__ipv6_addressing.nextAsNetworkPrefix(self.__asn) if self.__ipv6_addressing is not None else None
             else:
-                ipv6_network = IPv6Network(ipv6Prefix)
+                ipv6_network = IPv6Network(str(ipv6Prefix).strip())
                 if self.__ipv6_addressing is not None:
                     self.__ipv6_addressing.reserveAsNetworkPrefix(self.__asn, ipv6_network)
         assert name not in self.__nets, 'Network with name {} already exist.'.format(name)

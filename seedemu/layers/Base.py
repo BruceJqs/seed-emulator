@@ -193,7 +193,7 @@ class Base(Layer, Graphable):
         @returns self, for chaining API calls.
         """
         if self.__ipv6_addressing is not None:
-            assert self.__ipv6_addressing.getRootPrefix() == IPv6Network(rootPrefix), (
+            assert self.__ipv6_addressing.getRootPrefix() == IPv6Network(str(rootPrefix).strip()), (
                 "IPv6 is already enabled with root prefix {}".format(self.__ipv6_addressing.getRootPrefix())
             )
             return self
@@ -294,11 +294,15 @@ class Base(Layer, Graphable):
         if ipv6Prefix is not None:
             if ipv6Prefix == "auto":
                 ix_ipv6_prefix = self.__ipv6_addressing.assignIxPrefix(asn) if self.__ipv6_addressing is not None else None
+                ix_ipv6_intent = "auto"
             else:
-                ix_ipv6_prefix = ipv6Prefix
+                ix_ipv6_prefix = str(ipv6Prefix).strip()
+                ix_ipv6_intent = "explicit"
                 if self.__ipv6_addressing is not None:
                     self.__ipv6_addressing.claimPrefix(ix_ipv6_prefix)
-        self.__ixes[asn] = InternetExchange(asn, prefix, aac, create_rs, rsAddress, ix_ipv6_prefix, rsIpv6Address, ipv6Prefix)
+        else:
+            ix_ipv6_intent = None
+        self.__ixes[asn] = InternetExchange(asn, prefix, aac, create_rs, rsAddress, ix_ipv6_prefix, rsIpv6Address, ix_ipv6_intent)
         return self.__ixes[asn]
 
     def getInternetExchange(self, asn: int) -> InternetExchange:

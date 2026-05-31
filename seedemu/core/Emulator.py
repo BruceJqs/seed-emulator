@@ -334,7 +334,11 @@ class Emulator:
         @returns service network.
         """
         if self.__service_net == None:
-            ipv6_prefix = IPv6Network(self.__service_net_ipv6_prefix) if self.__service_net_ipv6_prefix is not None else None
+            ipv6_prefix = (
+                IPv6Network(str(self.__service_net_ipv6_prefix).strip())
+                if self.__service_net_ipv6_prefix is not None
+                else None
+            )
             ipv6_intent = "explicit" if ipv6_prefix is not None else None
             self.__service_net = self.__registry.register(
                 'seedemu',

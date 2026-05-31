@@ -1308,6 +1308,36 @@ def test_late_ipv6_enablement_rejects_overlapping_explicit_as_and_ix_prefixes():
         base.enableIpv6()
 
 
+def test_core_ipv6_topology_inputs_trim_padded_values():
+    base = Base(enableIpv6=True, ipv6RootPrefix=" 2000::/12 ")
+    as2 = base.createAutonomousSystem(2)
+    explicit = as2.createNetwork("explicit", ipv6Prefix=" 2000:0:2::/64 ")
+    host = as2.createHost("host").joinNetwork(
+        "explicit",
+        address="10.2.0.71",
+        ipv6Address=" 2000:0:2::71 ",
+    )
+    ix = base.createInternetExchange(
+        100,
+        ipv6Prefix=" 2000:8:0:100::/64 ",
+        rsIpv6Address=" 2000:8:0:100::fd ",
+    )
+
+    emu = Emulator(serviceNetworkIpv6Prefix=" fd00:66::/64 ")
+    emu.addLayer(base)
+    svc_net = emu.getServiceNetwork()
+    emu.render()
+
+    node = emu.getRegistry().get("2", "hnode", "host")
+    assert str(base.getIpv6RootPrefix()) == "2000::/12"
+    assert str(explicit.getIpv6Prefix()) == "2000:0:2::/64"
+    assert str(node.getInterfaces()[0].getIpv6Address()) == "2000:0:2::71"
+    assert str(host.getInterfaces()[0].getIpv6Address()) == "2000:0:2::71"
+    assert str(ix.getPeeringLan().getIpv6Prefix()) == "2000:8:0:100::/64"
+    assert str(ix.getRouteServerNode().getInterfaces()[0].getIpv6Address()) == "2000:8:0:100::fd"
+    assert str(svc_net.getIpv6Prefix()) == "fd00:66::/64"
+
+
 def test_service_network_stays_ipv4_only_without_explicit_ipv6_prefix(tmp_path):
     emu = Emulator()
     base = Base()
