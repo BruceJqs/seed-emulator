@@ -1852,6 +1852,36 @@ def test_dns_cache_auto_root_hints_include_dual_stack_root_server():
     assert "ns1. AAAA 2000:0:2::53" in root_hints
 
 
+def test_dns_cache_manual_root_hints_trim_padded_records():
+    emu = Emulator()
+    base = Base()
+    cache = DomainNameCachingService(autoRoot=False)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("cache").joinNetwork("net0", address="10.2.0.54")
+
+    cache_server = cache.install("cache").setRootServers([
+        " ns1. A 10.2.0.53 ",
+        " ns1. AAAA 2000:0:2::53 ",
+    ])
+    emu.addBinding(Binding("cache", filter=Filter(asn=2, nodeName="cache"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(cache)
+    emu.render()
+
+    cache_node = emu.getRegistry().get("2", "hnode", "cache")
+    expected = "ns1. A 10.2.0.53\nns1. AAAA 2000:0:2::53"
+
+    assert cache_server.getRootServers() == [
+        "ns1. A 10.2.0.53",
+        "ns1. AAAA 2000:0:2::53",
+    ]
+    assert _file_content(cache_node, "/usr/share/dns/root.hints") == expected
+    assert _file_content(cache_node, "/etc/bind/db.root") == expected
+
+
 def test_dns_cache_forward_zone_uses_dual_stack_authoritative_masters():
     emu = Emulator()
     base = Base(enableIpv6=True)

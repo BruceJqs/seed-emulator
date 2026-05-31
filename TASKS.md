@@ -105,7 +105,7 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - reverse DNS keeps the existing IPv4 `in-addr.arpa.` PTR generation and adds
   `ip6.arpa.` PTR records only for interfaces carrying IPv6 state;
 - DNS cache root hints and forward zones preserve IPv4 while accepting IPv6
-  authoritative records;
+  authoritative records, and manual root hints normalize padded records;
 - DNS cache address selection is Local IPv4 first, then Local IPv6, then first
   available interface fallback for compatibility with service-network-only
   nodes.

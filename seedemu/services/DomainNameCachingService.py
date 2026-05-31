@@ -65,7 +65,7 @@ class DomainNameCachingServer(Server, Configurable):
 
         @returns self, for chaining API calls.
         """
-        self.__root_servers = servers
+        self.__root_servers = [str(server).strip() for server in servers]
 
         return self
 
