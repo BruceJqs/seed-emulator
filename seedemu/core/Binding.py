@@ -4,7 +4,7 @@ from .Emulator import Emulator
 from .Node import Node
 from .Filter import Filter
 from .BaseSystem import BaseSystem
-from .Addressing import AddressFamily, getInterfaceAddress
+from .Addressing import nodeHasAddress, nodeHasAddressInPrefix
 from enum import Enum
 from typing import List
 from ipaddress import ip_address, ip_network
@@ -298,15 +298,7 @@ class Binding(Printable):
 
             ip_miss = False
             for requested_ip in requested_ip_filters:
-                requested_addr = _parseIpFilter(requested_ip)
-                family = AddressFamily.IPv4 if requested_addr.version == 4 else AddressFamily.IPv6
-                has_match = False
-                for iface in node.getInterfaces():
-                    iface_addr = getInterfaceAddress(iface, family)
-                    if iface_addr is not None and str(iface_addr) == str(requested_addr):
-                        has_match = True
-                        break
-                if not has_match:
+                if not nodeHasAddress(node, requested_ip):
                     self.__log('node as{}/{} does not have IP {}, trying next node.'.format(scope, name, requested_ip))
                     ip_miss = True
                     break
@@ -323,15 +315,7 @@ class Binding(Printable):
 
             prefix_miss = False
             for requested_prefix in requested_prefix_filters:
-                has_match = False
-                net = _parsePrefixFilter(requested_prefix)
-                family = AddressFamily.IPv4 if net.version == 4 else AddressFamily.IPv6
-                for iface in node.getInterfaces():
-                    iface_addr = getInterfaceAddress(iface, family)
-                    if iface_addr is not None and iface_addr in net:
-                        has_match = True
-                        break
-                if not has_match:
+                if not nodeHasAddressInPrefix(node, requested_prefix):
                     self.__log('node as{}/{} not in prefix {}, trying next node.'.format(scope, name, requested_prefix))
                     prefix_miss = True
                     break

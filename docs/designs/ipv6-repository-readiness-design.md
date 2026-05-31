@@ -37,8 +37,9 @@ Dual-stack aware code should use the explicit IPv6 APIs or the shared helpers:
 - `Interface.hasIpv6Address()` / `Interface.getIpv6Address()`.
 - `AddressFamily`, `getInterfaceAddress(...)`, `formatHostPort(...)`,
   `getNodeAddress(...)`, `getNodeAddresses(...)`, `getNodePreferredAddress(...)`,
-  `formatUrl(...)`, `formatMultiaddr(...)`, and `normalizeAddressRecord(...)`
-  from `seedemu.core`.
+  `nodeHasAddress(...)`, `nodeHasAddressInPrefix(...)`, `formatUrl(...)`,
+  `formatMultiaddr(...)`, `normalizeAddressList(...)`, and
+  `normalizeAddressRecord(...)` from `seedemu.core`.
 
 Services must not assume that the first interface address is the only usable
 address. A service should either select IPv4 explicitly, select IPv6
@@ -79,7 +80,7 @@ Deferred core items:
 | DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; manual A/AAAA record literals use shared normalization; masters may include both families; reverse DNS keeps IPv4 `in-addr.arpa.` PTR records and adds `ip6.arpa.` PTR records only when interfaces carry IPv6 state. |
 | Domain Registrar | Compatible | Dynamic DNS updates preserve A as the default record type and allow explicit AAAA submissions; TLD placement and runtime behavior remain the existing Domain Registrar model. |
 | DNS cache | Compatible | Prefer IPv4 for old resolver behavior; accept IPv6 forwarders/root hints and normalize manual A/AAAA root-hint literals through the shared helper. |
-| Web/CA | Compatible | Existing IPv4 behavior preserved; CA certificate-install filters match IPv4/IPv6 address and prefix selectors; ACME directory URLs use shared URL helpers and can bracket explicit IPv6 CA endpoint literals, but Web HTTPS and ACME runtime behavior still need validation before a full support claim. |
+| Web/CA | Compatible | Existing IPv4 behavior preserved; CA certificate-install filters match IPv4/IPv6 address and prefix selectors through shared node address/prefix helpers; ACME directory URLs use shared URL helpers and can bracket explicit IPv6 CA endpoint literals, but Web HTTPS and ACME runtime behavior still need validation before a full support claim. |
 | Traffic services | Compatible | Raw receiver targets are unchanged; receiver vnodes can be resolved to IPv4 or IPv6 targets through shared node-address helpers, but each tool still needs runtime validation before a full support claim. |
 | Kubo/IPFS | Compatible | Bootstrap RPC URLs, peer multiaddrs, and the legacy `getIP` utility use shared endpoint helpers with Local-network-first, service-network fallback address selection, default to IPv4, and may explicitly select IPv6; broader Kubo runtime behavior still needs validation before a full support claim. |
 | Botnet | Compatible | Binding-based C2/dropper URLs use shared node-address and URL helpers, preserve the first-interface IPv4 default, and may explicitly select bracketed IPv6 URLs; BYOB client/server runtime behavior and DGA endpoints still need validation before a full support claim. |

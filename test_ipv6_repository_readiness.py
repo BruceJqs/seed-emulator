@@ -19,6 +19,8 @@ from seedemu.core import (
     getNodeAddress,
     getNodeAddresses,
     getNodePreferredAddress,
+    nodeHasAddress,
+    nodeHasAddressInPrefix,
     normalizeAddressFamily,
     normalizeAddressList,
     normalizeAddressRecord,
@@ -851,6 +853,29 @@ def test_address_record_normalizer_handles_dns_a_aaaa_literals():
     assert normalizeAddressRecord(" web6 aaaa 2000:0:2:0:0:0:0:71 ") == "web6 AAAA 2000:0:2::71"
     assert normalizeAddressRecord("txt TXT  2000:0:2:0:0:0:0:71") == "txt TXT  2000:0:2:0:0:0:0:71"
     assert normalizeAddressRecord(" ns1. NS a.root.example. ", trimNonAddressRecord=True) == "ns1. NS a.root.example."
+
+
+def test_node_address_match_helpers_cover_ipv4_and_ipv6():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    host = as2.createHost("dual").joinNetwork(
+        "net0",
+        address="10.2.0.71",
+        ipv6Address="2000:0:2::71",
+    )
+
+    emu.addLayer(base)
+    emu.render()
+
+    assert nodeHasAddress(host, " 10.2.0.71 ")
+    assert nodeHasAddress(host, " 2000:0:2:0:0:0:0:71 ")
+    assert nodeHasAddressInPrefix(host, " 10.2.0.0/24 ")
+    assert nodeHasAddressInPrefix(host, " 2000:0:2::/64 ")
+    assert not nodeHasAddress(host, "2000:0:2::72")
+    assert not nodeHasAddressInPrefix(host, "2000:0:3::/64")
 
 
 def test_address_family_normalizer_accepts_common_padded_values():

@@ -1,13 +1,6 @@
 from __future__ import annotations
 from contextlib import contextmanager
-from ipaddress import (
-    IPv4Address,
-    IPv4Network,
-    IPv6Address,
-    IPv6Network,
-    ip_address,
-    ip_network,
-)
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_address, ip_network
 import os
 import re
 import secrets
@@ -23,7 +16,7 @@ from seedemu.utilities import BuildtimeDockerImage
 if TYPE_CHECKING:
     from seedemu.services.WebService import WebServer
     from seedemu.core import Node, Filter
-from seedemu.core import AddressFamily, Service, Server, formatUrl, getInterfaceAddress
+from seedemu.core import Service, Server, formatUrl, nodeHasAddress, nodeHasAddressInPrefix
 
 CaFileTemplates: Dict[str, str] = {}
 
@@ -86,38 +79,6 @@ def ipsInNetwork(ips: Iterable, network: str) -> bool:
     return False
 
 
-def _nodeAddresses(node: Node, family: AddressFamily) -> List:
-    addresses = []
-    for iface in node.getInterfaces():
-        address = getInterfaceAddress(iface, family)
-        if address is not None:
-            addresses.append(address)
-    return addresses
-
-
-def _nodeHasAddress(node: Node, address: str) -> bool:
-    requested = ip_address(address)
-    family = (
-        AddressFamily.IPv4
-        if isinstance(requested, IPv4Address)
-        else AddressFamily.IPv6
-    )
-    return any(
-        ip_address(str(candidate)) == requested
-        for candidate in _nodeAddresses(node, family)
-    )
-
-
-def _nodeHasAddressInPrefix(node: Node, prefix: str) -> bool:
-    network = ip_network(prefix)
-    family = (
-        AddressFamily.IPv4
-        if isinstance(network, IPv4Network)
-        else AddressFamily.IPv6
-    )
-    return any(address in network for address in _nodeAddresses(node, family))
-
-
 def _nodeMatchesFilter(node: Node, filter: Filter) -> bool:
     if filter.asn is not None and filter.asn != node.getAsn():
         return False
@@ -131,7 +92,7 @@ def _nodeMatchesFilter(node: Node, filter: Filter) -> bool:
         if ip is not None
     ]
     for requested_ip in requested_ips:
-        if not _nodeHasAddress(node, requested_ip):
+        if not nodeHasAddress(node, requested_ip):
             return False
 
     requested_prefixes = [
@@ -140,7 +101,7 @@ def _nodeMatchesFilter(node: Node, filter: Filter) -> bool:
         if prefix is not None
     ]
     for requested_prefix in requested_prefixes:
-        if not _nodeHasAddressInPrefix(node, requested_prefix):
+        if not nodeHasAddressInPrefix(node, requested_prefix):
             return False
 
     return filter.custom is None or filter.custom(node.getName(), node)

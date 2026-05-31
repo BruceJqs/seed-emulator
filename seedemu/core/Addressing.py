@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from ipaddress import ip_address
+from ipaddress import ip_address, ip_network
 from typing import Iterable, List, Optional, TYPE_CHECKING, Tuple, Union
 
 from .enums import NetworkType
@@ -79,6 +79,30 @@ def hasInterfaceAddress(iface: "Interface", family: Union[AddressFamily, str, in
     """Check if an interface has an address for the requested address family."""
 
     return getInterfaceAddress(iface, family) is not None
+
+
+def nodeHasAddress(node: "Node", address: Union[str, object]) -> bool:
+    """Check whether a node has an IPv4 or IPv6 address literal."""
+
+    requested = ip_address(str(address).strip())
+    family = AddressFamily.IPv4 if requested.version == 4 else AddressFamily.IPv6
+    for iface in node.getInterfaces():
+        iface_addr = getInterfaceAddress(iface, family)
+        if iface_addr is not None and str(iface_addr) == str(requested):
+            return True
+    return False
+
+
+def nodeHasAddressInPrefix(node: "Node", prefix: Union[str, object]) -> bool:
+    """Check whether any node address is inside an IPv4 or IPv6 prefix."""
+
+    network = ip_network(str(prefix).strip())
+    family = AddressFamily.IPv4 if network.version == 4 else AddressFamily.IPv6
+    for iface in node.getInterfaces():
+        iface_addr = getInterfaceAddress(iface, family)
+        if iface_addr is not None and iface_addr in network:
+            return True
+    return False
 
 
 def _getNodeAddressCandidates(node: "Node"):

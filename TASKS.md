@@ -74,6 +74,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - `Filter` / `Binding` candidate matching uses shared interface address
   helpers and preserves mixed legacy `ip` / explicit IPv4/IPv6 prefix AND
   matching semantics;
+- node address/prefix matching helpers are shared by `Binding` and CA
+  certificate-install filters instead of duplicating address-family logic;
 - `Filter` / `Binding` address and prefix selectors tolerate padded IPv4/IPv6
   literals and CIDRs without changing their match semantics;
 - service network compile output remains IPv4-only by default, becomes
@@ -194,8 +196,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   bracketed IPv6 URLs when requested; BYOB client/server runtime behavior and
   DGA endpoint handling still need validation before a support claim.
 - CA `installCACert(Filter(...))` target selection now matches IPv4 and IPv6
-  address/prefix filters through shared interface address helpers while keeping
-  the existing default of installing on all nodes.
+  address/prefix filters through shared node address/prefix helpers while
+  keeping the existing default of installing on all nodes.
 - Web/CA ACME directory URLs now route through shared URL helpers, preserve
   domain-name defaults, and bracket explicit IPv6 CA endpoint literals; Web
   HTTPS and ACME runtime behavior still need validation before a support claim.
