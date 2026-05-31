@@ -69,6 +69,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - late `Base.enableIpv6()` claims existing explicit prefixes before future
   automatic allocation;
 - `Filter` / `Binding` can require explicit IPv4 and IPv6 matches together;
+- `Filter` / `Binding` candidate matching uses shared interface address
+  helpers and preserves mixed legacy `ip` / explicit IPv4/IPv6 prefix AND
+  matching semantics;
 - service network compile output remains IPv4-only by default, becomes
   dual-stack only when `serviceNetworkIpv6Prefix` is set, and emits
   per-node `ipv6_address` only for interfaces carrying IPv6 state;

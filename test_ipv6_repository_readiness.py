@@ -990,6 +990,39 @@ def test_binding_filter_requires_all_explicit_ipv4_and_ipv6_matches():
     assert by_mismatched_pair.getCandidate("svc", emu, peek=True) is None
 
 
+def test_binding_filter_matches_mixed_legacy_and_explicit_address_family_fields():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("dual").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+    as2.createHost("ipv4-only").joinNetwork("net0", address="10.2.0.72", ipv6Address=None)
+
+    emu.addLayer(base)
+    emu.render()
+
+    legacy_ipv4_with_ipv6_prefix = Binding(
+        "svc",
+        action=Action.FIRST,
+        filter=Filter(ip="10.2.0.71", ipv6Prefix="2000:0:2::/64"),
+    )
+    legacy_ipv6_with_ipv4_prefix = Binding(
+        "svc",
+        action=Action.FIRST,
+        filter=Filter(ip="2000:0:2::71", ipv4Prefix="10.2.0.0/24"),
+    )
+    missing_ipv6 = Binding(
+        "svc",
+        action=Action.FIRST,
+        filter=Filter(ip="10.2.0.72", ipv6Prefix="2000:0:2::/64"),
+    )
+
+    assert legacy_ipv4_with_ipv6_prefix.getCandidate("svc", emu, peek=True).getName() == "dual"
+    assert legacy_ipv6_with_ipv4_prefix.getCandidate("svc", emu, peek=True).getName() == "dual"
+    assert missing_ipv6.getCandidate("svc", emu, peek=True) is None
+
+
 def test_binding_new_can_create_ipv6_selected_host():
     emu = Emulator()
     base = Base(enableIpv6=True)

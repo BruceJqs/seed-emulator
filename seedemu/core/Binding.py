@@ -4,6 +4,7 @@ from .Emulator import Emulator
 from .Node import Node
 from .Filter import Filter
 from .BaseSystem import BaseSystem
+from .Addressing import AddressFamily, getInterfaceAddress
 from enum import Enum
 from typing import List
 from ipaddress import ip_address, ip_network
@@ -284,9 +285,10 @@ class Binding(Printable):
             ip_miss = False
             for requested_ip in requested_ip_filters:
                 requested_addr = ip_address(requested_ip)
+                family = AddressFamily.IPv4 if requested_addr.version == 4 else AddressFamily.IPv6
                 has_match = False
                 for iface in node.getInterfaces():
-                    iface_addr = iface.getAddress() if requested_addr.version == 4 else iface.getIpv6Address()
+                    iface_addr = getInterfaceAddress(iface, family)
                     if iface_addr is not None and str(iface_addr) == str(requested_addr):
                         has_match = True
                         break
@@ -309,8 +311,9 @@ class Binding(Printable):
             for requested_prefix in requested_prefix_filters:
                 has_match = False
                 net = ip_network(requested_prefix)
+                family = AddressFamily.IPv4 if net.version == 4 else AddressFamily.IPv6
                 for iface in node.getInterfaces():
-                    iface_addr = iface.getAddress() if net.version == 4 else iface.getIpv6Address()
+                    iface_addr = getInterfaceAddress(iface, family)
                     if iface_addr is not None and iface_addr in net:
                         has_match = True
                         break
