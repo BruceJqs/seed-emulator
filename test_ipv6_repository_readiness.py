@@ -1425,6 +1425,28 @@ def test_core_ipv6_topology_inputs_normalize_padded_and_bracketed_prefixes():
     assert str(svc_net.getIpv6Prefix()) == "fd00:66::/64"
 
 
+def test_explicit_interface_addresses_use_shared_literal_normalization():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    host = as2.createHost("host").joinNetwork(
+        "net0",
+        address=" 10.2.0.71 ",
+        ipv6Address=" [2000:0:2:0:0:0:0:71] ",
+    )
+
+    emu.addLayer(base)
+    emu.render()
+
+    iface = host.getInterfaces()[0]
+    assert str(iface.getAddress()) == "10.2.0.71"
+    assert str(iface.getIpv6Address()) == "2000:0:2::71"
+    assert iface.getAddress().version == 4
+    assert iface.getIpv6Address().version == 6
+
+
 def test_service_network_stays_ipv4_only_without_explicit_ipv6_prefix(tmp_path):
     emu = Emulator()
     base = Base()

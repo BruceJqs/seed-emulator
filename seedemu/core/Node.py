@@ -576,7 +576,7 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
             '''.format(iface=net.getName()))
             self.appendStartCommand('chmod +x dhclient.sh; ./dhclient.sh')
 
-        else: _addr = IPv4Address(address)
+        else: _addr = IPv4Address(normalizeAddressList([address])[0])
 
         if ipv6Address == None:
             _ipv6_addr = None
@@ -584,7 +584,7 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
             _ipv6_addr = net.assignIpv6(self.__role, self.__asn) if net.hasIpv6Prefix() else None
         else:
             assert net.hasIpv6Prefix(), "can't assign IPv6 address on network {} without an IPv6 prefix".format(net.getName())
-            _ipv6_addr = IPv6Address(str(ipv6Address).strip())
+            _ipv6_addr = IPv6Address(normalizeAddressList([ipv6Address])[0])
             assert _ipv6_addr in net.getIpv6Prefix(), "IPv6 address {} is not in network {}".format(_ipv6_addr, net.getIpv6Prefix())
 
         _iface = Interface(net)

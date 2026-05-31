@@ -71,6 +71,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - explicit IPv6 root, AS/IX network, route-server, service-network, and
   interface topology inputs tolerate padded literals, bracketed IPv6 literals,
   and CIDRs through shared normalization helpers;
+- explicit IPv4/IPv6 interface address inputs route through shared address
+  literal normalization while keeping `getAddress()` as IPv4 and
+  `getIpv6Address()` as IPv6;
 - `Filter` / `Binding` can require explicit IPv4 and IPv6 matches together;
 - `Filter` / `Binding` candidate matching uses shared interface address
   helpers and preserves mixed legacy `ip` / explicit IPv4/IPv6 prefix AND

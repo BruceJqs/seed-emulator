@@ -121,6 +121,9 @@ Repository-level IPv6 work should keep these checks green:
   explicit AS/IX prefixes, including late `Base.enableIpv6()` migration paths;
   explicit root, AS/IX, and service-network IPv6 prefixes use shared prefix
   normalization so padded and bracketed CIDR inputs behave consistently.
+- Explicit interface IPv4/IPv6 address inputs use shared address literal
+  normalization while preserving `getAddress()` as IPv4 and
+  `getIpv6Address()` as IPv6.
 - Service network and custom containers compile as IPv4-only by default and
   dual-stack only when IPv6 is provided; service-network interface opt-out,
   custom container attachments, and custom Internet Map attachments without an

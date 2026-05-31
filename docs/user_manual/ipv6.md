@@ -96,6 +96,11 @@ as150.createHost("legacy").joinNetwork("net0", ipv6Address=None)
 as150.createHost("fixed").joinNetwork("net0", ipv6Address="2000:0:150::71")
 ```
 
+Explicit IPv4 and IPv6 interface address literals are normalized before being
+stored. Padded values and bracketed IPv6 literals such as
+`ipv6Address="[2000:0:150::71]"` are accepted, while `getAddress()` remains the
+IPv4 accessor and `getIpv6Address()` remains the IPv6 accessor.
+
 ## Routing
 
 The routing layers remain intent based. `Ebgp`, `Ibgp`, and `Ospf` record
