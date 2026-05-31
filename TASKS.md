@@ -104,7 +104,7 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   for padded aliases instead of interpreting family strings locally;
 - authoritative DNS and `/etc/hosts` keep IPv4-only defaults and emit AAAA only
   when IPv6 interface state exists; manual authoritative A/AAAA records
-  normalize explicit IPv4/IPv6 address literals;
+  normalize explicit IPv4/IPv6 address literals on add/delete;
 - reverse DNS keeps the existing IPv4 `in-addr.arpa.` PTR generation and adds
   `ip6.arpa.` PTR records only for interfaces carrying IPv6 state;
 - DNS cache root hints and forward zones preserve IPv4 while accepting IPv6

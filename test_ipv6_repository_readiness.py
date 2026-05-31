@@ -1765,6 +1765,20 @@ def test_dns_manual_a_aaaa_records_normalize_address_literals():
     assert "web6 aaaa 2000:0:2:0:0:0:0:71" not in records
 
 
+def test_dns_manual_a_aaaa_record_deletion_uses_normalized_address_literals():
+    zone = DomainNameService().getZone("example.")
+
+    zone.addRecord(" web6 aaaa 2000:0:2:0:0:0:0:71 ")
+    zone.addRecord("txt TXT  2000:0:2:0:0:0:0:71")
+    zone.deleteRecord("web6 AAAA 2000:0:2::71")
+    zone.deleteRecord("txt TXT  2000:0:2:0:0:0:0:71")
+
+    records = zone.getRecords()
+
+    assert "web6 AAAA 2000:0:2::71" not in records
+    assert "txt TXT  2000:0:2:0:0:0:0:71" not in records
+
+
 def test_dns_manual_master_ips_trim_padded_addresses():
     emu = Emulator()
     base = Base()

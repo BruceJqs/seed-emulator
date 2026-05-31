@@ -105,7 +105,7 @@ class Zone(Printable):
         
         @returns self, for chaining API calls.
         """
-        self.__records.remove(record)
+        self.__records.remove(self.__normalizeAddressRecord(record))
 
         return self
 
