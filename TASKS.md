@@ -120,6 +120,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - Looking Glass frontend-to-proxy URLs now route through shared URL helpers,
   default to IPv4, and explicitly select bracketed IPv6 proxy URLs with
   `setProxyAddressFamily(AddressFamily.IPv6)`.
+- BGP and OSPF intent address-family parsing now reuses the shared core
+  address-family normalizer, keeping protocol layers backend-neutral while
+  accepting the same explicit IPv4/IPv6 family aliases as services.
 
 Useful runtime checks:
 

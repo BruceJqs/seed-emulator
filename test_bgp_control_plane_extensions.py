@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import socket
 import subprocess
 import sys
 
@@ -10,6 +11,7 @@ import pytest
 from seedemu.compiler import Docker, Platform
 from seedemu.core import AddressFamily, Binding, Emulator, Filter
 from seedemu.layers import Base, Ebgp, FrrBgp, Ibgp, Ospf, PeerRelationship, Routing
+from seedemu.layers._bgp_metadata import get_ospf_interface_intents, normalize_bgp_families, set_ospf_interface_intents
 from seedemu.services import BgpLookingGlassService, ExaBgpService
 
 
@@ -39,6 +41,22 @@ def _compiled_output_text(output_dir: Path) -> str:
         if path.is_file():
             chunks.append(path.read_text(encoding="utf-8", errors="replace"))
     return "\n".join(chunks)
+
+
+def test_bgp_and_ospf_intents_use_shared_address_family_normalizer():
+    assert normalize_bgp_families({"families": ["inet", "AF_INET6", socket.AF_INET6]}) == ["ipv4", "ipv6"]
+    assert normalize_bgp_families({"family": AddressFamily.IPv6}) == ["ipv6"]
+    assert normalize_bgp_families({}) == ["ipv4"]
+
+    emu = Emulator()
+    base = Base()
+    base.createAutonomousSystem(2).createRouter("r1")
+    emu.addLayer(base)
+    emu.render()
+
+    router = emu.getRegistry().get("2", "rnode", "r1")
+    set_ospf_interface_intents(router, ["net0"], ["dummy0"], families=[socket.AF_INET, "inet6"])
+    assert get_ospf_interface_intents(router)["families"] == ["ipv4", "ipv6"]
 
 
 def test_ipv6_enablement_is_project_level_and_opt_in():

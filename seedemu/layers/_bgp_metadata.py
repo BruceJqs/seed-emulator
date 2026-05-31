@@ -3,7 +3,7 @@ from __future__ import annotations
 from ipaddress import ip_address
 from typing import Any, Dict, Iterable, List, Tuple
 
-from seedemu.core import Router
+from seedemu.core import AddressFamily, Router, normalizeAddressFamily
 from seedemu.core.enums import NetworkType
 
 
@@ -123,17 +123,15 @@ def normalize_bgp_families(session: Dict[str, Any]) -> List[str]:
             local = str(session.get("local_address") or "").strip()
             peer = str(session.get("peer_address") or "").strip()
             raw = [_infer_family(local)] if local and peer else [BGP_FAMILY_IPV4]
-    if isinstance(raw, str):
+    if isinstance(raw, (AddressFamily, int, str)):
         raw = [raw]
     families: List[str] = []
     for family in raw:
-        value = str(family or "").strip().lower()
-        if value in {"4", "ipv4", "inet"}:
-            value = BGP_FAMILY_IPV4
-        if value in {"6", "ipv6", "inet6"}:
-            value = BGP_FAMILY_IPV6
-        if value not in {BGP_FAMILY_IPV4, BGP_FAMILY_IPV6}:
+        try:
+            selected = normalizeAddressFamily(family)
+        except ValueError:
             raise ValueError(f"unsupported BGP address family: {family}")
+        value = BGP_FAMILY_IPV6 if selected == AddressFamily.IPv6 else BGP_FAMILY_IPV4
         if value not in families:
             families.append(value)
     if not families:
