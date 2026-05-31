@@ -22,6 +22,8 @@ from seedemu.core import (
 from seedemu.core.enums import NodeRole
 from seedemu.layers import Base, EtcHosts
 from seedemu.services import (
+    BotnetClientService,
+    BotnetService,
     CAServer,
     ChainlinkService,
     Blockchain,
@@ -218,6 +220,38 @@ def _render_tor_host(name: str, address: str = "10.2.0.80", ipv6Address: str = "
     emu.render()
 
     return emu.getRegistry().get("2", "hnode", name)
+
+
+def _render_botnet_endpoint_topology(family=AddressFamily.IPv4):
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base(enableIpv6=True)
+    botnet = BotnetService()
+    botnet_client = BotnetClientService()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    (
+        as2.createHost("c2")
+        .joinNetwork("000_svc", address="192.168.66.71", ipv6Address="fd00:66::71")
+        .joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+    )
+    as2.createHost("client").joinNetwork("net0", address="10.2.0.72", ipv6Address="2000:0:2::72")
+
+    botnet.install("c2-vnode").setEndpointAddressFamily(family)
+    botnet_client.install("client-vnode").setServer("c2-vnode")
+    emu.addBinding(Binding("c2-vnode", filter=Filter(asn=2, nodeName="c2"), action=Action.FIRST))
+    emu.addBinding(Binding("client-vnode", filter=Filter(asn=2, nodeName="client"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(botnet)
+    emu.addLayer(botnet_client)
+    emu.getServiceNetwork()
+    emu.render()
+
+    return (
+        emu.getRegistry().get("2", "hnode", "c2"),
+        emu.getRegistry().get("2", "hnode", "client"),
+    )
 
 
 def _render_monero_endpoint_topology(family=AddressFamily.IPv4):
@@ -621,6 +655,40 @@ def test_tor_hidden_service_backend_targets_use_shared_endpoint_helpers():
     assert "export TOR_HS_PORT=8080" in ipv6_commands
     assert "export TOR_HS_TARGET=[2000:0:2::80]:8080" in ipv6_commands
     assert "export TOR_HS_TARGET=2000:0:2::80:8080" not in ipv6_commands
+
+
+def test_botnet_dropper_endpoint_defaults_to_ipv4_url_helper():
+    c2, client = _render_botnet_endpoint_topology()
+
+    client_commands = _start_commands(client)
+    runner = _file_content(client, "/tmp/byob_client_dropper_runner")
+
+    assert c2.getAttribute("botnet_addr") == "192.168.66.71"
+    assert c2.getAttribute("botnet_port") == 446
+    assert (
+        c2.getAttribute("botnet_dropper_url")
+        == "http://192.168.66.71:446/clients/droppers/client.py"
+    )
+    assert 'url="$3"' in runner
+    assert "http://192.168.66.71:446/clients/droppers/client.py" in client_commands
+    assert "http://10.2.0.71:446/clients/droppers/client.py" not in client_commands
+    assert "2000:0:2::71" not in client_commands
+
+
+def test_botnet_dropper_endpoint_can_select_ipv6_url_helper():
+    c2, client = _render_botnet_endpoint_topology(AddressFamily.IPv6)
+
+    c2_commands = _start_commands(c2)
+    client_commands = _start_commands(client)
+
+    assert c2.getAttribute("botnet_addr") == "fd00:66::71"
+    assert (
+        c2.getAttribute("botnet_dropper_url")
+        == "http://[fd00:66::71]:446/clients/droppers/client.py"
+    )
+    assert '/tmp/byob_server_init_script "fd00:66::71" "445"' in c2_commands
+    assert "http://[fd00:66::71]:446/clients/droppers/client.py" in client_commands
+    assert "http://fd00:66::71:446/clients/droppers/client.py" not in client_commands
 
 
 def test_explicit_ipv6_prefixes_are_claimed_and_auto_allocation_skips_them():

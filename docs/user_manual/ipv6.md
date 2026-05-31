@@ -141,8 +141,9 @@ Current categories:
   OSPFv3, ExaBGP, Looking Glass;
 - baseline dual-stack: DNS authoritative records and `/etc/hosts`;
 - compatible but not fully migrated: DNS cache, Web/CA, traffic wrappers,
-  Kubo bootstrap endpoints, Monero seed/RPC endpoint formatting, Chainlink
-  generated URL formatting, Ethereum faucet/utility HTTP URL formatting;
+  Kubo bootstrap endpoints, Botnet C2/dropper endpoint formatting, Monero
+  seed/RPC endpoint formatting, Chainlink generated URL formatting, Ethereum
+  faucet/utility HTTP URL formatting;
 - IPv4-first pending design: Email; Tor remains IPv4-first with
   directory-authority downloader and hidden-service backend target formatting
   guarded by shared endpoint helpers;
@@ -157,6 +158,13 @@ Kubo bootstrap endpoints preserve IPv4 defaults. For explicit IPv6 bootstrap
 RPC URLs and peer multiaddrs, use
 `KuboService(bootstrapAddressFamily=AddressFamily.IPv6)` or
 `setBootstrapAddressFamily(AddressFamily.IPv6)`.
+
+Botnet C2/dropper endpoints preserve the existing first-interface IPv4
+default. In a dual-stack emulation, call
+`BotnetServer.setEndpointAddressFamily(AddressFamily.IPv6)` to generate a
+bracketed IPv6 dropper URL for binding-based clients. BYOB client/server
+runtime behavior and DGA endpoints have not been validated as full IPv6
+support.
 
 CA certificate installation filters accept IPv4 and IPv6 address/prefix
 selectors. For example, `installCACert(Filter(ipv6="2000:0:3::72"))` installs
