@@ -16,7 +16,15 @@ from seedemu.utilities import BuildtimeDockerImage
 if TYPE_CHECKING:
     from seedemu.services.WebService import WebServer
     from seedemu.core import Node, Filter
-from seedemu.core import Service, Server, formatUrl, nodeHasAddress, nodeHasAddressInPrefix
+from seedemu.core import (
+    Service,
+    Server,
+    formatUrl,
+    nodeHasAddress,
+    nodeHasAddressInPrefix,
+    normalizeAddressList,
+    normalizePrefix,
+)
 
 CaFileTemplates: Dict[str, str] = {}
 
@@ -60,7 +68,7 @@ def ipsInNetwork(ips: Iterable, network: str) -> bool:
 
     @returns True if any of the IPs is in the network, False otherwise.
     """
-    net = ip_network(network)
+    net = ip_network(normalizePrefix(network))
     map6to4 = int(IPv6Address("::ffff:0:0"))
     if isinstance(net, IPv4Network):
         net = IPv6Network(
@@ -71,7 +79,7 @@ def ipsInNetwork(ips: Iterable, network: str) -> bool:
             f"{IPv6Address(map6to4 | int(net.network_address))}/{96 + net.prefixlen}"
         )
     for ip in ips:
-        ip = ip_address(ip)
+        ip = ip_address(normalizeAddressList([ip])[0])
         if isinstance(ip, IPv4Address):
             ip = IPv6Address(map6to4 | int(ip))
         if ip in net:

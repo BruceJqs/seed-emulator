@@ -204,7 +204,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   DGA endpoint handling still need validation before a support claim.
 - CA `installCACert(Filter(...))` target selection now matches IPv4 and IPv6
   address/prefix filters through shared node address/prefix helpers while
-  keeping the existing default of installing on all nodes.
+  keeping the existing default of installing on all nodes; CA IP/network helper
+  parsing also reuses shared address and prefix normalization for padded and
+  bracketed IPv6 literals.
 - Web/CA ACME directory URLs now route through shared URL helpers, preserve
   domain-name defaults, and bracket explicit IPv6 CA endpoint literals; Web
   HTTPS and ACME runtime behavior still need validation before a support claim.

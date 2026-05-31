@@ -53,6 +53,7 @@ from seedemu.services import (
     TrafficServiceType,
     WebServer,
 )
+from seedemu.services.CAService import ipsInNetwork
 from seedemu.services.EthereumService.EthTemplates import (
     FaucetServerFileTemplates,
     format_faucet_fund_url,
@@ -879,6 +880,13 @@ def test_node_address_match_helpers_cover_ipv4_and_ipv6():
     assert nodeHasAddressInPrefix(host, " [2000:0:2::]/64 ")
     assert not nodeHasAddress(host, "2000:0:2::72")
     assert not nodeHasAddressInPrefix(host, "2000:0:3::/64")
+
+
+def test_ca_ip_network_helper_reuses_shared_address_normalization():
+    assert ipsInNetwork([" 10.2.0.71 "], " 10.2.0.0/24 ")
+    assert ipsInNetwork([" [2000:0:2:0:0:0:0:71] "], " [2000:0:2::] / 64 ")
+    assert ipsInNetwork(["10.2.0.71"], " ::ffff:10.2.0.0/120 ")
+    assert not ipsInNetwork([" [2000:0:3::71] "], " [2000:0:2::] / 64 ")
 
 
 def test_address_family_normalizer_accepts_common_padded_values():
