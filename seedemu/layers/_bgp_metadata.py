@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from ipaddress import ip_address
 from typing import Any, Dict, Iterable, List, Tuple
 
-from seedemu.core import AddressFamily, Router, normalizeAddressFamily
+from seedemu.core import AddressFamily, Router, normalizeAddressFamily, normalizeAddressList
 from seedemu.core.enums import NetworkType
 
 
@@ -111,7 +110,14 @@ def _normalize_export_policy(policy: Any) -> str:
 
 
 def _infer_family(address: str) -> str:
-    return BGP_FAMILY_IPV6 if ip_address(str(address)).version == 6 else BGP_FAMILY_IPV4
+    return BGP_FAMILY_IPV6 if ":" in _normalize_bgp_address(address) else BGP_FAMILY_IPV4
+
+
+def _normalize_bgp_address(address: Any) -> str:
+    value = str(address or "").strip()
+    if not value:
+        return ""
+    return normalizeAddressList([value])[0]
 
 
 def normalize_bgp_families(session: Dict[str, Any]) -> List[str]:
@@ -145,10 +151,10 @@ def normalize_bgp_session(session: Dict[str, Any]) -> Dict[str, Any]:
     if kind not in {BGP_KIND_EBGP, BGP_KIND_IBGP}:
         raise ValueError(f"unsupported BGP session kind: {kind}")
 
-    local_address = str(session.get("local_address") or "").strip()
-    peer_address = str(session.get("peer_address") or "").strip()
-    local_ipv6_address = str(session.get("local_ipv6_address") or "").strip()
-    peer_ipv6_address = str(session.get("peer_ipv6_address") or "").strip()
+    local_address = _normalize_bgp_address(session.get("local_address"))
+    peer_address = _normalize_bgp_address(session.get("peer_address"))
+    local_ipv6_address = _normalize_bgp_address(session.get("local_ipv6_address"))
+    peer_ipv6_address = _normalize_bgp_address(session.get("peer_ipv6_address"))
     local_asn = int(session.get("local_asn") or 0)
     peer_asn = int(session.get("peer_asn") or 0)
     families = normalize_bgp_families(session)

@@ -11,7 +11,13 @@ import pytest
 from seedemu.compiler import Docker, Platform
 from seedemu.core import AddressFamily, Binding, Emulator, Filter
 from seedemu.layers import Base, Ebgp, FrrBgp, Ibgp, Ospf, PeerRelationship, Routing
-from seedemu.layers._bgp_metadata import get_ospf_interface_intents, normalize_bgp_families, set_ospf_interface_intents
+from seedemu.layers._bgp_metadata import (
+    get_ospf_interface_intents,
+    normalize_bgp_families,
+    normalize_bgp_session,
+    render_bird_protocol_body,
+    set_ospf_interface_intents,
+)
 from seedemu.services import BgpLookingGlassService, ExaBgpService
 
 
@@ -57,6 +63,31 @@ def test_bgp_and_ospf_intents_use_shared_address_family_normalizer():
     router = emu.getRegistry().get("2", "rnode", "r1")
     set_ospf_interface_intents(router, ["net0"], ["dummy0"], families=[socket.AF_INET, "inet6"])
     assert get_ospf_interface_intents(router)["families"] == ["ipv4", "ipv6"]
+
+
+def test_bgp_session_address_literals_use_shared_normalizer():
+    session = normalize_bgp_session(
+        {
+            "name": "manual_v6",
+            "kind": "ebgp",
+            "local_address": " [2000:0:2::1] ",
+            "peer_address": " [2000:0:2::2] ",
+            "local_asn": 2,
+            "peer_asn": 3,
+        }
+    )
+
+    assert session["families"] == ["ipv6"]
+    assert session["local_address"] == ""
+    assert session["peer_address"] == ""
+    assert session["local_ipv6_address"] == "2000:0:2::1"
+    assert session["peer_ipv6_address"] == "2000:0:2::2"
+
+    bird = render_bird_protocol_body(session)
+    assert "local 2000:0:2::1 as 2;" in bird
+    assert "neighbor 2000:0:2::2 as 3;" in bird
+    assert "[2000:0:2::1]" not in bird
+    assert "[2000:0:2::2]" not in bird
 
 
 def test_ipv6_enablement_is_project_level_and_opt_in():

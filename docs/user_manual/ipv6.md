@@ -117,6 +117,10 @@ When IPv6 is present:
   peering network;
 - Looking Glass can report IPv4 and IPv6 route-state separately.
 
+Manual BGP session intent accepts the same address-family aliases and address
+literal normalization as services. Padded IPv4/IPv6 values and bracketed IPv6
+literals are canonicalized before BIRD/FRR/ExaBGP config is rendered.
+
 See [routing.md](./routing.md) for backend selection and
 [IPv6 Addressing and Control Plane Design](../designs/ipv6-control-plane-design.md)
 for the design boundary.

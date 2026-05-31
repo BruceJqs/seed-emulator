@@ -165,7 +165,9 @@ Base / AS / IX
 ```
 
 Protocol layers do not write daemon-specific IPv6 syntax. BIRD and FRR syntax
-stays in `Routing`.
+stays in `Routing`. Manual BGP session intent still goes through shared
+address-family and address-literal normalization, so padded or bracketed IPv6
+inputs are canonicalized before `Routing` renders daemon config.
 
 ## Docker Compiler
 

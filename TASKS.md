@@ -154,7 +154,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   reuses the shared core normalizer for padded aliases.
 - BGP and OSPF intent address-family parsing now reuses the shared core
   address-family normalizer, keeping protocol layers backend-neutral while
-  accepting the same explicit IPv4/IPv6 family aliases as services.
+  accepting the same explicit IPv4/IPv6 family aliases as services; manual BGP
+  session address literals also route through shared address normalization so
+  padded and bracketed IPv6 inputs do not leak into rendered daemon config.
 
 Useful runtime checks:
 
