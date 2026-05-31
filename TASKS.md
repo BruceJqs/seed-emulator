@@ -106,10 +106,10 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 
 Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 
-- endpoint helper tests cover IPv4, IPv6, padded host literals, DNS names, URL
-  paths, bracketed IPv6 host inputs, bracketed IPv6 authorities with ports,
-  explicit-port override for legacy IPv4, DNS-name, and bracketed IPv6
-  authorities, query-only and fragment-only URL components, and padded
+- endpoint helper tests cover `formatHost`, IPv4, IPv6, padded host literals,
+  DNS names, URL paths, bracketed IPv6 host inputs, bracketed IPv6 authorities
+  with ports, explicit-port override for legacy IPv4, DNS-name, and bracketed
+  IPv6 authorities, query-only and fragment-only URL components, and padded
   multiaddr formatting;
 - service-author documentation now records the IPv4-first address API contract
   and the shared helper rule for URL, host-port, multiaddr, and node-address

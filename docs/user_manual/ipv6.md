@@ -292,6 +292,7 @@ from seedemu.core import (
     getNodePreferredAddress,
     nodeHasAddress,
     nodeHasAddressInPrefix,
+    formatHost,
     formatHostPort,
     formatUrl,
     formatMultiaddr,
@@ -301,15 +302,15 @@ from seedemu.core import (
 )
 ```
 
-Use `formatHostPort()` or `formatUrl()` instead of manually concatenating
-`host:port`, because IPv6 literals need brackets in URLs. Use
-`formatUrl()` with separate host and port arguments when possible; if a legacy
-path already passes a bracketed IPv6 authority such as `[2000::1]:8443`, the
-helper preserves the authority and canonicalizes the literal. When a caller
-also supplies a separate port, that separate port is used instead of any port
-embedded in a legacy IPv4, DNS-name, or bracketed IPv6 authority. URL paths
-that start with `?` or `#` are treated as query or fragment components instead
-of being rewritten as path segments. Use
+Use `formatHost()`, `formatHostPort()`, or `formatUrl()` instead of manually
+concatenating host strings or `host:port`, because IPv6 literals need brackets
+in URLs. Use `formatUrl()` with separate host and port arguments when possible;
+if a legacy path already passes a bracketed IPv6 authority such as
+`[2000::1]:8443`, the helper preserves the authority and canonicalizes the
+literal. When a caller also supplies a separate port, that separate port is
+used instead of any port embedded in a legacy IPv4, DNS-name, or bracketed IPv6
+authority. URL paths that start with `?` or `#` are treated as query or
+fragment components instead of being rewritten as path segments. Use
 `formatMultiaddr()` when generating IPFS/libp2p multiaddrs. Use
 `getNodeAddress()`, `getNodePreferredAddress()`, or `getNodeAddresses()` when a
 service needs stable Local-network-first address selection with service-network

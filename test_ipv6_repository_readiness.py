@@ -15,6 +15,7 @@ from seedemu.core import (
     Node,
     Server,
     Service,
+    formatHost,
     formatHostPort,
     formatMultiaddr,
     formatUrl,
@@ -889,6 +890,10 @@ def _render_ethereum_pos_helper_endpoint_topology(family=AddressFamily.IPv4):
 
 
 def test_endpoint_helpers_format_ipv6_safely():
+    assert formatHost(" 10.0.0.1 ") == "10.0.0.1"
+    assert formatHost(" 2000::1 ") == "[2000::1]"
+    assert formatHost(" [2000:0:0::1]:8443 ") == "[2000::1]:8443"
+    assert formatHost(" example.test ") == "example.test"
     assert formatHostPort("10.0.0.1", 80) == "10.0.0.1:80"
     assert formatHostPort(" 10.0.0.1 ", 80) == "10.0.0.1:80"
     assert formatHostPort("2000::1", 80) == "[2000::1]:80"

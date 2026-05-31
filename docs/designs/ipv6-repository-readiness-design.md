@@ -36,7 +36,8 @@ Dual-stack aware code should use the explicit IPv6 APIs or the shared helpers:
 
 - `Network.hasIpv6Prefix()` / `Network.getIpv6Prefix()`.
 - `Interface.hasIpv6Address()` / `Interface.getIpv6Address()`.
-- `AddressFamily`, `getInterfaceAddress(...)`, `formatHostPort(...)`,
+- `AddressFamily`, `getInterfaceAddress(...)`, `formatHost(...)`,
+  `formatHostPort(...)`,
   `getNodeAddress(...)`, `getNodeAddresses(...)`, `getNodePreferredAddress(...)`,
   `nodeHasAddress(...)`, `nodeHasAddressInPrefix(...)`, `formatUrl(...)`,
   `formatMultiaddr(...)`, `normalizeAddressList(...)`, `normalizePrefix(...)`, and
