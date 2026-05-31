@@ -19,7 +19,7 @@ class InternetExchange(Printable, Configurable):
     __rs: Node
     __name: str
 
-    def __init__(self, id: int, prefix: str = "auto", aac: AddressAssignmentConstraint = None, create_rs = True, rsAddress = None, ipv6Prefix = None, rsIpv6Address = "auto"):
+    def __init__(self, id: int, prefix: str = "auto", aac: AddressAssignmentConstraint = None, create_rs = True, rsAddress = None, ipv6Prefix = None, rsIpv6Address = "auto", ipv6PrefixIntent = None):
         """!
         @brief InternetExchange constructor.
 
@@ -41,7 +41,14 @@ class InternetExchange(Printable, Configurable):
             ipv6_network = ipv6Prefix if isinstance(ipv6Prefix, IPv6Network) else IPv6Network(ipv6Prefix)
 
         self.__name = 'ix{}'.format(str(self.__id))
-        self.__net = Network(self.__name, NetworkType.InternetExchange, network, aac, False, ipv6_network)
+        if ipv6PrefixIntent is not None:
+            ipv6_intent = ipv6PrefixIntent
+        elif ipv6Prefix is None:
+            ipv6_intent = None
+        else:
+            ipv6_intent = "explicit"
+
+        self.__net = Network(self.__name, NetworkType.InternetExchange, network, aac, False, ipv6_network, ipv6_intent)
 
         if create_rs:
             self.__rs = Router(self.__name, NodeRole.RouteServer, self.__id) 

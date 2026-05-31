@@ -32,6 +32,17 @@ base.createInternetExchange(100)
 base.createInternetExchange(101)
 ```
 
+The default flow is IPv4-only. To make the same topology dual stack, enable
+IPv6 on the base layer before rendering:
+
+```python
+base = Base(enableIpv6=True)
+```
+
+or build the topology first and call `base.enableIpv6()` before `emu.render()`.
+See [IPv6 dual-stack emulation](./ipv6.md) for the address plan and per-network
+overrides.
+
 <a id="create-stub-as"></a>
 ## Create stub autonomous systems
 

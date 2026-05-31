@@ -17,6 +17,14 @@ This file records the branch-level design rules we want future SEED Emulator con
 - Preserve old public methods where possible. Add IPv6-specific accessors instead of changing IPv4 return values.
 - Keep examples additive when testing a new branch-level capability. Do not weaken existing A12-A14 regression examples.
 
+## Addressing
+
+- Treat IPv6 as topology state owned by `Base` and core objects, not as example-local configuration.
+- Keep IPv6 root prefixes explicit and inspectable. The default root is `2000::/12`; the reserved infrastructure prefix is `2000:ffff::/48`.
+- Keep automatic IPv6 allocation deterministic: `/48` per AS, `/64` per local network, `/64` per IX LAN.
+- Track explicit IPv6 prefixes that fall under the configured root so later automatic allocation cannot collide with them.
+- Keep per-network opt-out (`ipv6Prefix=None`) and per-interface opt-out (`ipv6Address=None`) available for mixed migration scenarios.
+
 ## Validation
 
 - Generated config is not enough. Runtime evidence must include daemon processes, neighbor state, learned routes, and observable route-state/event surfaces.

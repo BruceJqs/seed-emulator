@@ -24,6 +24,14 @@ For example, for `AS150`, the first network is `10.150.0.0/24`, and the second o
 is `10.150.1.0/24`. For Internet exchanges, the `{id}` part is always `0`.
 For example, the default prefix of `IX100` is `10.100.0.0/24`.
 
+IPv6 is not enabled by default. When the base layer enables optional IPv6,
+local AS networks also receive IPv6 prefixes. The default IPv6 root prefix is
+`2000::/12`; each AS receives a stable `/48`, and each local network receives a
+stable `/64` under that AS prefix. The old IPv4 methods keep returning IPv4
+objects, so use `Network.getIpv6Prefix()` and `Interface.getIpv6Address()` for
+IPv6 state. See [IPv6 dual-stack emulation](./ipv6.md) for the complete
+addressing model.
+
 
 When a node is added to a network, the IP address for the host
 is assigned with `AddressAssignmentConstraint`.
@@ -57,6 +65,15 @@ as350 = base.createAutonomousSystem(350)
 as350.createNetwork(name='net0', prefix = '128.230.0.0/16')
 ```
 
+IPv6 prefixes can be overridden independently from IPv4 prefixes:
+
+```python
+base = Base(enableIpv6=True)
+as350 = base.createAutonomousSystem(350)
+as350.createNetwork(name='net0', prefix='128.230.0.0/16', ipv6Prefix='2000:0:350::/64')
+as350.createNetwork(name='v4only', prefix='128.231.0.0/16', ipv6Prefix=None)
+```
+
 <a name="overwrite-default-host-ip"></a>
 ## Overwrite the Default IP addresses Assignment
 
@@ -73,8 +90,13 @@ provide an IP address:
 as350.createRouter('router0').joinNetwork('net0').joinNetwork('ix100', '10.100.0.35')
 ```
 
+For IPv6, keep the IPv4 address argument unchanged and use `ipv6Address`:
+
+```python
+as350.createRouter('router0').joinNetwork('ix100', address='10.100.0.35', ipv6Address='2000:8:0:100::350')
+```
+
 We may alternatively implement our own `AddressAssignmentConstraint` class
 instead. Both `createInternetExchange` and `createNetwork` accept the `aac`
 argument, which will alter the auto address assignment behavior. For details,
 please refer to the API documentation.
-

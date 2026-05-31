@@ -1,6 +1,6 @@
 # A15: IPv6 Dual-Stack BGP Control Plane
 
-This example mirrors the mixed BIRD/FRR control-plane shape from A12, but enables optional IPv6 addressing from `Base(enableIpv6=True)`.
+This example mirrors the mixed BIRD/FRR control-plane shape from A12, but enables optional IPv6 addressing from `Base(enableIpv6=True)`. It is a validation scenario for the simulator-level IPv6 design, not the boundary of IPv6 support.
 
 What it proves:
 
@@ -14,7 +14,7 @@ Run:
 ```bash
 PYTHONPATH=. python3 examples/basic/A15_bgp_ipv6_dual_stack/bgp_ipv6_dual_stack.py
 cd examples/basic/A15_bgp_ipv6_dual_stack/output
-COMPOSE_PROJECT_NAME=seed_a15_ipv6 docker compose up -d --build
+COMPOSE_PROJECT_NAME=seed_a15_ipv6 docker-compose up -d --build
 ```
 
 Checks:
@@ -36,5 +36,5 @@ docker exec "$BIRD_AS152" birdc show route all
 Cleanup:
 
 ```bash
-COMPOSE_PROJECT_NAME=seed_a15_ipv6 docker compose down -v
+COMPOSE_PROJECT_NAME=seed_a15_ipv6 docker-compose down -v
 ```

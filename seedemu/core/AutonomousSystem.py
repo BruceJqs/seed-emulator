@@ -57,6 +57,13 @@ class AutonomousSystem(Printable, Graphable, Configurable, Customizable):
         @returns self, for chaining API calls.
         """
         self.__ipv6_addressing = ipv6Addressing
+        if self.__ipv6_addressing is not None:
+            for net in self.__nets.values():
+                if net.hasIpv6Prefix() and net.getIpv6PrefixIntent() != "auto":
+                    self.__ipv6_addressing.reserveAsNetworkPrefix(self.__asn, net.getIpv6Prefix())
+            for net in self.__nets.values():
+                if net.getIpv6PrefixIntent() == "auto" and not net.hasIpv6Prefix():
+                    net.setIpv6Prefix(self.__ipv6_addressing.nextAsNetworkPrefix(self.__asn))
         return self
 
 
@@ -207,8 +214,11 @@ class AutonomousSystem(Printable, Graphable, Configurable, Customizable):
                 ipv6_network = self.__ipv6_addressing.nextAsNetworkPrefix(self.__asn) if self.__ipv6_addressing is not None else None
             else:
                 ipv6_network = IPv6Network(ipv6Prefix)
+                if self.__ipv6_addressing is not None:
+                    self.__ipv6_addressing.reserveAsNetworkPrefix(self.__asn, ipv6_network)
         assert name not in self.__nets, 'Network with name {} already exist.'.format(name)
-        self.__nets[name] = Network(name, NetworkType.Local, network, aac, direct, ipv6_network)
+        ipv6_intent = ipv6Prefix if ipv6Prefix in ("auto", None) else "explicit"
+        self.__nets[name] = Network(name, NetworkType.Local, network, aac, direct, ipv6_network, ipv6_intent)
 
         return self.__nets[name]
 

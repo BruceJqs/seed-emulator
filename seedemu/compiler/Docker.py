@@ -9,7 +9,7 @@ from hashlib import md5
 from functools import cmp_to_key
 from os import mkdir, chdir
 from re import sub
-from ipaddress import IPv4Network, IPv4Address
+from ipaddress import IPv4Network, IPv4Address, IPv6Network
 from shutil import copyfile
 import json
 from yaml import dump
@@ -339,6 +339,7 @@ class Docker(Compiler):
     __naming_scheme: str
     __self_managed_network: bool
     __dummy_network_pool: Generator[IPv4Network, None, None]
+    __dummy_ipv6_network_pool: Generator[IPv6Network, None, None]
 
 
     __internet_map_enabled: bool
@@ -366,6 +367,8 @@ class Docker(Compiler):
         selfManagedNetwork: bool = False,
         dummyNetworksPool: str = '10.128.0.0/9',
         dummyNetworksMask: int = 24,
+        dummyIpv6NetworksPool: str = 'fd00:ffff::/48',
+        dummyIpv6NetworksMask: int = 64,
         internetMapEnabled: bool = True,
         internetMapPort: int = 8080,
         etherViewEnabled: bool = False,
@@ -395,6 +398,10 @@ class Docker(Compiler):
         loopback IP addresses. Default to 10.128.0.0/9.
         @param dummyNetworksMask (optional) mask of dummy networks. Default to
         24.
+        @param dummyIpv6NetworksPool (optional) dummy IPv6 networks pool for
+        self-managed dual-stack networks. Default to fd00:ffff::/48.
+        @param dummyIpv6NetworksMask (optional) mask of dummy IPv6 networks.
+        Default to 64.
         @param internetMapEnabled (optional) set if seedemu internetMap should be enabled.
         Default to False. Note that the seedemu internetMap allows unauthenticated
         access to all nodes, which can potentially allow root access to the
@@ -413,6 +420,7 @@ class Docker(Compiler):
         self.__naming_scheme = namingScheme
         self.__self_managed_network = selfManagedNetwork
         self.__dummy_network_pool = IPv4Network(dummyNetworksPool).subnets(new_prefix = dummyNetworksMask)
+        self.__dummy_ipv6_network_pool = IPv6Network(dummyIpv6NetworksPool).subnets(new_prefix = dummyIpv6NetworksMask)
 
         self.__internet_map_enabled = internetMapEnabled
         self.__internet_map_port = internetMapPort
@@ -970,12 +978,32 @@ class Docker(Compiler):
                     node.getAsn(), node.getName()
                 ))
 
+            ipv6_address = iface.getIpv6Address() if iface.hasIpv6Address() else None
+            if self.__self_managed_network and net.getType() != NetworkType.Bridge and iface.hasIpv6Address():
+                d6_index: int = net.getAttribute('dummy_ipv6_prefix_index')
+                d6_prefix: IPv6Network = net.getAttribute('dummy_ipv6_prefix')
+                d6_address = d6_prefix[d6_index]
+
+                net.setAttribute('dummy_ipv6_prefix_index', d6_index + 1)
+
+                dummy_addr_map += '{}/{},{}/{}\n'.format(
+                    d6_address, d6_prefix.prefixlen,
+                    iface.getIpv6Address(), iface.getNet().getIpv6Prefix().prefixlen
+                )
+
+                ipv6_address = d6_address
+
+                self._log('using self-managed network: using dummy address {}/{} for {}/{} on as{}/{}'.format(
+                    d6_address, d6_prefix.prefixlen, iface.getIpv6Address(), iface.getNet().getIpv6Prefix().prefixlen,
+                    node.getAsn(), node.getName()
+                ))
+
             address_entries = ""
             if address != None:
                 address_entries += DockerCompilerFileTemplates['compose_service_network_address'].format(address = address)
-            if iface.hasIpv6Address():
+            if ipv6_address is not None:
                 address_entries += DockerCompilerFileTemplates['compose_service_network_ipv6_address'].format(
-                    address=iface.getIpv6Address()
+                    address=ipv6_address
                 )
 
             node_nets += DockerCompilerFileTemplates['compose_service_network'].format(
@@ -1278,13 +1306,19 @@ class Docker(Compiler):
             net.setAttribute('dummy_prefix', pfx)
             net.setAttribute('dummy_prefix_index', 2)
             self._log('self-managed network: using dummy prefix {}'.format(pfx))
+            if net.hasIpv6Prefix():
+                pfx6 = next(self.__dummy_ipv6_network_pool)
+                net.setAttribute('dummy_ipv6_prefix', pfx6)
+                net.setAttribute('dummy_ipv6_prefix_index', 2)
+                self._log('self-managed network: using dummy IPv6 prefix {}'.format(pfx6))
 
 
         ipv6_ipam = ""
         enable_ipv6 = ""
-        if net.hasIpv6Prefix() and not self.__self_managed_network:
+        if net.hasIpv6Prefix():
+            ipv6_prefix = net.getAttribute('dummy_ipv6_prefix') if self.__self_managed_network and net.getType() != NetworkType.Bridge else net.getIpv6Prefix()
             enable_ipv6 = DockerCompilerFileTemplates['compose_network_enable_ipv6']
-            ipv6_ipam = DockerCompilerFileTemplates['compose_network_ipv6_ipam'].format(prefix=net.getIpv6Prefix())
+            ipv6_ipam = DockerCompilerFileTemplates['compose_network_ipv6_ipam'].format(prefix=ipv6_prefix)
 
         return DockerCompilerFileTemplates['compose_network'].format(
             netId = self._getRealNetName(net),

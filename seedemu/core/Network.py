@@ -18,6 +18,7 @@ class Network(Printable, Registrable, Vertex):
     __type: NetworkType
     __prefix: IPv4Network
     __ipv6_prefix: IPv6Network
+    __ipv6_prefix_intent: str
     __name: str
     __scope: str
     __aac: AddressAssignmentConstraint
@@ -40,7 +41,7 @@ class Network(Printable, Registrable, Vertex):
     __rap: RemoteAccessProvider
     __ecp: ExternalConnectivityProvider
 
-    def __init__(self, name: str, type: NetworkType, prefix: IPv4Network, aac: AddressAssignmentConstraint = None, direct: bool = False, ipv6Prefix: IPv6Network = None):
+    def __init__(self, name: str, type: NetworkType, prefix: IPv4Network, aac: AddressAssignmentConstraint = None, direct: bool = False, ipv6Prefix: IPv6Network = None, ipv6PrefixIntent: str = None):
         """!
         @brief Network constructor.
 
@@ -59,6 +60,7 @@ class Network(Printable, Registrable, Vertex):
         self.__type = type
         self.__prefix = prefix
         self.__ipv6_prefix = ipv6Prefix
+        self.__ipv6_prefix_intent = ipv6PrefixIntent
         self.__aac = aac if aac != None else AddressAssignmentConstraint()
         self.__assigners = {}
         self.__ipv6_assigners = {}
@@ -216,6 +218,24 @@ class Network(Printable, Registrable, Vertex):
         @returns IPv6 prefix, or None when IPv6 is disabled.
         """
         return self.__ipv6_prefix
+
+    def setIpv6Prefix(self, prefix: IPv6Network) -> Network:
+        """!
+        @brief Set IPv6 prefix of this network.
+
+        @param prefix IPv6 prefix.
+        @returns self, for chaining API calls.
+        """
+        self.__ipv6_prefix = prefix
+        return self
+
+    def getIpv6PrefixIntent(self) -> str:
+        """!
+        @brief Get IPv6 prefix intent used by the Base layer.
+
+        @returns auto, explicit, or None.
+        """
+        return self.__ipv6_prefix_intent
 
     def setHostIpRange(self, hostStart:int , hostEnd: int, hostStep: int):
         """!

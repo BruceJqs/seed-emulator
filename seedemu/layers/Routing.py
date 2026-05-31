@@ -1,5 +1,5 @@
 from seedemu.core import (ScopedRegistry, Node, Interface, Network, Emulator,
-                          Layer, Router, BaseSystem,
+                          Layer, Router, BaseSystem, DEFAULT_IPV6_INFRA_PREFIX,
                           promote_to_real_world_router)
 from seedemu.core.enums import NetworkType
 from typing import Dict, List, Set, Tuple
@@ -494,7 +494,7 @@ class Routing(Layer):
     _loopback_pos: int
     _loopback_ipv6_pos: int
 
-    def __init__(self, loopback_range: str = '10.0.0.0/16', loopback_ipv6_range: str = '2000:ffff::/48'):
+    def __init__(self, loopback_range: str = '10.0.0.0/16', loopback_ipv6_range: str = DEFAULT_IPV6_INFRA_PREFIX):
         """!
         @brief Routing layer constructor.
 

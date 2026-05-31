@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from seedemu.compiler import Docker, Platform
 from seedemu.core import Binding, Emulator, Filter
 from seedemu.layers import Base, Ebgp, FrrBgp, Ibgp, Ospf, PeerRelationship, Routing
@@ -37,6 +39,99 @@ def _compiled_output_text(output_dir: Path) -> str:
         if path.is_file():
             chunks.append(path.read_text(encoding="utf-8", errors="replace"))
     return "\n".join(chunks)
+
+
+def test_ipv6_enablement_is_project_level_and_opt_in():
+    base = Base()
+    ix100 = base.createInternetExchange(100)
+    as2 = base.createAutonomousSystem(2)
+    net0 = as2.createNetwork("net0")
+
+    assert not base.isIpv6Enabled()
+    assert not ix100.getPeeringLan().hasIpv6Prefix()
+    assert not net0.hasIpv6Prefix()
+
+    base.enableIpv6()
+
+    assert str(base.getIpv6RootPrefix()) == "2000::/12"
+    assert "2000:ffff::/48" in [str(prefix) for prefix in base.getIpv6ReservedPrefixes()]
+    assert str(as2.getNetwork("net0").getIpv6Prefix()) == "2000:0:2::/64"
+    assert str(ix100.getPeeringLan().getIpv6Prefix()) == "2000:8:0:64::/64"
+
+
+def test_ipv6_network_level_opt_out_and_reserved_prefix():
+    base = Base(enableIpv6=True)
+    as65535 = base.createAutonomousSystem(65535)
+    net0 = as65535.createNetwork("net0", prefix="10.255.0.0/24")
+    v4_only = as65535.createNetwork("v4only", prefix="10.255.1.0/24", ipv6Prefix=None)
+
+    assert not v4_only.hasIpv6Prefix()
+    assert str(net0.getIpv6Prefix()) != "2000:ffff::/64"
+    assert not net0.getIpv6Prefix().subnet_of(base.getIpv6ReservedPrefixes()[0])
+
+
+def test_ipv6_explicit_prefixes_are_claimed_before_auto_allocation():
+    base = Base(enableIpv6=True)
+    as2 = base.createAutonomousSystem(2)
+
+    explicit = as2.createNetwork("explicit", ipv6Prefix="2000:0:2::/64")
+    auto = as2.createNetwork("auto")
+
+    assert str(explicit.getIpv6Prefix()) == "2000:0:2::/64"
+    assert explicit.getIpv6PrefixIntent() == "explicit"
+    assert str(auto.getIpv6Prefix()) == "2000:0:2:1::/64"
+    assert auto.getIpv6PrefixIntent() == "auto"
+
+
+def test_ipv6_explicit_interface_requires_network_prefix():
+    emu = Emulator()
+    base = Base()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("host0").joinNetwork("net0", ipv6Address="2000:0:2::71")
+
+    emu.addLayer(base)
+    with pytest.raises(AssertionError, match="without an IPv6 prefix"):
+        emu.render()
+
+
+def test_ipv6_explicit_interface_must_be_inside_network_prefix():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("host0").joinNetwork("net0", ipv6Address="2000:0:3::71")
+
+    emu.addLayer(base)
+    with pytest.raises(AssertionError, match="is not in network"):
+        emu.render()
+
+
+def test_docker_self_managed_network_supports_ipv6(tmp_path):
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createRouter("router0").joinNetwork("net0")
+    as2.createHost("host0").joinNetwork("net0")
+
+    emu.addLayer(base)
+    emu.addLayer(Routing())
+    emu.render()
+
+    output_dir = tmp_path / "self-managed-ipv6"
+    emu.compile(Docker(selfManagedNetwork=True, platform=Platform.AMD64), str(output_dir), override=True)
+
+    compose = (output_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    output_text = _compiled_output_text(output_dir)
+    assert "enable_ipv6: true" in compose
+    assert "fd00:ffff::/64" in compose
+    assert "ipv6_address:" in compose
+    assert "/dummy_addr_map.txt" in output_text
+    assert "2000:0:2::" in output_text
 
 
 def test_frr_bgp_layer_renders_frr_config_for_selected_router():
@@ -87,7 +182,7 @@ def test_frr_bgp_layer_renders_frr_config_for_selected_router():
     frr_conf = _file_content(r2, "/etc/frr/frr.conf")
     assert "router bgp 2" in frr_conf
     assert "neighbor" in frr_conf
-    assert "RM_CONNECTED_TO_BGP" in frr_conf
+    assert "RM_CONNECTED4_TO_BGP" in frr_conf
     assert "LC_LOCAL_OR_CUSTOMER" in frr_conf
     assert "router ospf" in frr_conf
     assert "interface net0" in frr_conf
@@ -309,7 +404,7 @@ def test_frr_bgp_respects_ospf_stub_intent():
     assert "ip ospf passive" in frr_conf
 
 
-def test_bgp_looking_glass_fails_fast_on_frr_router():
+def test_bgp_looking_glass_supports_frr_router_route_state():
     emu = Emulator()
     base = Base()
     routing = Routing()
@@ -334,12 +429,17 @@ def test_bgp_looking_glass_fails_fast_on_frr_router():
     emu.addLayer(frr_bgp)
     emu.addLayer(looking_glass)
 
-    try:
-        emu.render()
-    except AssertionError as exc:
-        assert "Bird routers only" in str(exc)
-    else:
-        raise AssertionError("BgpLookingGlassService should fail fast on FRR routers")
+    emu.render()
+
+    reg = emu.getRegistry()
+    lg = reg.get("2", "hnode", "lg")
+    router = reg.get("2", "rnode", "router0")
+
+    proxy = _file_content(router, "/opt/seed-lg/proxy.py")
+    assert "show bgp summary" in proxy
+    assert "show ip ospf neighbor" in proxy
+    assert any("SEED_LG_BACKEND=\"frr\"" in cmd for cmd, _ in router.getStartCommands())
+    assert any("python3 /opt/seed-lg/frontend.py" in cmd for cmd, _ in lg.getStartCommands())
 
 
 def test_new_bgp_examples_compile_outputs_exist():

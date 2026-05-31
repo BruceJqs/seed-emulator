@@ -14,6 +14,16 @@ on a single host.
 emu.compile(Docker(), './output/regular-docker')
 ```
 
+If optional IPv6 is enabled in the topology, the Docker compiler emits
+dual-stack networks only where the SEED network object has an IPv6 prefix. The
+generated compose file includes `enable_ipv6: true`, IPv6 IPAM subnets, and
+service-level `ipv6_address` entries for those networks.
+
+For `Docker(selfManagedNetwork=True)`, the compiler allocates dummy IPv4 and
+IPv6 subnets and rewrites them inside each container at startup. This keeps the
+self-managed network mode compatible with dual-stack emulations while preserving
+the default IPv4-only behavior for old scenarios.
+
 ## Distributed Docker (`DistributedDocker`) compiler
 
 ```python

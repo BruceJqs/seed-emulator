@@ -2,6 +2,7 @@
 
 This example installs the classic Looking Glass frontend on an AS2 host and observes both a FRR router and an IX-facing BIRD router in a dual-stack topology.
 The frontend talks to router-local proxy processes over the SEED service management network; route-state still comes from BIRD/FRR, and the ExaBGP event dashboard remains separate.
+It validates IPv6 route-state observability for the simulator-level IPv6 design.
 
 Run:
 

@@ -22,6 +22,16 @@ renders the daemon-specific configuration for each router backend.
 
 `frr` is used for routers whose control plane should be rendered as FRRouting.
 
+When optional IPv6 is enabled on `Base`, the same backend choice applies to both
+address families. Protocol layers continue to record routing intent, and
+`Routing` renders the daemon-specific IPv4 and IPv6 configuration:
+
+- BIRD receives IPv6 tables and IPv6 BGP/OSPFv3 protocol blocks when the router
+  has IPv6 interfaces.
+- FRR receives `address-family ipv6 unicast` and OSPFv3 configuration when the
+  router has IPv6 sessions or OSPFv3 intent.
+- OSPFv2 and OSPFv3 use separate routing tables and daemon syntax.
+
 ExaBGP is modeled separately as a control-plane speaker service. It can be
 installed on a host that directly joins an IX or router-facing link, then bound
 with the normal service `Binding` mechanism:
@@ -46,6 +56,19 @@ At runtime, ExaBGP speakers expose ExaBGP's native CLI pipes
 FIFO (`/run/exabgp/live.in`) for live announce and withdraw commands. The
 current ExaBGP path is intended for eBGP announcement, observation, and event
 workflows, not as a full OSPF/iBGP transit router.
+
+If the ExaBGP speaker and peer router share IPv6 on the peering network,
+IPv6 announcements can be added through the same API:
+
+```python
+exabgp.install("as180_exabgp") \
+    .setLocalAsn(180) \
+    .addPeer("router0", router_asn=2) \
+    .addAnnouncement("2000:b400:100::/64")
+```
+
+The broader IPv6 addressing model is documented in
+[IPv6 dual-stack emulation](./ipv6.md).
 
 
 <a name="ibgp-ospf-protocol"></a>

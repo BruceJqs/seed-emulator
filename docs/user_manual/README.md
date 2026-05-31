@@ -8,6 +8,7 @@ This document provides a portal to those examples.
   - [Create an emulator: the overall flow](./overall_flow.md)
   - [Autonomous system](./as.md)
   - [Internet exchange](./internet_exchange.md)
+  - [IPv6 dual-stack emulation](./ipv6.md)
   - [BGP routers and Peering](./bgp.md) 
   - [Routing](./routing.md) 
   - [Node customization](./node.md): install software, add startup command, 

@@ -1,13 +1,13 @@
 # A16: ExaBGP IPv6 Control Plane
 
-This example keeps ExaBGP as a service installed through `ExaBgpService + Binding`. The service peers on the IX LAN and announces an IPv6 prefix to a BIRD router.
+This example keeps ExaBGP as a service installed through `ExaBgpService + Binding`. The service peers on the IX LAN and announces an IPv6 prefix to a BIRD router. It validates the simulator-level IPv6 service boundary: ExaBGP is an IPv6-capable control-plane speaker, not a router backend replacement.
 
 Run:
 
 ```bash
 PYTHONPATH=. python3 examples/basic/A16_exabgp_ipv6_control_plane/exabgp_ipv6_control_plane.py
 cd examples/basic/A16_exabgp_ipv6_control_plane/output
-COMPOSE_PROJECT_NAME=seed_a16_exabgp_ipv6 docker compose up -d --build
+COMPOSE_PROJECT_NAME=seed_a16_exabgp_ipv6 docker-compose up -d --build
 ```
 
 Checks:
@@ -36,5 +36,5 @@ docker exec "$EXA" sh -lc 'tail -n 40 /var/log/exabgp/live-control.log; tail -n 
 Cleanup:
 
 ```bash
-COMPOSE_PROJECT_NAME=seed_a16_exabgp_ipv6 docker compose down -v
+COMPOSE_PROJECT_NAME=seed_a16_exabgp_ipv6 docker-compose down -v
 ```

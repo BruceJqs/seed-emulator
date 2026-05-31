@@ -582,7 +582,9 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         elif ipv6Address == "auto":
             _ipv6_addr = net.assignIpv6(self.__role, self.__asn) if net.hasIpv6Prefix() else None
         else:
+            assert net.hasIpv6Prefix(), "can't assign IPv6 address on network {} without an IPv6 prefix".format(net.getName())
             _ipv6_addr = IPv6Address(ipv6Address)
+            assert _ipv6_addr in net.getIpv6Prefix(), "IPv6 address {} is not in network {}".format(_ipv6_addr, net.getIpv6Prefix())
 
         _iface = Interface(net)
         _iface.setAddress(_addr)
