@@ -100,6 +100,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   paths, and padded multiaddr formatting;
 - address-family normalization accepts common user-facing and socket-family
   spellings such as `ipv4`, `ip6`, `inet`, and `AF_INET6`;
+- migrated service endpoint address-family APIs reuse the shared normalizer
+  for padded aliases instead of interpreting family strings locally;
 - authoritative DNS and `/etc/hosts` keep IPv4-only defaults and emit AAAA only
   when IPv6 interface state exists;
 - reverse DNS keeps the existing IPv4 `in-addr.arpa.` PTR generation and adds

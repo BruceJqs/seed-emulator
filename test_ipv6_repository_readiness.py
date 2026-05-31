@@ -598,7 +598,7 @@ def _render_ethereum_endpoint_topology(family=AddressFamily.IPv4):
 
     blockchain = object.__new__(Blockchain)
     blockchain.setEndpointAddressFamily(family)
-    assert blockchain.getEndpointAddressFamily() == family
+    assert blockchain.getEndpointAddressFamily() == normalizeAddressFamily(family)
     eth_address = blockchain._Blockchain__getIpByVnodeName(emu, "eth-vnode")
     faucet_address = blockchain._Blockchain__getIpByVnodeName(emu, "faucet-vnode")
 
@@ -845,6 +845,38 @@ def test_address_family_normalizer_accepts_common_padded_values():
     assert normalizeAddressFamily(socket.AF_INET) == AddressFamily.IPv4
     assert normalizeAddressFamily(socket.AF_INET6) == AddressFamily.IPv6
     assert normalizeAddressFamily(AddressFamily.IPv6) == AddressFamily.IPv6
+
+
+def test_service_endpoint_family_apis_reuse_shared_normalizer():
+    assert KuboService(bootstrapAddressFamily=" inet6 ")._bootstrap_address_family == AddressFamily.IPv6
+    assert KuboService().setBootstrapAddressFamily(" AF_INET6 ")._bootstrap_address_family == AddressFamily.IPv6
+
+    traffic = TrafficService()
+    generator = traffic.install("generator-vnode", TrafficServiceType.IPERF_GENERATOR)
+    generator.addReceiverVnodes(["receiver-vnode"], family=" ip6 ")
+    assert generator.receiver_vnodes == [("receiver-vnode", AddressFamily.IPv6, True)]
+
+    botnet_server = BotnetService().install("c2-vnode").setEndpointAddressFamily(" inet6 ")
+    assert botnet_server._BotnetServer__endpoint_address_family == AddressFamily.IPv6
+
+    monero_chain = MoneroService().createBlockchain("normalizer-monero")
+    assert monero_chain.setEndpointAddressFamily(" AF_INET6 ")._defaults.endpoint_address_family == AddressFamily.IPv6
+
+    chainlink = ChainlinkService(endpointAddressFamily=" v6 ")
+    chainlink.setEndpointAddressFamily(" inet6 ")
+    assert chainlink._ChainlinkService__endpoint_address_family == AddressFamily.IPv6
+
+    ethereum = object.__new__(Blockchain)
+    ethereum.setEndpointAddressFamily(" ip6 ")
+    assert ethereum.getEndpointAddressFamily() == AddressFamily.IPv6
+
+    faucet_util = FaucetUtil(endpointAddressFamily=" AF_INET6 ")
+    faucet_util.setEndpointAddressFamily(" inet6 ")
+    assert faucet_util._FaucetUtil__endpoint_address_family == AddressFamily.IPv6
+
+    tor_server = TorService().install("hs-vnode").setRole(TorNodeType.HS)
+    tor_server.linkByVnode("backend-vnode", 8080, family=" ip6 ")
+    assert tor_server.getLinkAddressFamily() == AddressFamily.IPv6
 
 
 def test_ethereum_faucet_template_legacy_keys_remain_ipv4_compatible():
