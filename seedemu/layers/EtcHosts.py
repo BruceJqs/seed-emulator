@@ -1,6 +1,7 @@
 from seedemu.core import Emulator, Layer, Node
 from seedemu.core.enums import NetworkType
 from typing import List
+from ipaddress import ip_address
 
 class EtcHosts(Layer):
     """!
@@ -24,19 +25,26 @@ class EtcHosts(Layer):
 
     def __getAllIpAddress(self, node: Node) -> list:
         """!
-        @brief Get the IP address of the local interface for this node.
+        @brief Get local IPv4 and IPv6 addresses for this node.
         """
         addresses = []
         for iface in node.getInterfaces():
-            address = iface.getAddress()
             if iface.getNet().getType() == NetworkType.Bridge:
                 pass
             if iface.getNet().getType() == NetworkType.InternetExchange:
                 pass
             else:
-                addresses.append(address)
+                if iface.getAddress() is not None:
+                    addresses.append(str(iface.getAddress()))
+                if iface.hasIpv6Address():
+                    addresses.append(str(iface.getIpv6Address()))
 
         return addresses
+
+    def __addressSortKey(self, entry: str):
+        address = entry.split()[0]
+        parsed = ip_address(address)
+        return (parsed.version, int(parsed))
 
     def _getSupportedNodeTypes(self) -> List[str]:
         if self._only_hosts:
@@ -55,7 +63,7 @@ class EtcHosts(Layer):
                     hosts_file_content.append(f"{address} {' '.join(node.getHostNames())}")
                 nodes.append(node)
 
-        sorted_hosts_file_content = sorted(hosts_file_content, key=lambda x: tuple(map(int, x.split()[0].split('.'))))
+        sorted_hosts_file_content = sorted(hosts_file_content, key=self.__addressSortKey)
 
         for node in nodes:
             node.setFile("/tmp/etc-hosts", '\n'.join(sorted_hosts_file_content))

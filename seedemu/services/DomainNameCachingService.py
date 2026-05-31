@@ -82,6 +82,39 @@ class DomainNameCachingServer(Server, Configurable):
         """
         return self.__root_servers
 
+    def __getPreferredLocalAddress(self, node: Node) -> str:
+        ifaces = node.getInterfaces()
+        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
+        local_ipv6 = None
+        fallback_ipv4 = None
+        fallback_ipv6 = None
+        for iface in ifaces:
+            net = iface.getNet()
+            if fallback_ipv4 is None and iface.getAddress() is not None:
+                fallback_ipv4 = iface.getAddress()
+            if fallback_ipv6 is None and iface.hasIpv6Address():
+                fallback_ipv6 = iface.getIpv6Address()
+            if net.getType() == NetworkType.Local:
+                if iface.getAddress() is not None:
+                    return iface.getAddress()
+                if iface.hasIpv6Address() and local_ipv6 is None:
+                    local_ipv6 = iface.getIpv6Address()
+        return local_ipv6 or fallback_ipv4 or fallback_ipv6
+
+    def __getFirstNodeAddress(self, node: Node) -> str:
+        ifaces = node.getInterfaces()
+        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
+        for iface in ifaces:
+            if iface.getAddress() is not None:
+                return iface.getAddress()
+        for iface in ifaces:
+            if iface.hasIpv6Address():
+                return iface.getIpv6Address()
+        return None
+
+    def __formatBindAddressList(self, addrs: List[str]) -> str:
+        return '; '.join([str(addr) for addr in addrs])
+
     def addForwardZone(self, zone: str, vnode: str) -> DomainNameCachingServer:
         """!
         @brief Add a new forward zone, forward to the given virtual node name.
@@ -106,15 +139,9 @@ class DomainNameCachingServer(Server, Configurable):
 
         reg = emulator.getRegistry()
         address: str = None
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        for iface in ifaces:
-            net = iface.getNet()
-            if net.getType() == NetworkType.Local:
-                address = iface.getAddress()
-                break
+        address = self.__getPreferredLocalAddress(node)
         
-        assert address != "", 'address is not configured.'
+        assert address is not None, 'address is not configured.'
 
         for ((scope, type, name), node) in reg.getAll().items():
             if type in ['hnode', 'rnode']:
@@ -150,7 +177,7 @@ class DomainNameCachingServer(Server, Configurable):
                     pnode = self.__emulator.getBindingFor(vnode_name)
                     ifaces = pnode.getInterfaces()
                     if len(ifaces) > 0:
-                        vnode_addr = ifaces[0].getAddress()
+                        vnode_addr = self.__getFirstNodeAddress(pnode)
                 except Exception:
                     pass
 
@@ -160,24 +187,19 @@ class DomainNameCachingServer(Server, Configurable):
                     for v in server_vnodes:
                         try:
                             pn = self.__emulator.getBindingFor(v)
-                            ifaces = pn.getInterfaces()
-                            if len(ifaces) > 0:
-                                addrs.append(ifaces[0].getAddress())
+                            addr = self.__getFirstNodeAddress(pn)
+                            if addr is not None:
+                                addrs.append(addr)
                         except Exception:
                             continue
                 except Exception:
                     pass
 
-            if vnode_addr is None and addrs:
-                vnode_addr = addrs[0]
-
             if vnode_addr is None:
                 # binding should already be resolved by now; use it directly
                 try:
                     pnode = self.__emulator.getBindingFor(vnode_name)
-                    ifaces = pnode.getInterfaces()
-                    assert len(ifaces) > 0, 'resolvePendingRecords(): node as{}/{} has no interfaces'.format(pnode.getAsn(), pnode.getName())
-                    vnode_addr = ifaces[0].getAddress()
+                    vnode_addr = self.__getFirstNodeAddress(pnode)
                 except Exception:
                     pass
 
@@ -196,12 +218,13 @@ class DomainNameCachingServer(Server, Configurable):
                     if typ in ['hnode', 'rnode'] and name == cand:
                         ifaces = obj.getInterfaces()
                         if len(ifaces) > 0:
-                            vnode_addr = ifaces[0].getAddress()
+                            vnode_addr = self.__getFirstNodeAddress(obj)
                             break
 
-            if vnode_addr is not None:
+            if vnode_addr is not None or addrs:
+                forwarders = addrs if addrs else [vnode_addr]
                 node.appendFile('/etc/bind/named.conf.local',
-                            'zone "{}" {{ type forward; forwarders {{ {}; }}; }};\n'.format(zone_name, vnode_addr))
+                            'zone "{}" {{ type forward; forwarders {{ {}; }}; }};\n'.format(zone_name, self.__formatBindAddressList(forwarders)))
 
         if not self.__configure_resolvconf: return
 
@@ -210,7 +233,7 @@ class DomainNameCachingServer(Server, Configurable):
         sr = ScopedRegistry(scope, reg)
         ifaces = node.getInterfaces()
         assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        addr = ifaces[0].getAddress()
+        addr = self.__getFirstNodeAddress(node)
 
         for rnode in sr.getByType('rnode'):
             rnode.appendFile('/etc/resolv.conf.new', 'nameserver {}\n'.format(addr))
@@ -257,13 +280,22 @@ class DomainNameCachingService(Service):
     def __getIpAddr(self, node:Node) -> str:
         ifaces = node.getInterfaces()
         assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
+        local_ipv6 = ""
+        fallback_ipv4 = ""
+        fallback_ipv6 = ""
         for iface in ifaces:
             net = iface.getNet()
+            if fallback_ipv4 == "" and iface.getAddress() is not None:
+                fallback_ipv4 = iface.getAddress()
+            if fallback_ipv6 == "" and iface.hasIpv6Address():
+                fallback_ipv6 = iface.getIpv6Address()
             if net.getType() == NetworkType.Local:
-                address = iface.getAddress()
-                return address
+                if iface.getAddress() is not None:
+                    return iface.getAddress()
+                if iface.hasIpv6Address() and local_ipv6 == "":
+                    local_ipv6 = iface.getIpv6Address()
             
-        return ""
+        return local_ipv6 or fallback_ipv4 or fallback_ipv6
     
     def configure(self, emulator: Emulator):
         super().configure(emulator)
