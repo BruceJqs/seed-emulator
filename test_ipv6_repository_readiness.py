@@ -1577,6 +1577,20 @@ def test_dns_resolve_to_node_keeps_first_interface_fallback_for_non_local_networ
     assert "web AAAA fd00:100::10" in records
 
 
+def test_dns_glue_records_use_parsed_address_family():
+    zone = DomainNameService().getZone("example.")
+
+    zone.addGuleRecord("ns1.example.", "10.2.0.53")
+    zone.addGuleRecord("ns2.example.", "2000:0:2::53")
+
+    glue_records = zone.getGuleRecords()
+    assert "ns1.example. A 10.2.0.53" in glue_records
+    assert "ns2.example. AAAA 2000:0:2::53" in glue_records
+    assert "ns1.example. NS ns1.example." not in glue_records
+    assert "example. NS ns1.example." in glue_records
+    assert "example. NS ns2.example." in glue_records
+
+
 def test_reverse_dns_keeps_ipv4_only_default():
     emu = Emulator()
     base = Base()

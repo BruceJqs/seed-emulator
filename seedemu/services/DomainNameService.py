@@ -3,6 +3,7 @@ from seedemu.core import Node, Printable, Emulator, Service, Server, getNodeAddr
 from typing import List, Dict, Tuple, Set
 from re import sub
 from random import randint
+from ipaddress import ip_address
 import requests
 
 DomainNameServiceFileTemplates: Dict[str, str] = {}
@@ -113,7 +114,7 @@ class Zone(Printable):
         """
         if fqdn[-1] != '.': fqdn += '.'
         zonename = self.__zonename if self.__zonename != '' else '.' 
-        family = 'AAAA' if ':' in str(addr) else 'A'
+        family = 'AAAA' if ip_address(str(addr)).version == 6 else 'A'
         address_record = '{} {} {}'.format(fqdn, family, addr)
         ns_record = '{} NS {}'.format(zonename, fqdn)
         if address_record not in self.__gules:
