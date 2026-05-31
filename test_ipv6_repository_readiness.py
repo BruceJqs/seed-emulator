@@ -380,6 +380,61 @@ def test_internet_map_attachment_accepts_ipv6_address(tmp_path):
     assert 'org.seedsecuritylabs.seedemu.meta.net.0.ipv6_address: "2000:0:2::81"' in output_text
 
 
+def test_internet_map_attachment_ipv4_only_does_not_emit_ipv6_fields(tmp_path):
+    emu = Emulator()
+    base = Base()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    emu.addLayer(base)
+    emu.render()
+
+    output_dir = tmp_path / "internet-map-ipv4"
+    docker = Docker(platform=Platform.AMD64)
+    docker.attachInternetMap(
+        asn=2,
+        net="net0",
+        ip_address="10.2.0.81",
+        show_on_map=True,
+        node_name="internet-map",
+    )
+    emu.compile(docker, str(output_dir), override=True)
+
+    output_text = _compiled_output_text(output_dir)
+    assert "container_name: internet-map" in output_text
+    assert "ipv4_address: 10.2.0.81" in output_text
+    assert "enable_ipv6" not in output_text
+    assert "ipv6_address" not in output_text
+    assert "ipv6_prefix" not in output_text
+
+
+def test_internet_map_attachment_on_dual_stack_network_requires_explicit_ipv6_address(tmp_path):
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    emu.addLayer(base)
+    emu.render()
+
+    output_dir = tmp_path / "internet-map-dual-stack-no-node-ipv6"
+    docker = Docker(platform=Platform.AMD64)
+    docker.attachInternetMap(
+        asn=2,
+        net="net0",
+        ip_address="10.2.0.81",
+        show_on_map=True,
+        node_name="internet-map",
+    )
+    emu.compile(docker, str(output_dir), override=True)
+
+    output_text = _compiled_output_text(output_dir)
+    assert "enable_ipv6: true" in output_text
+    assert "2000:0:2::/64" in output_text
+    assert "ipv4_address: 10.2.0.81" in output_text
+    assert "ipv6_address" not in output_text
+
+
 def test_default_ipv4_compile_does_not_emit_ipv6_fields(tmp_path):
     emu = Emulator()
     base = Base()
