@@ -4,7 +4,16 @@ import json
 from ipaddress import ip_network
 from typing import Dict, List, Optional, Tuple
 
-from seedemu.core import BaseSystem, Emulator, Node, ScopedRegistry, Server, Service
+from seedemu.core import (
+    AddressFamily,
+    BaseSystem,
+    Emulator,
+    Node,
+    ScopedRegistry,
+    Server,
+    Service,
+    getInterfaceAddress,
+)
 from seedemu.layers.Routing import Router
 from seedemu.layers._bgp_metadata import claim_external_bgp_backend, install_router_bgp_session, normalize_bgp_families
 
@@ -295,13 +304,15 @@ class ExaBgpServer(Server):
             for router_iface in router.getInterfaces():
                 if node_iface.getNet() != router_iface.getNet():
                     continue
-                local_address = str(node_iface.getAddress())
-                peer_address = str(router_iface.getAddress())
+                local_address = str(getInterfaceAddress(node_iface, AddressFamily.IPv4))
+                peer_address = str(getInterfaceAddress(router_iface, AddressFamily.IPv4))
                 local_ipv6_address = ""
                 peer_ipv6_address = ""
-                if node_iface.hasIpv6Address() and router_iface.hasIpv6Address():
-                    local_ipv6_address = str(node_iface.getIpv6Address())
-                    peer_ipv6_address = str(router_iface.getIpv6Address())
+                node_ipv6_address = getInterfaceAddress(node_iface, AddressFamily.IPv6)
+                router_ipv6_address = getInterfaceAddress(router_iface, AddressFamily.IPv6)
+                if node_ipv6_address is not None and router_ipv6_address is not None:
+                    local_ipv6_address = str(node_ipv6_address)
+                    peer_ipv6_address = str(router_ipv6_address)
                     return router, local_address, peer_address, local_ipv6_address, peer_ipv6_address
                 if fallback is None:
                     fallback = (local_address, peer_address, local_ipv6_address, peer_ipv6_address)
