@@ -38,6 +38,10 @@ Automatic allocation uses the following plan:
 - `2000:ffff::/48` is reserved for routing infrastructure, such as loopback
   addresses used by the `Routing` layer.
 
+User-provided IPv6 prefixes under the root are reserved before later automatic
+allocation. Overlapping explicit AS/IX prefixes are rejected, and automatic
+allocation skips claimed prefixes instead of reusing them.
+
 IPv6 address assignment follows the existing `AddressAssignmentConstraint`
 intent. Hosts use the host offset range, routers use the router offset range,
 and IX participants prefer ASN-derived offsets.

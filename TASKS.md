@@ -63,6 +63,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 
 - explicit IPv6 local prefixes are claimed and automatic `/64` allocation skips
   them;
+- reserved infrastructure prefixes and explicit IX prefixes are claimed so
+  automatic AS allocation cannot collide with them;
+- late `Base.enableIpv6()` rejects overlapping explicit AS/IX IPv6 prefixes;
 - late `Base.enableIpv6()` claims existing explicit prefixes before future
   automatic allocation;
 - `Filter` / `Binding` can require explicit IPv4 and IPv6 matches together;

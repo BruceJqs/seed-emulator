@@ -109,6 +109,8 @@ Repository-level IPv6 work should keep these checks green:
 - Existing IPv4 examples compile without IPv6 Compose fields.
 - A15-A17 keep proving the control-plane path.
 - `Filter` / `Binding` match IPv4 and IPv6 addresses/prefixes.
+- IPv6 prefix allocation rejects reserved infrastructure reuse and overlapping
+  explicit AS/IX prefixes, including late `Base.enableIpv6()` migration paths.
 - Service network and custom containers compile as IPv4-only by default and
   dual-stack only when IPv6 is provided.
 - DNS and `/etc/hosts` emit stable A/AAAA and hosts entries when IPv6 exists.

@@ -198,6 +198,27 @@ def test_explicit_ipv6_prefixes_are_claimed_and_auto_allocation_skips_them():
         as2.createNetwork("duplicate", ipv6Prefix="2000:0:2::/64")
 
 
+def test_reserved_ipv6_infrastructure_prefix_cannot_be_assigned_to_user_networks():
+    base = Base(enableIpv6=True)
+    as2 = base.createAutonomousSystem(2)
+
+    with pytest.raises(AssertionError, match="overlaps an allocated prefix"):
+        as2.createNetwork("infra", ipv6Prefix="2000:ffff::/64")
+
+    with pytest.raises(AssertionError, match="overlaps an allocated prefix"):
+        base.createInternetExchange(200, ipv6Prefix="2000:ffff:0:1::/64")
+
+
+def test_explicit_ix_ipv6_prefix_blocks_later_automatic_as_prefix_collision():
+    base = Base(enableIpv6=True)
+
+    base.createInternetExchange(100, ipv6Prefix="2000:0:2::/64")
+    as2 = base.createAutonomousSystem(2)
+    auto = as2.createNetwork("auto")
+
+    assert str(auto.getIpv6Prefix()) == "2000:0:3::/64"
+
+
 def test_late_ipv6_enablement_claims_existing_explicit_prefixes():
     base = Base()
     as2 = base.createAutonomousSystem(2)
@@ -208,6 +229,17 @@ def test_late_ipv6_enablement_claims_existing_explicit_prefixes():
 
     assert str(explicit.getIpv6Prefix()) == "2000:0:2::/64"
     assert str(auto.getIpv6Prefix()) == "2000:0:2:1::/64"
+
+
+def test_late_ipv6_enablement_rejects_overlapping_explicit_as_and_ix_prefixes():
+    base = Base()
+    as2 = base.createAutonomousSystem(2)
+
+    as2.createNetwork("net0", ipv6Prefix="2000:0:2::/64")
+    base.createInternetExchange(100, ipv6Prefix="2000:0:2::/64")
+
+    with pytest.raises(AssertionError, match="overlaps an allocated prefix"):
+        base.enableIpv6()
 
 
 def test_service_network_stays_ipv4_only_without_explicit_ipv6_prefix(tmp_path):
