@@ -118,7 +118,9 @@ Repository-level IPv6 work should keep these checks green:
 - A15-A17 keep proving the control-plane path.
 - `Filter` / `Binding` match IPv4 and IPv6 addresses/prefixes.
 - IPv6 prefix allocation rejects reserved infrastructure reuse and overlapping
-  explicit AS/IX prefixes, including late `Base.enableIpv6()` migration paths.
+  explicit AS/IX prefixes, including late `Base.enableIpv6()` migration paths;
+  explicit root, AS/IX, and service-network IPv6 prefixes use shared prefix
+  normalization so padded and bracketed CIDR inputs behave consistently.
 - Service network and custom containers compile as IPv4-only by default and
   dual-stack only when IPv6 is provided; service-network interface opt-out,
   custom container attachments, and custom Internet Map attachments without an

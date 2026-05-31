@@ -1,5 +1,5 @@
 from __future__ import annotations
-from seedemu.core import AutonomousSystem, InternetExchange, AddressAssignmentConstraint, DEFAULT_IPV6_ROOT_PREFIX, Ipv6Addressing, Node, Graphable, Emulator, Layer, normalizeAddressList
+from seedemu.core import AutonomousSystem, InternetExchange, AddressAssignmentConstraint, DEFAULT_IPV6_ROOT_PREFIX, Ipv6Addressing, Node, Graphable, Emulator, Layer, normalizeAddressList, normalizePrefix
 from ipaddress import IPv6Network
 from typing import Dict, List
 from seedemu.options.Sysctl import SysctlOpts
@@ -193,7 +193,7 @@ class Base(Layer, Graphable):
         @returns self, for chaining API calls.
         """
         if self.__ipv6_addressing is not None:
-            assert self.__ipv6_addressing.getRootPrefix() == IPv6Network(str(rootPrefix).strip()), (
+            assert self.__ipv6_addressing.getRootPrefix() == IPv6Network(normalizePrefix(rootPrefix)), (
                 "IPv6 is already enabled with root prefix {}".format(self.__ipv6_addressing.getRootPrefix())
             )
             return self
@@ -296,7 +296,7 @@ class Base(Layer, Graphable):
                 ix_ipv6_prefix = self.__ipv6_addressing.assignIxPrefix(asn) if self.__ipv6_addressing is not None else None
                 ix_ipv6_intent = "auto"
             else:
-                ix_ipv6_prefix = str(ipv6Prefix).strip()
+                ix_ipv6_prefix = normalizePrefix(ipv6Prefix)
                 ix_ipv6_intent = "explicit"
                 if self.__ipv6_addressing is not None:
                     self.__ipv6_addressing.claimPrefix(ix_ipv6_prefix)

@@ -3,6 +3,8 @@ from __future__ import annotations
 from ipaddress import IPv6Network
 from typing import Dict, Iterable, List, Set, Union
 
+from .Addressing import normalizePrefix
+
 
 DEFAULT_IPV6_ROOT_PREFIX = "2000::/12"
 DEFAULT_IPV6_INFRA_PREFIX = "2000:ffff::/48"
@@ -12,7 +14,7 @@ class Ipv6Addressing:
     """Deterministic IPv6 prefix allocator for optional dual-stack emulations."""
 
     def __init__(self, rootPrefix: str = DEFAULT_IPV6_ROOT_PREFIX, reservedPrefixes: Iterable[str] = None):
-        self.__root = IPv6Network(str(rootPrefix).strip())
+        self.__root = IPv6Network(normalizePrefix(rootPrefix))
         assert self.__root.prefixlen <= 48, "IPv6 root prefix must be /48 or shorter"
         self.__used_as_indices: Set[int] = set()
         self.__as_prefixes: Dict[int, IPv6Network] = {}
@@ -38,7 +40,7 @@ class Ipv6Addressing:
         return list(self.__reserved_prefixes)
 
     def claimPrefix(self, prefix: Union[str, IPv6Network]) -> Ipv6Addressing:
-        claimed = prefix if isinstance(prefix, IPv6Network) else IPv6Network(str(prefix).strip())
+        claimed = prefix if isinstance(prefix, IPv6Network) else IPv6Network(normalizePrefix(prefix))
         if not claimed.subnet_of(self.__root):
             return self
         assert self.__is_available(claimed), "IPv6 prefix {} overlaps an allocated prefix".format(claimed)
@@ -46,7 +48,7 @@ class Ipv6Addressing:
         return self
 
     def reservePrefix(self, prefix: Union[str, IPv6Network]) -> Ipv6Addressing:
-        reserved = prefix if isinstance(prefix, IPv6Network) else IPv6Network(str(prefix).strip())
+        reserved = prefix if isinstance(prefix, IPv6Network) else IPv6Network(normalizePrefix(prefix))
         if not reserved.subnet_of(self.__root):
             return self
         self.claimPrefix(reserved)
@@ -54,7 +56,7 @@ class Ipv6Addressing:
         return self
 
     def reserveAsNetworkPrefix(self, asn: int, prefix: Union[str, IPv6Network]) -> Ipv6Addressing:
-        network = prefix if isinstance(prefix, IPv6Network) else IPv6Network(str(prefix).strip())
+        network = prefix if isinstance(prefix, IPv6Network) else IPv6Network(normalizePrefix(prefix))
         if not network.subnet_of(self.__root):
             return self
 

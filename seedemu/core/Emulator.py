@@ -4,6 +4,7 @@ from .ExternalConnectivityProvider import ExternalConnectivityProvider
 from .Merger import Mergeable, Merger
 from .Registry import Registry, Registrable, Printable
 from .Network import Network
+from .Addressing import normalizePrefix
 from seedemu import core
 from typing import Dict, Set, Tuple, List
 from sys import prefix, stderr
@@ -335,7 +336,7 @@ class Emulator:
         """
         if self.__service_net == None:
             ipv6_prefix = (
-                IPv6Network(str(self.__service_net_ipv6_prefix).strip())
+                IPv6Network(normalizePrefix(self.__service_net_ipv6_prefix))
                 if self.__service_net_ipv6_prefix is not None
                 else None
             )

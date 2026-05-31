@@ -38,8 +38,10 @@ Automatic allocation uses the following plan:
 - `2000:ffff::/48` is reserved for routing infrastructure, such as loopback
   addresses used by the `Routing` layer.
 
-User-provided IPv6 prefixes under the root are reserved before later automatic
-allocation. Overlapping explicit AS/IX prefixes are rejected, and automatic
+User-provided IPv6 prefixes under the root are normalized and reserved before
+later automatic allocation. Padded CIDR strings and bracketed IPv6 literals are
+accepted consistently across root, AS network, IX LAN, and service-network
+prefix inputs. Overlapping explicit AS/IX prefixes are rejected, and automatic
 allocation skips claimed prefixes instead of reusing them.
 
 IPv6 address assignment follows the existing `AddressAssignmentConstraint`
