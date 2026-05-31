@@ -172,6 +172,11 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   and URL helpers, default to IPv4, and explicitly select bracketed IPv6 URLs
   when requested; Ethereum peer discovery, ENR, bootnode, and daemon runtime
   behavior still need validation before a support claim.
+- Tor directory-authority fingerprint downloader URLs and hidden-service
+  backend targets now route through shared endpoint helpers, preserving IPv4
+  defaults and bracketing explicit IPv6 literals; Tor bind/listener,
+  directory authority, consensus, and daemon runtime behavior remain
+  IPv4-first and need a separate migration before any support claim.
 
 ## Phase 6: Separate Designs Before Code
 

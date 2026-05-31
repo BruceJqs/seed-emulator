@@ -3,7 +3,7 @@
 # __author__ = 'Demon'
 
 from __future__ import annotations
-from seedemu.core import Node, Emulator, Service, Server
+from seedemu.core import Node, Emulator, Service, Server, formatHostPort, formatUrl
 from typing import List, Dict, Set
 from enum import Enum
 
@@ -143,7 +143,7 @@ if [ ! -e /tor-config-done ]; then
     # Host specific modifications to the torrc file
     echo -e "DataDirectory ${{TOR_DIR}}/${{TOR_NICKNAME}}" >> /etc/tor/torrc
     # Updated to handle docker stack/swarm network overlays
-    TOR_IP={TOR_IP} #$(ip addr show eth1 | grep "inet" | grep -v '\/32'| awk '{{print $2}}' | cut -f1 -d'/')
+    TOR_IP={TOR_IP} #$(ip addr show eth1 | grep "inet" | grep -v '/32'| awk '{{print $2}}' | cut -f1 -d'/')
     NICS=$(ip addr | grep 'state UP' | awk '{{print $2}}' | cut -f1 -d':')
 
     echo "Address ${{TOR_IP}}" >> /etc/tor/torrc
@@ -207,7 +207,10 @@ if [ ! -e /tor-config-done ]; then
 	if [ -z "${{TOR_HS_ADDR}}" ]; then
 	  TOR_HS_ADDR=127.0.0.1
 	fi
-	echo -e "HiddenServicePort ${{TOR_HS_PORT}} ${{TOR_HS_ADDR}}:${{TOR_HS_PORT}}" >> /etc/tor/torrc
+	if [ -z "${{TOR_HS_TARGET}}" ]; then
+	  TOR_HS_TARGET="${{TOR_HS_ADDR}}:${{TOR_HS_PORT}}"
+	fi
+	echo -e "HiddenServicePort ${{TOR_HS_PORT}} ${{TOR_HS_TARGET}}" >> /etc/tor/torrc
 	;;
       *)
         echo "Role variable missing"
@@ -234,12 +237,12 @@ exec "$@"
 
 #Used for download DA fingerprints from DA servers.
 TorServerFileTemplates["downloader"] = """
-    until $(curl --output /dev/null --silent --head --fail http://{da_addr}:8888); do
+    until $(curl --output /dev/null --silent --head --fail {da_url}); do
         echo "DA server not ready"
         sleep 3
     done
     sleep 3
-    FINGERPRINT=$(curl -s {da_addr}:8888/torrc.da)
+    FINGERPRINT=$(curl -s {da_torrc_url})
 
     while ! echo $FINGERPRINT | grep DirAuthority
     do
@@ -390,6 +393,7 @@ class TorServer(Server):
             addr, port = self.getLink()
             node.appendStartCommand("export TOR_HS_ADDR={}".format(addr))
             node.appendStartCommand("export TOR_HS_PORT={}".format(port))
+            node.appendStartCommand("export TOR_HS_TARGET={}".format(formatHostPort(addr, port)))
 
     def install(self, node: Node, tor: 'TorService'):
         """!
@@ -403,7 +407,10 @@ class TorServer(Server):
         addr = ifaces[0].getAddress()
         download_commands = ""
         for dir in tor.getDirAuthority():
-            download_commands += TorServerFileTemplates["downloader"].format(da_addr=dir)
+            download_commands += TorServerFileTemplates["downloader"].format(
+                da_url=formatUrl("http", dir, 8888),
+                da_torrc_url=formatUrl("http", dir, 8888, "/torrc.da"),
+            )
 
         node.addSoftware("git python3")
         node.addBuildCommand(BUILD_COMMANDS)

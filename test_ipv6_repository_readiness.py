@@ -33,6 +33,9 @@ from seedemu.services import (
     FaucetUtil,
     KuboService,
     MoneroService,
+    TorNodeType,
+    TorServer,
+    TorService,
     TrafficService,
     TrafficServiceType,
     WebServer,
@@ -201,6 +204,20 @@ def _render_ca_filter_topology():
         emu.getRegistry().get(str(asn), "hnode", "client")
         for asn in [2, 3, 4, 5]
     ]
+
+
+def _render_tor_host(name: str, address: str = "10.2.0.80", ipv6Address: str = "2000:0:2::80"):
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost(name).joinNetwork("net0", address=address, ipv6Address=ipv6Address)
+
+    emu.addLayer(base)
+    emu.render()
+
+    return emu.getRegistry().get("2", "hnode", name)
 
 
 def _render_monero_endpoint_topology(family=AddressFamily.IPv4):
@@ -566,6 +583,44 @@ def test_ca_https_acme_urls_preserve_domain_default_and_format_ipv6_literals(tmp
 
     assert "https://[2000:0:2::53]/acme/acme/directory" in ipv6_commands
     assert "https://2000:0:2::53/acme/acme/directory" not in ipv6_commands
+
+
+def test_tor_da_downloader_urls_use_shared_endpoint_helpers():
+    node = _render_tor_host("tor-relay")
+
+    tor = TorService()
+    tor.addDirAuthority("10.2.0.71")
+    tor.addDirAuthority("2000:0:2::71")
+    TorServer().install(node, tor)
+    entrypoint = _file_content(node, "/usr/local/bin/tor-entrypoint")
+
+    assert "http://10.2.0.71:8888" in entrypoint
+    assert "http://10.2.0.71:8888/torrc.da" in entrypoint
+    assert "http://[2000:0:2::71]:8888" in entrypoint
+    assert "http://[2000:0:2::71]:8888/torrc.da" in entrypoint
+    assert "http://2000:0:2::71:8888" not in entrypoint
+    assert 'TOR_HS_TARGET="${TOR_HS_ADDR}:${TOR_HS_PORT}"' in entrypoint
+    assert "HiddenServicePort ${TOR_HS_PORT} ${TOR_HS_TARGET}" in entrypoint
+
+
+def test_tor_hidden_service_backend_targets_use_shared_endpoint_helpers():
+    node = _render_tor_host("tor-hs")
+
+    ipv4_server = TorServer().setRole(TorNodeType.HS).setLink("10.2.0.80", 8080)
+    ipv4_server.configure(node, TorService())
+    assert "export TOR_HS_ADDR=10.2.0.80" in _start_commands(node)
+    assert "export TOR_HS_PORT=8080" in _start_commands(node)
+    assert "export TOR_HS_TARGET=10.2.0.80:8080" in _start_commands(node)
+
+    ipv6_node = _render_tor_host("tor-hs6")
+    ipv6_server = TorServer().setRole(TorNodeType.HS).setLink("2000:0:2::80", 8080)
+    ipv6_server.configure(ipv6_node, TorService())
+    ipv6_commands = _start_commands(ipv6_node)
+
+    assert "export TOR_HS_ADDR=2000:0:2::80" in ipv6_commands
+    assert "export TOR_HS_PORT=8080" in ipv6_commands
+    assert "export TOR_HS_TARGET=[2000:0:2::80]:8080" in ipv6_commands
+    assert "export TOR_HS_TARGET=2000:0:2::80:8080" not in ipv6_commands
 
 
 def test_explicit_ipv6_prefixes_are_claimed_and_auto_allocation_skips_them():

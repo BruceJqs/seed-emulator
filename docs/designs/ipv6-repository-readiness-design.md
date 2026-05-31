@@ -83,7 +83,7 @@ Deferred core items:
 | Monero | Compatible | Seed and full-node RPC endpoint lists use shared address-family and host-port helpers, default to IPv4, and may explicitly select IPv6; daemon listener/runtime behavior still needs validation before a full support claim. |
 | Chainlink | Compatible | Generated Chainlink RPC, faucet, utility, and node WebSocket/HTTP URLs use shared endpoint helpers, default to IPv4, and may explicitly select bracketed IPv6 URLs; Ethereum/Chainlink runtime behavior still needs validation before a full support claim. |
 | Email | IPv4-first | Provider/gateway/default-route logic must be redesigned before IPv6 claim. |
-| Tor | IPv4-first | Bind/listener and directory authority addressing need a separate migration. |
+| Tor | IPv4-first | Directory-authority downloader URLs and hidden-service backend target formatting are helper-ready, but bind/listener, directory authority addressing, consensus, and daemon runtime need a separate migration before an IPv6 support claim. |
 | Ethereum | Compatible | Faucet and utility HTTP URLs use shared endpoint helpers, default to IPv4, and may explicitly select bracketed IPv6; ENR, bootnode, peer discovery, and daemon runtime behavior still need validation before a full support claim. |
 | SCION | Separate design | Underlay, crossConnect, and SCION control tooling currently assume IPv4. |
 | MPLS/EVPN | Separate design | Routing identifiers and dataplane assumptions need dedicated validation. |

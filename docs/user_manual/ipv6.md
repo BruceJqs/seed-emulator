@@ -143,7 +143,9 @@ Current categories:
 - compatible but not fully migrated: DNS cache, Web/CA, traffic wrappers,
   Kubo bootstrap endpoints, Monero seed/RPC endpoint formatting, Chainlink
   generated URL formatting, Ethereum faucet/utility HTTP URL formatting;
-- IPv4-first pending design: Email, Tor;
+- IPv4-first pending design: Email; Tor remains IPv4-first with
+  directory-authority downloader and hidden-service backend target formatting
+  guarded by shared endpoint helpers;
 - separate design required: SCION underlay, cross-connect, DHCPv6, MPLS/EVPN,
   real-world connectivity, OpenVPN, k8s, internetmap2.
 
@@ -179,6 +181,11 @@ dual-stack emulation, call `blockchain.setEndpointAddressFamily(AddressFamily.IP
 to generate bracketed IPv6 HTTP RPC and faucet URLs for those helpers. Ethereum
 bootnode, ENR, peer discovery, and daemon runtime behavior have not been
 runtime-validated as full IPv6 support.
+
+Tor remains IPv4-first. Directory-authority fingerprint downloader URLs and
+hidden-service backend targets use shared endpoint helpers so explicit IPv6
+literals are bracketed correctly, but Tor bind/listener, directory authority,
+consensus, and daemon runtime behavior still require a separate migration.
 
 See
 [Repository-Wide IPv6 Readiness Design](../designs/ipv6-repository-readiness-design.md)
