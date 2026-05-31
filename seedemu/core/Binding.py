@@ -12,6 +12,15 @@ from sys import stderr
 import re, random, string
 from .Scope import Scope, ScopeTier
 
+
+def _parseIpFilter(value):
+    return ip_address(str(value).strip())
+
+
+def _parsePrefixFilter(value):
+    return ip_network(str(value).strip())
+
+
 class Action(Enum):
     """!
     @brief actions to take when a binding matches a node.
@@ -116,8 +125,10 @@ class Binding(Printable):
         requested_prefix = f.prefix or f.ipv4Prefix or f.ipv6Prefix
 
         # ip is set: find net matching the condition.
-        if requested_ip != None:
-            requested_addr = ip_address(requested_ip)
+        requested_addr = _parseIpFilter(requested_ip) if requested_ip != None else None
+        requested_net = _parsePrefixFilter(requested_prefix) if requested_prefix != None else None
+
+        if requested_addr != None:
             self.__log('binding: NEW: IP {} is given to host: finding networks with this IP in range.'.format(requested_ip))
             for _asn in base.getAsns():
                 hit = False
@@ -143,8 +154,7 @@ class Binding(Printable):
                 if hit: break
         
         # prefix is set: find net matching the condition
-        if requested_prefix != None:
-            requested_net = ip_network(requested_prefix)
+        if requested_net != None:
             self.__log('binding: NEW: Prefix {} is given to host: finding networks in range.'.format(requested_prefix))
 
             for _asn in base.getAsns():
@@ -208,8 +218,12 @@ class Binding(Printable):
         host.setNameServers(asObject.getNameServers())
 
         # join net
-        ipv4_address = f.ipv4 or (requested_ip if requested_ip is not None and ip_address(requested_ip).version == 4 else None)
-        ipv6_address = f.ipv6 or (requested_ip if requested_ip is not None and ip_address(requested_ip).version == 6 else "auto")
+        ipv4_address = str(_parseIpFilter(f.ipv4)) if f.ipv4 is not None else (
+            str(requested_addr) if requested_addr is not None and requested_addr.version == 4 else None
+        )
+        ipv6_address = str(_parseIpFilter(f.ipv6)) if f.ipv6 is not None else (
+            str(requested_addr) if requested_addr is not None and requested_addr.version == 6 else "auto"
+        )
         host.joinNetwork(netName, 'auto' if ipv4_address is None else ipv4_address, ipv6Address=ipv6_address)
 
         # register - usually this is done by AS in configure stage, since we have passed that point, we need to do it ourself.
@@ -284,7 +298,7 @@ class Binding(Printable):
 
             ip_miss = False
             for requested_ip in requested_ip_filters:
-                requested_addr = ip_address(requested_ip)
+                requested_addr = _parseIpFilter(requested_ip)
                 family = AddressFamily.IPv4 if requested_addr.version == 4 else AddressFamily.IPv6
                 has_match = False
                 for iface in node.getInterfaces():
@@ -310,7 +324,7 @@ class Binding(Printable):
             prefix_miss = False
             for requested_prefix in requested_prefix_filters:
                 has_match = False
-                net = ip_network(requested_prefix)
+                net = _parsePrefixFilter(requested_prefix)
                 family = AddressFamily.IPv4 if net.version == 4 else AddressFamily.IPv6
                 for iface in node.getInterfaces():
                     iface_addr = getInterfaceAddress(iface, family)

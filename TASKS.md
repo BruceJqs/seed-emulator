@@ -72,6 +72,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - `Filter` / `Binding` candidate matching uses shared interface address
   helpers and preserves mixed legacy `ip` / explicit IPv4/IPv6 prefix AND
   matching semantics;
+- `Filter` / `Binding` address and prefix selectors tolerate padded IPv4/IPv6
+  literals and CIDRs without changing their match semantics;
 - service network compile output remains IPv4-only by default, becomes
   dual-stack only when `serviceNetworkIpv6Prefix` is set, and emits
   per-node `ipv6_address` only for interfaces carrying IPv6 state;

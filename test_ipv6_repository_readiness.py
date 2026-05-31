@@ -1027,6 +1027,30 @@ def test_binding_filter_matches_mixed_legacy_and_explicit_address_family_fields(
     assert missing_ipv6.getCandidate("svc", emu, peek=True) is None
 
 
+def test_binding_filters_trim_padded_ip_and_prefix_selectors():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("dual").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+
+    emu.addLayer(base)
+    emu.render()
+
+    for filter in [
+        Filter(ip=" 10.2.0.71 "),
+        Filter(ip=" 2000:0:2::71 "),
+        Filter(ipv4=" 10.2.0.71 "),
+        Filter(ipv6=" 2000:0:2::71 "),
+        Filter(prefix=" 10.2.0.0/24 "),
+        Filter(prefix=" 2000:0:2::/64 "),
+        Filter(ipv4Prefix=" 10.2.0.0/24 "),
+        Filter(ipv6Prefix=" 2000:0:2::/64 "),
+    ]:
+        assert Binding("svc", action=Action.FIRST, filter=filter).getCandidate("svc", emu, peek=True).getName() == "dual"
+
+
 def test_binding_new_can_create_ipv6_selected_host():
     emu = Emulator()
     base = Base(enableIpv6=True)
@@ -1035,7 +1059,7 @@ def test_binding_new_can_create_ipv6_selected_host():
     as2 = base.createAutonomousSystem(2)
     as2.createNetwork("net0")
     dns.install("dns").addZone("example.")
-    emu.addBinding(Binding("dns", filter=Filter(asn=2, ip="2000:0:2::53"), action=Action.NEW))
+    emu.addBinding(Binding("dns", filter=Filter(asn=2, ip=" 2000:0:2::53 "), action=Action.NEW))
 
     emu.addLayer(base)
     emu.addLayer(dns)
@@ -1043,6 +1067,24 @@ def test_binding_new_can_create_ipv6_selected_host():
 
     node = emu.getBindingFor("dns")
     assert str(node.getInterfaces()[0].getIpv6Address()) == "2000:0:2::53"
+
+
+def test_binding_new_trims_padded_prefix_selector():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+    dns = DomainNameService()
+
+    as2 = base.createAutonomousSystem(2)
+    net0 = as2.createNetwork("net0")
+    dns.install("dns").addZone("example.")
+    emu.addBinding(Binding("dns", filter=Filter(asn=2, prefix=" 2000:0:2::/64 "), action=Action.NEW))
+
+    emu.addLayer(base)
+    emu.addLayer(dns)
+    emu.render()
+
+    node = emu.getBindingFor("dns")
+    assert node.getInterfaces()[0].getIpv6Address() in net0.getIpv6Prefix()
 
 
 def test_ca_install_cert_filter_matches_ipv4_and_ipv6_targets(tmp_path):
