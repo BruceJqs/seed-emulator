@@ -85,9 +85,17 @@ class Zone(Printable):
         
         @returns self, for chaining API calls.
         """
-        self.__records.append(record)
+        self.__records.append(self.__normalizeAddressRecord(record))
 
         return self
+
+    def __normalizeAddressRecord(self, record: str) -> str:
+        parts = str(record).strip().split()
+        if len(parts) >= 3 and parts[-2].upper() in ('A', 'AAAA'):
+            parts[-2] = parts[-2].upper()
+            parts[-1] = str(ip_address(parts[-1]))
+            return ' '.join(parts)
+        return record
     
     def deleteRecord(self, record: str) -> Zone:
         """!

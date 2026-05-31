@@ -1749,6 +1749,22 @@ def test_dns_glue_records_use_parsed_address_family():
     assert "example. NS ns2.example." in glue_records
 
 
+def test_dns_manual_a_aaaa_records_normalize_address_literals():
+    zone = DomainNameService().getZone("example.")
+
+    zone.addRecord(" web a 10.2.0.71 ")
+    zone.addRecord(" web6 aaaa 2000:0:2:0:0:0:0:71 ")
+    zone.addRecord("txt TXT  2000:0:2:0:0:0:0:71")
+
+    records = zone.getRecords()
+
+    assert "web A 10.2.0.71" in records
+    assert "web6 AAAA 2000:0:2::71" in records
+    assert "txt TXT  2000:0:2:0:0:0:0:71" in records
+    assert " web a 10.2.0.71 " not in records
+    assert "web6 aaaa 2000:0:2:0:0:0:0:71" not in records
+
+
 def test_dns_manual_master_ips_trim_padded_addresses():
     emu = Emulator()
     base = Base()
