@@ -53,7 +53,8 @@ Implemented foundation:
 - IPv6-aware ExaBGP speaker service and Looking Glass route-state queries.
 - Docker Compose dual-stack network/IPAM and service `ipv6_address` output.
 - IPv6-aware `Filter` / `Binding` matching and `Action.NEW` placement.
-- Optional IPv6 service network prefix.
+- Optional IPv6 service network prefix, with per-node `ipv6_address` emitted
+  only for service-network attachments that carry IPv6 state.
 - Optional IPv6 address on `attachCustomContainer(...)` and
   `attachInternetMap(...)`.
 
@@ -112,7 +113,8 @@ Repository-level IPv6 work should keep these checks green:
 - IPv6 prefix allocation rejects reserved infrastructure reuse and overlapping
   explicit AS/IX prefixes, including late `Base.enableIpv6()` migration paths.
 - Service network and custom containers compile as IPv4-only by default and
-  dual-stack only when IPv6 is provided.
+  dual-stack only when IPv6 is provided; service-network interface opt-out
+  suppresses per-node `ipv6_address` even on a dual-stack service network.
 - DNS and `/etc/hosts` emit stable A/AAAA and hosts entries when IPv6 exists.
 - DNS address selection uses shared core helpers so service code does not
   duplicate Local-vs-service-network fallback rules.

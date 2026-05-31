@@ -277,6 +277,55 @@ def test_service_network_can_be_dual_stack(tmp_path):
     assert "fd00:66::/64" in compose
 
 
+def test_service_network_dual_stack_emits_node_ipv6_address_only_when_interface_has_ipv6(tmp_path):
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createHost("svc-host").joinNetwork(
+        "000_svc",
+        address="192.168.66.10",
+        ipv6Address="fd00:66::10",
+    )
+
+    emu.getServiceNetwork()
+    emu.addLayer(base)
+    emu.render()
+
+    output_dir = tmp_path / "service-net-node-ipv6"
+    emu.compile(Docker(platform=Platform.AMD64), str(output_dir), override=True)
+    compose = (output_dir / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "enable_ipv6: true" in compose
+    assert "ipv4_address: 192.168.66.10" in compose
+    assert "ipv6_address: fd00:66::10" in compose
+
+
+def test_service_network_dual_stack_respects_interface_ipv6_opt_out(tmp_path):
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createHost("svc-host").joinNetwork(
+        "000_svc",
+        address="192.168.66.10",
+        ipv6Address=None,
+    )
+
+    emu.getServiceNetwork()
+    emu.addLayer(base)
+    emu.render()
+
+    output_dir = tmp_path / "service-net-node-v4-only"
+    emu.compile(Docker(platform=Platform.AMD64), str(output_dir), override=True)
+    compose = (output_dir / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "enable_ipv6: true" in compose
+    assert "fd00:66::/64" in compose
+    assert "ipv4_address: 192.168.66.10" in compose
+    assert "ipv6_address:" not in compose
+
+
 def test_custom_container_accepts_ipv6_address(tmp_path):
     emu = Emulator()
     base = Base(enableIpv6=True)

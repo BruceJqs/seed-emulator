@@ -118,7 +118,9 @@ for the design boundary.
 
 The Docker compiler emits IPv6 runtime configuration only for networks that
 have IPv6 prefixes. Dual-stack networks include `enable_ipv6: true`, IPv6 IPAM,
-and service-level `ipv6_address` entries.
+and service-level `ipv6_address` entries only for interfaces carrying IPv6
+state. Interfaces that opt out with `ipv6Address=None` remain IPv4-only even on
+a dual-stack service network.
 
 For `selfManagedNetwork=True`, the compiler uses dummy IPv6 subnets and rewrites
 container addresses at startup, matching the existing IPv4 self-managed network
