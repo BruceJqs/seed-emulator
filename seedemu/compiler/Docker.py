@@ -220,7 +220,7 @@ DockerCompilerFileTemplates['environment_variable_entry'] = """\
 DockerCompilerFileTemplates['network_entry'] = """\
         networks:
              {network_name_field}:
-                    {ipv4_address_field}
+{address_fields}\
 """
 
 DockerCompilerFileTemplates['custom_compose_label_meta'] = """\
@@ -1493,6 +1493,7 @@ class Docker(Compiler):
         return toplevelvolumes
 
     def attachInternetMap(self, asn: int = -1, net: str = '', ip_address: str = '',
+                      ipv6_address: str = '',
                       port_forwarding: str = '', env: list = [],
                       show_on_map=False, node_name='seedemu_internet_map') -> Docker:
         """!
@@ -1505,6 +1506,8 @@ class Docker(Compiler):
         @param net the name of the network that this container is attached to.
         @param ip_address the IP address set for this container. If no IP address is provided,
             docker will provide one when building the image.
+        @param ipv6_address the IPv6 address set for this container. If no IPv6 address is
+            provided, docker will provide one when the attached network supports IPv6.
         @param port_forwarding the port forwarding field.
         @param env the list of the environment variables.
         @param show_on_map it is show on the map.
@@ -1525,13 +1528,13 @@ class Docker(Compiler):
                 clientImage=SEEDEMU_INTERNET_MAP_IMAGE,
                 containerName=node_name,
             ),
-            asn=asn, net=net, ip_address=ip_address, port_forwarding=port_forwarding, env=env, show_on_map=show_on_map,
+            asn=asn, net=net, ip_address=ip_address, ipv6_address=ipv6_address, port_forwarding=port_forwarding, env=env, show_on_map=show_on_map,
             node_name=node_name
         )
         return self
 
     def attachCustomContainer(self, compose_entry: str, asn: int = -1, net: str = '',
-                              ip_address: str = '', port_forwarding: str = '', env: list = [],
+                              ip_address: str = '', ipv6_address: str = '', port_forwarding: str = '', env: list = [],
                               show_on_map=False, node_name: str = 'unnamed') -> Docker:
         """!
         @brief add an pre-built container image to the emulator (the entry should not
@@ -1544,6 +1547,8 @@ class Docker(Compiler):
         @param net the name of the network that this container is attached to.
         @param ip_address the IP address set for this container. If no IP address is provided,
             docker will provide one when building the image.
+        @param ipv6_address the IPv6 address set for this container. If no IPv6 address is
+            provided, docker will provide one when the attached network supports IPv6.
         @param port_forwarding the port forwarding field.
 
         @param env the list of the environment variables.
@@ -1577,27 +1582,28 @@ class Docker(Compiler):
             net_prefix = self._contextToPrefix(asn, 'net')
             real_netname = '{}{}'.format(net_prefix, net)
 
-            # Construct the IP address field (leave it empty if IP address is not provided)
-            if ip_address == '':
-                ipv4_address_entry = ''
-            else:
-                ipv4_address_entry = 'ipv4_address: {}'.format(ip_address)
+            # Construct IP address fields (leave empty when addresses are not provided)
+            address_fields = ''
+            if ip_address != '':
+                address_fields += '                    ipv4_address: {}\n'.format(ip_address)
+            if ipv6_address != '':
+                address_fields += '                    ipv6_address: {}\n'.format(ipv6_address)
 
             self.__custom_services += DockerCompilerFileTemplates['network_entry'].format(
                 network_name_field=real_netname,
-                ipv4_address_field=ipv4_address_entry
+                address_fields=address_fields
             )
             self.__custom_services += '\n'
 
         if show_on_map:
             self.__custom_services += DockerCompilerFileTemplates['custom_compose_label_meta'].format(labelList=self._getCustomNodeMeta(
-                asn, node_name, net, ip_address
+                asn, node_name, net, ip_address, ipv6_address
             ))
             self.__custom_services += '\n'
 
         return self
 
-    def _getCustomNodeMeta(self, asn: int = -1, node_name: str = '', net: str = '', ip_address: str = '', ) -> str:
+    def _getCustomNodeMeta(self, asn: int = -1, node_name: str = '', net: str = '', ip_address: str = '', ipv6_address: str = '') -> str:
         """!
         @brief get custom node metadata labels.
 
@@ -1629,6 +1635,11 @@ class Docker(Compiler):
             labels += DockerCompilerFileTemplates['compose_label_meta'].format(
                 key='net.0.address',
                 value=ip_address
+            )
+        if ipv6_address:
+            labels += DockerCompilerFileTemplates['compose_label_meta'].format(
+                key='net.0.ipv6_address',
+                value=ipv6_address
             )
         labels += DockerCompilerFileTemplates['compose_label_meta'].format(
             key='custom',
