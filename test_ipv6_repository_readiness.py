@@ -1501,6 +1501,18 @@ def test_botnet_dga_dropper_runner_accepts_preformatted_urls():
     assert 'url="http://$host/clients/droppers/client.py"' in script
 
 
+def test_botnet_dropper_runner_fallback_brackets_ipv6_host_arguments():
+    from seedemu.services.BotnetService import BotnetServerFileTemplates
+
+    script = BotnetServerFileTemplates["client_dropper_runner"]
+
+    assert 'url="$3"' in script
+    assert 'if [[ "$host" == *:* && "${host:0:1}" != "[" ]]; then' in script
+    assert 'host="[$host]"' in script
+    assert 'url="http://$host:$2/clients/droppers/client.py"' in script
+    assert 'url="http://$1:$2/clients/droppers/client.py"' not in script
+
+
 def test_explicit_ipv6_prefixes_are_claimed_and_auto_allocation_skips_them():
     base = Base(enableIpv6=True)
     as2 = base.createAutonomousSystem(2)

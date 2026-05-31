@@ -197,8 +197,9 @@ default. In a dual-stack emulation, call
 `BotnetServer.setEndpointAddressFamily(AddressFamily.IPv6)` to generate a
 bracketed IPv6 dropper URL for binding-based clients. DGA dropper runners may
 consume preformatted HTTP(S) URLs without adding their own host/path wrapper,
-but BYOB client/server runtime behavior and DGA endpoints have not been
-validated as full IPv6 support.
+and the legacy non-DGA fallback brackets bare IPv6 host arguments if no
+preformatted URL is provided. BYOB client/server runtime behavior and DGA
+endpoints have not been validated as full IPv6 support.
 
 Looking Glass route-state observation remains separate from ExaBGP event
 dashboards. Its frontend-to-proxy traffic preserves the IPv4 default. In a

