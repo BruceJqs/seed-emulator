@@ -17,7 +17,13 @@ from seedemu.core import (
     getNodePreferredAddress,
 )
 from seedemu.layers import Base, EtcHosts
-from seedemu.services import DomainNameCachingService, DomainNameService, TrafficService, TrafficServiceType
+from seedemu.services import (
+    DomainNameCachingService,
+    DomainNameService,
+    KuboService,
+    TrafficService,
+    TrafficServiceType,
+)
 import pytest
 
 
@@ -35,6 +41,31 @@ def _compiled_output_text(output_dir: Path) -> str:
         if path.is_file():
             chunks.append(path.read_text(encoding="utf-8", errors="replace"))
     return "\n".join(chunks)
+
+
+def _start_commands(node) -> str:
+    return "\n".join(command for command, _ in node.getStartCommands())
+
+
+def _render_kubo_bootstrap_topology(kubo: KuboService):
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("boot").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+    as2.createHost("peer").joinNetwork("net0", address="10.2.0.72", ipv6Address="2000:0:2::72")
+
+    kubo.install("boot-vnode").setBootNode(True)
+    kubo.install("peer-vnode")
+    emu.addBinding(Binding("boot-vnode", filter=Filter(asn=2, nodeName="boot"), action=Action.FIRST))
+    emu.addBinding(Binding("peer-vnode", filter=Filter(asn=2, nodeName="peer"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(kubo)
+    emu.render()
+
+    return kubo, emu.getRegistry().get("2", "hnode", "peer")
 
 
 def test_endpoint_helpers_format_ipv6_safely():
@@ -811,3 +842,33 @@ def test_traffic_service_receiver_vnodes_can_select_ipv6_targets():
 
     generator = emu.getRegistry().get("2", "hnode", "generator")
     assert _file_content(generator, "/root/traffic-targets").strip() == "2000:0:2::71"
+
+
+def test_kubo_bootstrap_endpoints_default_to_ipv4_on_dual_stack_nodes():
+    kubo, peer = _render_kubo_bootstrap_topology(KuboService())
+
+    commands = _start_commands(peer)
+    script = _file_content(peer, "/tmp/kubo/bootstrap.sh")
+
+    assert kubo.getBootstrapList() == ["10.2.0.71"]
+    assert "ipfs config Addresses.API /ip4/0.0.0.0/tcp/5001" in commands
+    assert "ipfs config Addresses.Gateway /ip4/0.0.0.0/tcp/8080" in commands
+    assert "http://10.2.0.71:5001/api/v0/config?arg=Identity.PeerID" in script
+    assert "/ip4/10.2.0.71/tcp/4001" in script
+    assert "2000:0:2::71" not in script
+
+
+def test_kubo_bootstrap_endpoints_can_select_ipv6_helpers():
+    kubo, peer = _render_kubo_bootstrap_topology(
+        KuboService(bootstrapAddressFamily=AddressFamily.IPv6)
+    )
+
+    commands = _start_commands(peer)
+    script = _file_content(peer, "/tmp/kubo/bootstrap.sh")
+
+    assert kubo.getBootstrapList() == ["2000:0:2::71"]
+    assert "ipfs config Addresses.API /ip6/::/tcp/5001" in commands
+    assert "ipfs config Addresses.Gateway /ip6/::/tcp/8080" in commands
+    assert "http://[2000:0:2::71]:5001/api/v0/config?arg=Identity.PeerID" in script
+    assert "/ip6/2000:0:2::71/tcp/4001" in script
+    assert "/ip4/10.2.0.71/tcp/4001" not in script

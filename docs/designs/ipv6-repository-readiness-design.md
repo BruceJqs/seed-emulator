@@ -79,8 +79,8 @@ Deferred core items:
 | DNS cache | Compatible | Prefer IPv4 for old resolver behavior; accept IPv6 forwarders/root hints. |
 | Web/CA | Compatible | Existing IPv4 behavior preserved; future work should use endpoint helpers. |
 | Traffic services | Compatible | Raw receiver targets are unchanged; receiver vnodes can be resolved to IPv4 or IPv6 targets through shared node-address helpers, but each tool still needs runtime validation before a full support claim. |
+| Kubo/IPFS | Compatible | Bootstrap RPC URLs and peer multiaddrs use shared endpoint helpers, default to IPv4, and may explicitly select IPv6; broader Kubo runtime behavior still needs validation before a full support claim. |
 | Email | IPv4-first | Provider/gateway/default-route logic must be redesigned before IPv6 claim. |
-| Kubo/IPFS | IPv4-first | Multiaddr generation should move to `formatMultiaddr(...)`. |
 | Tor | IPv4-first | Bind/listener and directory authority addressing need a separate migration. |
 | Ethereum/Monero/Chainlink | IPv4-first | HTTP, ENR, RPC, and peer endpoint formatting need helper-based migration. |
 | SCION | Separate design | Underlay, crossConnect, and SCION control tooling currently assume IPv4. |

@@ -152,6 +152,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - Traffic generator receiver vnode targets can be resolved through shared core
   node-address helpers, default to IPv4, and explicitly select IPv6 when
   requested.
+- Kubo bootstrap RPC URLs and peer multiaddrs now route through shared endpoint
+  helpers, default to IPv4, and explicitly select IPv6 when requested.
 
 ## Phase 6: Separate Designs Before Code
 

@@ -140,14 +140,20 @@ Current categories:
 - supported: core addressing, Docker dual-stack networks, BIRD/FRR BGP,
   OSPFv3, ExaBGP, Looking Glass;
 - baseline dual-stack: DNS authoritative records and `/etc/hosts`;
-- compatible but not fully migrated: DNS cache, Web/CA, traffic wrappers;
-- IPv4-first pending design: Email, Kubo, Tor, Ethereum, Monero, Chainlink;
+- compatible but not fully migrated: DNS cache, Web/CA, traffic wrappers,
+  Kubo bootstrap endpoints;
+- IPv4-first pending design: Email, Tor, Ethereum, Monero, Chainlink;
 - separate design required: SCION underlay, cross-connect, DHCPv6, MPLS/EVPN,
   real-world connectivity, OpenVPN, k8s, internetmap2.
 
 Traffic generators preserve existing raw receiver target lists. For explicit
 address-family selection, use `addReceiverVnodes(..., family=AddressFamily.IPv6)`
 to resolve receiver virtual nodes through the shared node-address helpers.
+
+Kubo bootstrap endpoints preserve IPv4 defaults. For explicit IPv6 bootstrap
+RPC URLs and peer multiaddrs, use
+`KuboService(bootstrapAddressFamily=AddressFamily.IPv6)` or
+`setBootstrapAddressFamily(AddressFamily.IPv6)`.
 
 See
 [Repository-Wide IPv6 Readiness Design](../designs/ipv6-repository-readiness-design.md)

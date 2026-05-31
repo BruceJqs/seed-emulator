@@ -87,7 +87,9 @@ The following includes some technical notes on the implementation, including asp
 - `self._first_installed` may be used to expose a single node's Web UI to the host VM. We should find a better way to expose all nodes' Web UIs without individual port forwarding (which also conflicts with Internet Map default port 8080).
 - `self._doInstall(node:Node, server:KuboServer)` does all service-level installation (port bindings and bootstrapping), and then begins server-level installation for the given node.
     - Bootstrap list and bootstrap script are generated once when this method is first called, and reused for all other method calls.
-- `self._getBootstrapIps()` populates the service's bootstrap list using the first valid, local IPv4 address for each node.
+- `self._getBootstrapIps()` populates the service's bootstrap list using the
+  selected address family. IPv4 remains the default; IPv6 bootstrap endpoints
+  are opt-in and use shared endpoint helpers for RPC URLs and peer multiaddrs.
 
 ### KuboServer
 - `self.setVersion(version:str)` attempts to verify the format of the version string to ensure that it matches the expected format (using RegEx).
