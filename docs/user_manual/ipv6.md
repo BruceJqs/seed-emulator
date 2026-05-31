@@ -158,8 +158,10 @@ RPC URLs and peer multiaddrs, use
 
 CA certificate installation filters accept IPv4 and IPv6 address/prefix
 selectors. For example, `installCACert(Filter(ipv6="2000:0:3::72"))` installs
-the root CA certificate only on nodes with that IPv6 address. Web HTTPS and ACME
-runtime behavior remain compatible but not fully migrated.
+the root CA certificate only on nodes with that IPv6 address. Web HTTPS ACME
+directory URLs preserve domain-name defaults and can bracket explicit IPv6 CA
+endpoint literals, but Web HTTPS and ACME runtime behavior remain compatible
+and not fully migrated.
 
 Monero seed and full-node RPC endpoint lists preserve IPv4 defaults. In a
 dual-stack emulation, call `blockchain.setEndpointAddressFamily(AddressFamily.IPv6)`

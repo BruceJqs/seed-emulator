@@ -77,7 +77,7 @@ Deferred core items:
 | `/etc/hosts` | Baseline dual-stack | Generate IPv4 and IPv6 local entries when available. |
 | DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; masters may include both families. |
 | DNS cache | Compatible | Prefer IPv4 for old resolver behavior; accept IPv6 forwarders/root hints. |
-| Web/CA | Compatible | Existing IPv4 behavior preserved; CA certificate-install filters match IPv4/IPv6 address and prefix selectors, but Web HTTPS and ACME runtime behavior still need validation before a full support claim. |
+| Web/CA | Compatible | Existing IPv4 behavior preserved; CA certificate-install filters match IPv4/IPv6 address and prefix selectors; ACME directory URLs use shared URL helpers and can bracket explicit IPv6 CA endpoint literals, but Web HTTPS and ACME runtime behavior still need validation before a full support claim. |
 | Traffic services | Compatible | Raw receiver targets are unchanged; receiver vnodes can be resolved to IPv4 or IPv6 targets through shared node-address helpers, but each tool still needs runtime validation before a full support claim. |
 | Kubo/IPFS | Compatible | Bootstrap RPC URLs and peer multiaddrs use shared endpoint helpers, default to IPv4, and may explicitly select IPv6; broader Kubo runtime behavior still needs validation before a full support claim. |
 | Monero | Compatible | Seed and full-node RPC endpoint lists use shared address-family and host-port helpers, default to IPv4, and may explicitly select IPv6; daemon listener/runtime behavior still needs validation before a full support claim. |

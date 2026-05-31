@@ -23,7 +23,7 @@ from seedemu.utilities import BuildtimeDockerImage
 if TYPE_CHECKING:
     from seedemu.services.WebService import WebServer
     from seedemu.core import Node, Filter
-from seedemu.core import AddressFamily, Service, Server, getInterfaceAddress
+from seedemu.core import AddressFamily, Service, Server, formatUrl, getInterfaceAddress
 
 CaFileTemplates: Dict[str, str] = {}
 
@@ -46,6 +46,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 * */1 * * * root test -x /usr/bin/certbot -a \\! -d /run/systemd/system && perl -e 'sleep int(rand(3600))' && REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt certbot -q renew
 """
+
+
+def _caBaseUrl(ca_domain: str) -> str:
+    return formatUrl("https", ca_domain)
+
+
+def _acmeDirectoryUrl(ca_domain: str) -> str:
+    return formatUrl("https", ca_domain, path="/acme/acme/directory")
 
 
 def ipsInNetwork(ips: Iterable, network: str) -> bool:
@@ -204,16 +212,18 @@ class CAServer(Server):
         )
         # wait for the name server
         node.setFile("/etc/cron.d/certbot", CaFileTemplates["certbot_renew_cron"])
+        acme_directory_url = _acmeDirectoryUrl(self.__ca_domain)
         node.appendStartCommand(
-            'until curl --silent https://{}/acme/acme/directory > /dev/null ; do echo "Network retry in 2 s" && sleep 2; done'.format(
-                self.__ca_domain
+            'until curl --silent {} > /dev/null ; do echo "Network retry in 2 s" && sleep 2; done'.format(
+                acme_directory_url
             )
         )
         node.appendStartCommand(
             'REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
-certbot --server https://{ca_domain}/acme/acme/directory --non-interactive --nginx --no-redirect --agree-tos --email example@example.com \
+certbot --server {acme_directory_url} --non-interactive --nginx --no-redirect --agree-tos --email example@example.com \
 -d {server_name} > /dev/null && echo "ACME: cert issued"'.format(
-                server_name=" -d ".join(web._server_name), ca_domain=self.__ca_domain
+                server_name=" -d ".join(web._server_name),
+                acme_directory_url=acme_directory_url,
             )
         )
         node.appendStartCommand(
@@ -447,7 +457,7 @@ class RootCAStore:
                     " --root /root/root_ca.crt --key /root/root_ca_key"
                 )
             initialize_command += f' --deployment-type "standalone" --name "SEEDEMU Internal" \
---dns "{self._caDomain}" --address ":443" --provisioner "admin" --with-ca-url "https://{self._caDomain}" \
+--dns "{self._caDomain}" --address ":443" --provisioner "admin" --with-ca-url "{_caBaseUrl(self._caDomain)}" \
 --password-file /root/password.txt --provisioner-password-file /root/password.txt --acme'
             self.__container.run(initialize_command)
 

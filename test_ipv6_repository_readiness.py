@@ -9,6 +9,7 @@ from seedemu.core import (
     Binding,
     Emulator,
     Filter,
+    Node,
     Server,
     Service,
     formatHostPort,
@@ -18,6 +19,7 @@ from seedemu.core import (
     getNodeAddresses,
     getNodePreferredAddress,
 )
+from seedemu.core.enums import NodeRole
 from seedemu.layers import Base, EtcHosts
 from seedemu.services import (
     CAServer,
@@ -33,6 +35,7 @@ from seedemu.services import (
     MoneroService,
     TrafficService,
     TrafficServiceType,
+    WebServer,
 )
 from seedemu.services.EthereumService.EthTemplates import (
     FaucetServerFileTemplates,
@@ -80,6 +83,12 @@ class _FakeCAStore:
 
     def getStorePath(self) -> str:
         return str(self._store_path)
+
+
+class _FakeCAStoreWithDomain(_FakeCAStore):
+    def __init__(self, store_path: Path, ca_domain: str):
+        super().__init__(store_path)
+        self._caDomain = ca_domain
 
 
 class _FakeEthServer(Server):
@@ -534,6 +543,29 @@ def test_ca_install_cert_filter_matches_ipv4_and_ipv6_targets(tmp_path):
     assert cert_path not in _imported_paths(node_by_asn[5])
     assert "update-ca-certificates" in _start_commands(node_by_asn[2])
     assert "update-ca-certificates" not in _start_commands(node_by_asn[5])
+
+
+def test_ca_https_acme_urls_preserve_domain_default_and_format_ipv6_literals(tmp_path):
+    web = WebServer()
+    web.setServerNames(["web.example"])
+
+    default_ca = CAServer("0.26.1")
+    default_ca.setCAStore(_FakeCAStoreWithDomain(tmp_path / "default-ca", "ca.internal"))
+    default_node = Node("web-default", NodeRole.Host, 2)
+    default_ca.enableHTTPSFunc(default_node, web)
+    default_commands = _start_commands(default_node)
+
+    assert "https://ca.internal/acme/acme/directory" in default_commands
+    assert "https://[ca.internal]" not in default_commands
+
+    ipv6_ca = CAServer("0.26.1")
+    ipv6_ca.setCAStore(_FakeCAStoreWithDomain(tmp_path / "ipv6-ca", "2000:0:2::53"))
+    ipv6_node = Node("web-ipv6", NodeRole.Host, 2)
+    ipv6_ca.enableHTTPSFunc(ipv6_node, web)
+    ipv6_commands = _start_commands(ipv6_node)
+
+    assert "https://[2000:0:2::53]/acme/acme/directory" in ipv6_commands
+    assert "https://2000:0:2::53/acme/acme/directory" not in ipv6_commands
 
 
 def test_explicit_ipv6_prefixes_are_claimed_and_auto_allocation_skips_them():
