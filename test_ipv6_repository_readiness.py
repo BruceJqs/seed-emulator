@@ -43,6 +43,7 @@ from seedemu.services import (
     EthUtilityServer,
     EthereumServer,
     FaucetServer,
+    FaucetUserService,
     FaucetUtil,
     KuboService,
     MoneroService,
@@ -683,6 +684,58 @@ def _render_ethereum_service_network_endpoint_topology(family=AddressFamily.IPv4
     return faucet_node, utility_node, faucet_util
 
 
+def _render_faucet_user_endpoint_topology(
+    family=AddressFamily.IPv4,
+    service_network_only=False,
+):
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64") if service_network_only else Emulator()
+    base = Base(enableIpv6=True)
+    faucet_provider = _NoopService("FaucetProviderService")
+    faucet_user = FaucetUserService()
+
+    as2 = base.createAutonomousSystem(2)
+    if service_network_only:
+        as2.createHost("faucet").joinNetwork(
+            "000_svc",
+            address="192.168.66.72",
+            ipv6Address="fd00:66::72",
+        )
+        as2.createHost("user").joinNetwork(
+            "000_svc",
+            address="192.168.66.73",
+            ipv6Address="fd00:66::73",
+        )
+    else:
+        as2.createNetwork("net0")
+        as2.createHost("faucet").joinNetwork(
+            "net0",
+            address="10.2.0.72",
+            ipv6Address="2000:0:2::72",
+        )
+        as2.createHost("user").joinNetwork(
+            "net0",
+            address="10.2.0.73",
+            ipv6Address="2000:0:2::73",
+        )
+
+    faucet_provider.install("faucet-vnode")
+    faucet_user.install("faucet-user-vnode")
+    faucet_user.setEndpointAddressFamily(family)
+    faucet_user.setFaucetServerInfo("faucet-vnode", 80)
+
+    emu.addBinding(Binding("faucet-vnode", filter=Filter(asn=2, nodeName="faucet"), action=Action.FIRST))
+    emu.addBinding(Binding("faucet-user-vnode", filter=Filter(asn=2, nodeName="user"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(faucet_provider)
+    emu.addLayer(faucet_user)
+    if service_network_only:
+        emu.getServiceNetwork()
+    emu.render()
+
+    return emu.getRegistry().get("2", "hnode", "user")
+
+
 def _render_ethereum_bootstrap_endpoint_topology(family=AddressFamily.IPv4):
     base = Base(enableIpv6=True)
     as2 = base.createAutonomousSystem(2)
@@ -945,6 +998,16 @@ def test_service_endpoint_family_apis_reuse_shared_normalizer():
     faucet_util = FaucetUtil(endpointAddressFamily=" AF_INET6 ")
     faucet_util.setEndpointAddressFamily(" inet6 ")
     assert faucet_util._FaucetUtil__endpoint_address_family == AddressFamily.IPv6
+
+    faucet_user = FaucetUserService(endpointAddressFamily=" v6 ")
+    faucet_user.install("faucet-user-vnode")
+    faucet_user.setEndpointAddressFamily(" inet6 ")
+    faucet_user_server = faucet_user.getPendingTargets()["faucet-user-vnode"]
+    assert faucet_user._FaucetUserService__endpoint_address_family == AddressFamily.IPv6
+    assert (
+        faucet_user_server._FaucetUserServer__faucet_util._FaucetUtil__endpoint_address_family
+        == AddressFamily.IPv6
+    )
 
     tor_server = TorService().install("hs-vnode").setRole(TorNodeType.HS)
     tor_server.linkByVnode("backend-vnode", 8080, family=" ip6 ")
@@ -2705,6 +2768,35 @@ def test_ethereum_http_utility_urls_fall_back_to_service_network_ipv6():
     assert faucet_util.getFaucetFundUrl() == "http://[fd00:66::72]:80/fundme"
     assert "http://fd00:66::71:8545" not in combined
     assert "http://192.168.66.71:8545" not in combined
+
+
+def test_faucet_user_urls_default_to_ipv4_on_dual_stack_nodes():
+    user = _render_faucet_user_endpoint_topology()
+    fundme = _file_content(user, "faucet_user/fundme.py")
+
+    assert 'faucet_url      = "http://10.2.0.72:80/"' in fundme
+    assert 'faucet_fund_url = "http://10.2.0.72:80/fundme"' in fundme
+    assert "2000:0:2::72" not in fundme
+
+
+def test_faucet_user_urls_can_select_ipv6_helpers():
+    user = _render_faucet_user_endpoint_topology(AddressFamily.IPv6)
+    fundme = _file_content(user, "faucet_user/fundme.py")
+
+    assert 'faucet_url      = "http://[2000:0:2::72]:80/"' in fundme
+    assert 'faucet_fund_url = "http://[2000:0:2::72]:80/fundme"' in fundme
+    assert "http://2000:0:2::72:80" not in fundme
+    assert "http://10.2.0.72:80" not in fundme
+
+
+def test_faucet_user_urls_fall_back_to_service_network_ipv6():
+    user = _render_faucet_user_endpoint_topology(AddressFamily.IPv6, service_network_only=True)
+    fundme = _file_content(user, "faucet_user/fundme.py")
+
+    assert 'faucet_url      = "http://[fd00:66::72]:80/"' in fundme
+    assert 'faucet_fund_url = "http://[fd00:66::72]:80/fundme"' in fundme
+    assert "http://fd00:66::72:80" not in fundme
+    assert "http://192.168.66.72:80" not in fundme
 
 
 def test_ethereum_bootstrap_helper_urls_default_to_ipv4_on_dual_stack_nodes():
