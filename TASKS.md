@@ -154,6 +154,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   requested.
 - Kubo bootstrap RPC URLs and peer multiaddrs now route through shared endpoint
   helpers, default to IPv4, and explicitly select IPv6 when requested.
+- CA `installCACert(Filter(...))` target selection now matches IPv4 and IPv6
+  address/prefix filters through shared interface address helpers while keeping
+  the existing default of installing on all nodes.
 
 ## Phase 6: Separate Designs Before Code
 

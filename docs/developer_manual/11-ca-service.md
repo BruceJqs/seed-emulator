@@ -48,6 +48,9 @@ If there are overlaps among the filters, the certificate will be installed only 
 This is done by appending `Filter` to a list of filters in the `CAServer` class.
 It does not replace the existing filters, but appends the new filter to the list.
 In the `CAService` configuration stage, the `CAServer` will iterate through the list of filters and install the Root CA certificate to the nodes that match the filter.
+The filter matching path is address-family aware for `ip`, `prefix`, `ipv4`,
+`ipv6`, `ipv4Prefix`, and `ipv6Prefix`, so certificate installation can target
+dual-stack nodes without changing the default install-on-all behavior.
 
 The installation process is done by copying the Root CA certificate to the node's `/usr/local/share/ca-certificates` directory and running the `update-ca-certificates` command.
 

@@ -155,6 +155,11 @@ RPC URLs and peer multiaddrs, use
 `KuboService(bootstrapAddressFamily=AddressFamily.IPv6)` or
 `setBootstrapAddressFamily(AddressFamily.IPv6)`.
 
+CA certificate installation filters accept IPv4 and IPv6 address/prefix
+selectors. For example, `installCACert(Filter(ipv6="2000:0:3::72"))` installs
+the root CA certificate only on nodes with that IPv6 address. Web HTTPS and ACME
+runtime behavior remain compatible but not fully migrated.
+
 See
 [Repository-Wide IPv6 Readiness Design](../designs/ipv6-repository-readiness-design.md)
 for the migration contract.

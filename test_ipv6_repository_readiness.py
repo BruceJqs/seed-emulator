@@ -18,6 +18,7 @@ from seedemu.core import (
 )
 from seedemu.layers import Base, EtcHosts
 from seedemu.services import (
+    CAServer,
     DomainNameCachingService,
     DomainNameService,
     KuboService,
@@ -47,6 +48,25 @@ def _start_commands(node) -> str:
     return "\n".join(command for command, _ in node.getStartCommands())
 
 
+def _imported_paths(node):
+    return set(node.getImportedFiles().keys())
+
+
+class _FakeCAStore:
+    def __init__(self, store_path: Path):
+        self._store_path = store_path
+        self._caDomain = "ca.internal"
+        cert_dir = store_path / ".step" / "certs"
+        cert_dir.mkdir(parents=True)
+        (cert_dir / "root_ca.crt").write_text("fake root ca", encoding="utf-8")
+
+    def initialize(self):
+        pass
+
+    def getStorePath(self) -> str:
+        return str(self._store_path)
+
+
 def _render_kubo_bootstrap_topology(kubo: KuboService):
     emu = Emulator()
     base = Base(enableIpv6=True)
@@ -66,6 +86,29 @@ def _render_kubo_bootstrap_topology(kubo: KuboService):
     emu.render()
 
     return kubo, emu.getRegistry().get("2", "hnode", "peer")
+
+
+def _render_ca_filter_topology():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    for asn, ipv4, ipv6 in [
+        (2, "10.2.0.71", "2000:0:2::71"),
+        (3, "10.3.0.72", "2000:0:3::72"),
+        (4, "10.4.0.73", "2000:0:4::73"),
+        (5, "10.5.0.74", "2000:0:5::74"),
+    ]:
+        asn_obj = base.createAutonomousSystem(asn)
+        asn_obj.createNetwork("net0")
+        asn_obj.createHost("client").joinNetwork("net0", address=ipv4, ipv6Address=ipv6)
+
+    emu.addLayer(base)
+    emu.render()
+
+    return [
+        emu.getRegistry().get(str(asn), "hnode", "client")
+        for asn in [2, 3, 4, 5]
+    ]
 
 
 def test_endpoint_helpers_format_ipv6_safely():
@@ -213,6 +256,29 @@ def test_binding_new_can_create_ipv6_selected_host():
 
     node = emu.getBindingFor("dns")
     assert str(node.getInterfaces()[0].getIpv6Address()) == "2000:0:2::53"
+
+
+def test_ca_install_cert_filter_matches_ipv4_and_ipv6_targets(tmp_path):
+    node_by_asn = {
+        node.getAsn(): node
+        for node in _render_ca_filter_topology()
+    }
+
+    ca_server = CAServer("0.26.1")
+    ca_server.setCAStore(_FakeCAStore(tmp_path / "ca-store"))
+    ca_server.installCACert(Filter(ip="10.2.0.71"))
+    ca_server.installCACert(Filter(ipv6="2000:0:3::72"))
+    ca_server.installCACert(Filter(prefix="2000:0:4::/64"))
+    ca_server._serverConfigure(9, list(node_by_asn.values()))
+
+    cert_path = "/usr/local/share/ca-certificates/SEEDEMU_Internal_Root_CA_9.crt"
+
+    assert cert_path in _imported_paths(node_by_asn[2])
+    assert cert_path in _imported_paths(node_by_asn[3])
+    assert cert_path in _imported_paths(node_by_asn[4])
+    assert cert_path not in _imported_paths(node_by_asn[5])
+    assert "update-ca-certificates" in _start_commands(node_by_asn[2])
+    assert "update-ca-certificates" not in _start_commands(node_by_asn[5])
 
 
 def test_explicit_ipv6_prefixes_are_claimed_and_auto_allocation_skips_them():

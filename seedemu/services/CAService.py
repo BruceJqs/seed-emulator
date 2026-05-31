@@ -23,7 +23,7 @@ from seedemu.utilities import BuildtimeDockerImage
 if TYPE_CHECKING:
     from seedemu.services.WebService import WebServer
     from seedemu.core import Node, Filter
-from seedemu.core import Service, Server
+from seedemu.core import AddressFamily, Service, Server, getInterfaceAddress
 
 CaFileTemplates: Dict[str, str] = {}
 
@@ -44,7 +44,7 @@ CaFileTemplates["certbot_renew_cron"] = """\
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-* */1 * * * root test -x /usr/bin/certbot -a \! -d /run/systemd/system && perl -e 'sleep int(rand(3600))' && REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt certbot -q renew
+* */1 * * * root test -x /usr/bin/certbot -a \\! -d /run/systemd/system && perl -e 'sleep int(rand(3600))' && REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt certbot -q renew
 """
 
 
@@ -76,6 +76,66 @@ def ipsInNetwork(ips: Iterable, network: str) -> bool:
         if ip in net:
             return True
     return False
+
+
+def _nodeAddresses(node: Node, family: AddressFamily) -> List:
+    addresses = []
+    for iface in node.getInterfaces():
+        address = getInterfaceAddress(iface, family)
+        if address is not None:
+            addresses.append(address)
+    return addresses
+
+
+def _nodeHasAddress(node: Node, address: str) -> bool:
+    requested = ip_address(address)
+    family = (
+        AddressFamily.IPv4
+        if isinstance(requested, IPv4Address)
+        else AddressFamily.IPv6
+    )
+    return any(
+        ip_address(str(candidate)) == requested
+        for candidate in _nodeAddresses(node, family)
+    )
+
+
+def _nodeHasAddressInPrefix(node: Node, prefix: str) -> bool:
+    network = ip_network(prefix)
+    family = (
+        AddressFamily.IPv4
+        if isinstance(network, IPv4Network)
+        else AddressFamily.IPv6
+    )
+    return any(address in network for address in _nodeAddresses(node, family))
+
+
+def _nodeMatchesFilter(node: Node, filter: Filter) -> bool:
+    if filter.asn is not None and filter.asn != node.getAsn():
+        return False
+    if filter.nodeName is not None and not re.compile(filter.nodeName).match(
+        node.getName()
+    ):
+        return False
+
+    requested_ips = [
+        ip for ip in [filter.ip, filter.ipv4, filter.ipv6]
+        if ip is not None
+    ]
+    for requested_ip in requested_ips:
+        if not _nodeHasAddress(node, requested_ip):
+            return False
+
+    requested_prefixes = [
+        prefix
+        for prefix in [filter.prefix, filter.ipv4Prefix, filter.ipv6Prefix]
+        if prefix is not None
+    ]
+    for requested_prefix in requested_prefixes:
+        if not _nodeHasAddressInPrefix(node, requested_prefix):
+            return False
+
+    return filter.custom is None or filter.custom(node.getName(), node)
 
 
 class CAServer(Server):
@@ -157,7 +217,7 @@ certbot --server https://{ca_domain}/acme/acme/directory --non-interactive --ngi
             )
         )
         node.appendStartCommand(
-            "sed 's/^#\? \?renew_before_expiry = .*$/renew_before_expiry = 8hours/' -i /etc/letsencrypt/renewal/*.conf"
+            "sed 's/^#\\? \\?renew_before_expiry = .*$/renew_before_expiry = 8hours/' -i /etc/letsencrypt/renewal/*.conf"
         )
         node.appendStartCommand("crontab /etc/cron.d/certbot && service cron start")
 
@@ -171,28 +231,8 @@ certbot --server https://{ca_domain}/acme/acme/directory --non-interactive --ngi
             for node in all_nodes:
                 if all_nodes_dict[node]:
                     continue
-                if filter:
-                    if filter.asn and filter.asn != node.getAsn():
-                        continue
-                    if filter.nodeName and not re.compile(filter.nodeName).match(
-                        node.getName()
-                    ):
-                        continue
-                    if filter.ip and filter.ip not in map(
-                        lambda x: x.getAddress(), node.getInterfaces()
-                    ):
-                        continue
-                    if filter.prefix:
-                        ips = {
-                            host
-                            for host in map(
-                                lambda x: x.getAddress(), node.getInterfaces()
-                            )
-                        }
-                        if not ipsInNetwork(ips, filter.prefix):
-                            continue
-                    if filter.custom and not filter.custom(node.getName(), node):
-                        continue
+                if filter and not _nodeMatchesFilter(node, filter):
+                    continue
                 node.addSoftware("ca-certificates")
                 node.importFile(
                     os.path.join(
