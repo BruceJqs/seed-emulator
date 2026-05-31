@@ -5,7 +5,7 @@ from .Network import Network
 from .AddressAssignmentConstraint import AddressAssignmentConstraint
 from .Emulator import Emulator
 from .Configurable import Configurable
-from ipaddress import IPv4Network
+from ipaddress import IPv4Network, IPv6Network
 
 class InternetExchange(Printable, Configurable):
     """!
@@ -19,7 +19,7 @@ class InternetExchange(Printable, Configurable):
     __rs: Node
     __name: str
 
-    def __init__(self, id: int, prefix: str = "auto", aac: AddressAssignmentConstraint = None, create_rs = True, rsAddress = None):
+    def __init__(self, id: int, prefix: str = "auto", aac: AddressAssignmentConstraint = None, create_rs = True, rsAddress = None, ipv6Prefix = None, rsIpv6Address = "auto"):
         """!
         @brief InternetExchange constructor.
 
@@ -36,16 +36,19 @@ class InternetExchange(Printable, Configurable):
 
         assert prefix != "auto" or self.__id <= 255, "can't use auto: id > 255"
         network = IPv4Network(prefix) if prefix != "auto" else IPv4Network("10.{}.0.0/24".format(self.__id))
+        ipv6_network = None
+        if ipv6Prefix is not None:
+            ipv6_network = ipv6Prefix if isinstance(ipv6Prefix, IPv6Network) else IPv6Network(ipv6Prefix)
 
         self.__name = 'ix{}'.format(str(self.__id))
-        self.__net = Network(self.__name, NetworkType.InternetExchange, network, aac, False)
+        self.__net = Network(self.__name, NetworkType.InternetExchange, network, aac, False, ipv6_network)
 
         if create_rs:
             self.__rs = Router(self.__name, NodeRole.RouteServer, self.__id) 
             if rsAddress == None: 
-                self.__rs.joinNetwork(self.__name)
+                self.__rs.joinNetwork(self.__name, ipv6Address=rsIpv6Address)
             else:
-                self.__rs.joinNetwork(self.__name, rsAddress)
+                self.__rs.joinNetwork(self.__name, rsAddress, rsIpv6Address)
         else:
             self.__rs = None
 
@@ -97,5 +100,8 @@ class InternetExchange(Printable, Configurable):
         indent += 4
         out += ' ' * indent
         out += 'Peering LAN Prefix: {}\n'.format(self.__net.getPrefix())
+        if self.__net.hasIpv6Prefix():
+            out += ' ' * indent
+            out += 'Peering LAN IPv6 Prefix: {}\n'.format(self.__net.getIpv6Prefix())
 
         return out

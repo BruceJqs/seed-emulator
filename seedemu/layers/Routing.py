@@ -3,7 +3,7 @@ from seedemu.core import (ScopedRegistry, Node, Interface, Network, Emulator,
                           promote_to_real_world_router)
 from seedemu.core.enums import NetworkType
 from typing import Dict, List, Set, Tuple
-from ipaddress import IPv4Network
+from ipaddress import IPv4Network, IPv6Network, ip_network
 
 from ._bgp_metadata import get_bgp_backend, get_bgp_sessions, get_ospf_interface_intents, has_bgp_connected_export, ensure_bird_bgp_base, render_bird_protocol_body
 
@@ -12,8 +12,10 @@ RoutingFileTemplates: Dict[str, str] = {}
 RoutingFileTemplates["rs_bird"] = """\
 router id {routerId};
 ipv4 table t_direct;
+{ipv6DirectTable}
 protocol device {{
 }}
+{kernel6}
 """
 
 RoutingFileTemplates["rnode_bird_direct_interface"] = """
@@ -23,6 +25,7 @@ RoutingFileTemplates["rnode_bird_direct_interface"] = """
 RoutingFileTemplates["rnode_bird"] = """\
 router id {routerId};
 ipv4 table t_direct;
+{ipv6DirectTable}
 protocol device {{
 }}
 protocol kernel {{
@@ -32,6 +35,7 @@ protocol kernel {{
     }};
     learn;
 }}
+{kernel6}
 """
 
 RoutingFileTemplates['rnode_bird_direct'] = """
@@ -42,9 +46,28 @@ RoutingFileTemplates['rnode_bird_direct'] = """
 {interfaces}
 """
 
+RoutingFileTemplates['rnode_bird_direct6'] = """
+    ipv6 {{
+        table t_direct6;
+        import all;
+    }};
+{interfaces}
+"""
+
 RoutingFileTemplates['bird_ospf_body'] = """
     ipv4 {{
         table t_ospf;
+        import all;
+        export all;
+    }};
+    area 0 {{
+{interfaces}
+    }};
+"""
+
+RoutingFileTemplates['bird_ospf6_body'] = """
+    ipv6 {{
+        table t_ospf6;
         import all;
         export all;
     }};
@@ -80,11 +103,33 @@ sed -i 's/bgpd=no/bgpd=yes/' /etc/frr/daemons
 sed -i 's/zebra=no/zebra=yes/' /etc/frr/daemons
 sed -i 's/staticd=no/staticd=yes/' /etc/frr/daemons
 sed -i 's/ospfd=no/ospfd=yes/' /etc/frr/daemons
+{enableOspf6d}
 service frr start
 """
 
-FrrFileTemplates["route_map_connected"] = """\
-route-map RM_CONNECTED_TO_BGP permit 10
+FrrFileTemplates["enable_ospf6d"] = """\
+sed -i 's/ospf6d=no/ospf6d=yes/' /etc/frr/daemons
+"""
+
+FrrFileTemplates["connected_prefix_list4"] = """\
+ip prefix-list PL_CONNECTED4_TO_BGP seq {seq} permit {prefix}
+"""
+
+FrrFileTemplates["connected_prefix_list6"] = """\
+ipv6 prefix-list PL_CONNECTED6_TO_BGP seq {seq} permit {prefix}
+"""
+
+FrrFileTemplates["route_map_connected4"] = """\
+route-map RM_CONNECTED4_TO_BGP permit 10
+ match ip address prefix-list PL_CONNECTED4_TO_BGP
+ set large-community {local_comm} additive
+ set local-preference 40
+!
+"""
+
+FrrFileTemplates["route_map_connected6"] = """\
+route-map RM_CONNECTED6_TO_BGP permit 10
+ match ipv6 address prefix-list PL_CONNECTED6_TO_BGP
  set large-community {local_comm} additive
  set local-preference 40
 !
@@ -137,6 +182,29 @@ FrrFileTemplates["ospf_router"] = """\
 router ospf
  ospf router-id {router_id}
 !
+"""
+
+FrrFileTemplates["ospf6_interface_active"] = """\
+interface {interface}
+ ipv6 ospf6 hello-interval 1
+ ipv6 ospf6 dead-interval 2
+!
+"""
+
+FrrFileTemplates["ospf6_interface_passive"] = """\
+interface {interface}
+ ipv6 ospf6 passive
+!
+"""
+
+FrrFileTemplates["ospf6_area_interface"] = """\
+ interface {interface} area 0.0.0.0
+"""
+
+FrrFileTemplates["ospf6_router"] = """\
+router ospf6
+ ospf6 router-id {router_id}
+{interfaces}!
 """
 
 ExaBgpRouterTemplates: Dict[str, str] = {}
@@ -369,6 +437,42 @@ def _render_frr_session_route_maps(local_asn: int, sessions: List[Dict]) -> Tupl
     return "".join(body), map_names
 
 
+def _render_frr_connected_export(local_asn: int, router: Router) -> Tuple[str, bool, bool]:
+    prefixes4: List[str] = []
+    prefixes6: List[str] = []
+    seen4: Set[str] = set()
+    seen6: Set[str] = set()
+
+    for iface in router.getInterfaces():
+        net = iface.getNet()
+        if net.getType() == NetworkType.Bridge:
+            continue
+
+        prefix4 = str(net.getPrefix())
+        if iface.getAddress() is not None and prefix4 not in seen4:
+            seen4.add(prefix4)
+            prefixes4.append(prefix4)
+
+        if iface.hasIpv6Address() and net.hasIpv6Prefix():
+            prefix6 = str(net.getIpv6Prefix())
+            if prefix6 not in seen6:
+                seen6.add(prefix6)
+                prefixes6.append(prefix6)
+
+    body: List[str] = []
+    for index, prefix in enumerate(prefixes4, start=1):
+        body.append(FrrFileTemplates["connected_prefix_list4"].format(seq=index * 10, prefix=prefix))
+    if prefixes4:
+        body.append(FrrFileTemplates["route_map_connected4"].format(local_comm=f"{local_asn}:0:0"))
+
+    for index, prefix in enumerate(prefixes6, start=1):
+        body.append(FrrFileTemplates["connected_prefix_list6"].format(seq=index * 10, prefix=prefix))
+    if prefixes6:
+        body.append(FrrFileTemplates["route_map_connected6"].format(local_comm=f"{local_asn}:0:0"))
+
+    return "".join(body), bool(prefixes4), bool(prefixes6)
+
+
 class Routing(Layer):
     """!
     @brief The Routing layer.
@@ -386,9 +490,11 @@ class Routing(Layer):
     """
 
     _loopback_assigner: IPv4Network
+    _loopback_ipv6_assigner: IPv6Network
     _loopback_pos: int
+    _loopback_ipv6_pos: int
 
-    def __init__(self, loopback_range: str = '10.0.0.0/16'):
+    def __init__(self, loopback_range: str = '10.0.0.0/16', loopback_ipv6_range: str = '2000:ffff::/48'):
         """!
         @brief Routing layer constructor.
 
@@ -397,7 +503,9 @@ class Routing(Layer):
         """
         super().__init__()
         self._loopback_assigner = IPv4Network(loopback_range)
+        self._loopback_ipv6_assigner = IPv6Network(loopback_ipv6_range)
         self._loopback_pos = 1
+        self._loopback_ipv6_pos = 1
         self.addDependency('Base', False, False)
         self.addDependency('Ospf', True, True)
         self.addDependency('Ibgp', True, True)
@@ -440,13 +548,26 @@ class Routing(Layer):
 
         assert issubclass(rs_node.__class__, Router)
         rs_node.setBorderRouter(True)
+        has_ipv6 = rs_iface.hasIpv6Address()
         rs_node.setFile("/etc/bird/bird.conf", RoutingFileTemplates["rs_bird"].format(
-            routerId = rs_iface.getAddress()
+            routerId=rs_iface.getAddress(),
+            ipv6DirectTable="ipv6 table t_direct6;" if has_ipv6 else "",
+            kernel6=(
+                "protocol kernel kernel6 {\n"
+                "    ipv6 {\n"
+                "        import all;\n"
+                "        export all;\n"
+                "    };\n"
+                "    learn;\n"
+                "}\n"
+            ) if has_ipv6 else "",
         ))
 
     def _configure_bird_router(self, rnode: Router):
         ifaces = ''
+        ifaces6 = ''
         has_localnet = False
+        has_ipv6_localnet = False
         for iface in rnode.getInterfaces():
             net = iface.getNet()
             if net.isDirect():
@@ -454,15 +575,33 @@ class Routing(Layer):
                 ifaces += RoutingFileTemplates["rnode_bird_direct_interface"].format(
                     interfaceName = net.getName()
                 )
+                if iface.hasIpv6Address():
+                    has_ipv6_localnet = True
+                    ifaces6 += RoutingFileTemplates["rnode_bird_direct_interface"].format(
+                        interfaceName=net.getName()
+                    )
         rnode.setFile("/etc/bird/bird.conf",
             RoutingFileTemplates["rnode_bird"].format(
-              routerId = rnode.getLoopbackAddress()))
+              routerId=rnode.getLoopbackAddress(),
+              ipv6DirectTable="ipv6 table t_direct6;" if has_ipv6_localnet else "",
+              kernel6=(
+                  "protocol kernel kernel6 {\n"
+                  "    ipv6 {\n"
+                  "        import all;\n"
+                  "        export all;\n"
+                  "    };\n"
+                  "    learn;\n"
+                  "}\n"
+              ) if has_ipv6_localnet else ""))
         if get_bgp_backend(rnode) == "bird":
             rnode.appendStartCommand('[ ! -d /run/bird ] && mkdir /run/bird')
             rnode.appendStartCommand('bird -d', True)
         if has_localnet:
             rnode.addProtocol('direct', 'local_nets',
                               RoutingFileTemplates['rnode_bird_direct'].format(interfaces = ifaces))
+        if has_ipv6_localnet:
+            rnode.addProtocol('direct', 'local_nets6',
+                              RoutingFileTemplates['rnode_bird_direct6'].format(interfaces=ifaces6))
 
     def _render_bird_sessions(self, router: Router):
         if router.getAttribute("__routing_bird_sessions_rendered", False):
@@ -481,16 +620,31 @@ class Routing(Layer):
         intents = get_ospf_interface_intents(router)
         active = list(intents.get("active", []) or [])
         passive = list(intents.get("passive", []) or [])
+        families = list(intents.get("families", ["ipv4"]) or ["ipv4"])
         if not active and not passive:
             return
         ospf_interfaces = ""
+        ospf6_interfaces = ""
+        ipv6_ifaces = {"dummy0"} if router.getLoopbackIpv6Address() else set()
+        for iface in router.getInterfaces():
+            if iface.hasIpv6Address():
+                ipv6_ifaces.add(str(iface.getNet().getName()))
         for iface_name in passive:
             ospf_interfaces += RoutingFileTemplates['bird_ospf_stub_interface'].format(interfaceName=iface_name)
+            if iface_name in ipv6_ifaces:
+                ospf6_interfaces += RoutingFileTemplates['bird_ospf_stub_interface'].format(interfaceName=iface_name)
         for iface_name in active:
             ospf_interfaces += RoutingFileTemplates['bird_ospf_interface'].format(interfaceName=iface_name)
-        router.addTable('t_ospf')
-        router.addProtocol('ospf', 'ospf1', RoutingFileTemplates['bird_ospf_body'].format(interfaces=ospf_interfaces))
-        router.addTablePipe('t_ospf')
+            if iface_name in ipv6_ifaces:
+                ospf6_interfaces += RoutingFileTemplates['bird_ospf_interface'].format(interfaceName=iface_name)
+        if "ipv4" in families:
+            router.addTable('t_ospf')
+            router.addProtocol('ospf', 'ospf1', RoutingFileTemplates['bird_ospf_body'].format(interfaces=ospf_interfaces))
+            router.addTablePipe('t_ospf')
+        if "ipv6" in families and ospf6_interfaces:
+            router.addTable('t_ospf6', family="ipv6")
+            router.addProtocol('ospf v3', 'ospf6', RoutingFileTemplates['bird_ospf6_body'].format(interfaces=ospf6_interfaces))
+            router.addTablePipe('t_ospf6', 'master6')
         router.setAttribute("__routing_bird_ospf_rendered", True)
 
     def _render_frr_ospf_block(self, router: Router) -> str:
@@ -498,6 +652,7 @@ class Routing(Layer):
         intents = get_ospf_interface_intents(router)
         active_ifaces: List[str] = list(intents.get("active", []) or [])
         passive_ifaces: List[str] = list(intents.get("passive", []) or ["dummy0"])
+        families: List[str] = list(intents.get("families", ["ipv4"]) or ["ipv4"])
         if not active_ifaces and not passive_ifaces:
             for iface in router.getInterfaces():
                 net = iface.getNet()
@@ -507,30 +662,61 @@ class Routing(Layer):
                 else:
                     passive_ifaces.append(name)
 
-        seen: Set[str] = set()
-        for name in active_ifaces:
-            if name in seen:
-                continue
-            seen.add(name)
-            body.append(FrrFileTemplates["ospf_interface_active"].format(interface=name))
-        for name in passive_ifaces:
-            if name in seen:
-                continue
-            seen.add(name)
-            body.append(FrrFileTemplates["ospf_interface_passive"].format(interface=name))
+        if "ipv4" in families:
+            seen: Set[str] = set()
+            for name in active_ifaces:
+                if name in seen:
+                    continue
+                seen.add(name)
+                body.append(FrrFileTemplates["ospf_interface_active"].format(interface=name))
+            for name in passive_ifaces:
+                if name in seen:
+                    continue
+                seen.add(name)
+                body.append(FrrFileTemplates["ospf_interface_passive"].format(interface=name))
+            body.append(FrrFileTemplates["ospf_router"].format(router_id=str(router.getLoopbackAddress() or "")))
 
-        body.append(FrrFileTemplates["ospf_router"].format(router_id=str(router.getLoopbackAddress() or "")))
+        if "ipv6" in families:
+            ipv6_ifaces = {"dummy0"} if router.getLoopbackIpv6Address() else set()
+            for iface in router.getInterfaces():
+                if iface.hasIpv6Address():
+                    ipv6_ifaces.add(str(iface.getNet().getName()))
+            seen6: Set[str] = set()
+            area_interfaces = ""
+            for name in active_ifaces:
+                if name in seen6 or name not in ipv6_ifaces:
+                    continue
+                seen6.add(name)
+                body.append(FrrFileTemplates["ospf6_interface_active"].format(interface=name))
+                area_interfaces += FrrFileTemplates["ospf6_area_interface"].format(interface=name)
+            for name in passive_ifaces:
+                if name in seen6 or name not in ipv6_ifaces:
+                    continue
+                seen6.add(name)
+                body.append(FrrFileTemplates["ospf6_interface_passive"].format(interface=name))
+                area_interfaces += FrrFileTemplates["ospf6_area_interface"].format(interface=name)
+            if seen6:
+                body.append(FrrFileTemplates["ospf6_router"].format(
+                    router_id=str(router.getLoopbackAddress() or ""),
+                    interfaces=area_interfaces,
+                ))
         return "".join(body)
 
     def _render_frr_bgp_block(self, router: Router, sessions: List[Dict]) -> str:
         local_asn = int(router.getAsn())
         loopback = str(router.getLoopbackAddress() or "")
         route_maps, map_names = _render_frr_session_route_maps(local_asn, sessions)
+        connected_policy, export_connected4, export_connected6 = ("", False, False)
+        if has_bgp_connected_export(router):
+            connected_policy, export_connected4, export_connected6 = _render_frr_connected_export(local_asn, router)
+        ipv4_sessions = [s for s in sessions if "ipv4" in list(s.get("families", ["ipv4"]))]
+        ipv6_sessions = [s for s in sessions if "ipv6" in list(s.get("families", []))]
         body: List[str] = [
             FrrFileTemplates["community_lists"].format(
                 local_comm=f"{local_asn}:0:0",
                 customer_comm=f"{local_asn}:1:0",
             ),
+            connected_policy,
             route_maps,
             f"router bgp {local_asn}\n",
             f" bgp router-id {loopback}\n",
@@ -540,7 +726,8 @@ class Routing(Layer):
 
         seen_neighbors: Set[str] = set()
         for session in sessions:
-            peer_address = str(session.get("peer_address") or "").strip()
+            family = list(session.get("families", ["ipv4"]) or ["ipv4"])[0]
+            peer_address = str((session.get("peer_ipv6_address") if family == "ipv6" else session.get("peer_address")) or "").strip()
             peer_asn = int(session.get("peer_asn") or 0)
             if not peer_address or peer_asn <= 0 or peer_address in seen_neighbors:
                 continue
@@ -550,12 +737,11 @@ class Routing(Layer):
             body.append(f" neighbor {peer_address} description {session_name}\n")
 
         body.append(" !\n")
-        body.append(" address-family ipv4 unicast\n")
-        if has_bgp_connected_export(router):
-            body.append("  redistribute connected route-map RM_CONNECTED_TO_BGP\n")
-            body.insert(1, FrrFileTemplates["route_map_connected"].format(local_comm=f"{local_asn}:0:0"))
 
-        for session in sessions:
+        body.append(" address-family ipv4 unicast\n")
+        if export_connected4:
+            body.append("  redistribute connected route-map RM_CONNECTED4_TO_BGP\n")
+        for session in ipv4_sessions:
             peer_address = str(session.get("peer_address") or "").strip()
             if not peer_address:
                 continue
@@ -571,9 +757,31 @@ class Routing(Layer):
             if export_name:
                 body.append(f"  neighbor {peer_address} route-map {export_name} out\n")
         body.append(" exit-address-family\n!\n")
+        if ipv6_sessions:
+            body.append(" address-family ipv6 unicast\n")
+            if export_connected6:
+                body.append("  redistribute connected route-map RM_CONNECTED6_TO_BGP\n")
+            for session in ipv6_sessions:
+                peer_address = str(session.get("peer_ipv6_address") or "").strip()
+                if not peer_address:
+                    continue
+                session_name = str(session.get("name") or "")
+                names = map_names.get(session_name, {})
+                body.append(f"  neighbor {peer_address} activate\n")
+                if bool(session.get("next_hop_self")):
+                    body.append(f"  neighbor {peer_address} next-hop-self\n")
+                import_name = str(names.get("import") or "")
+                export_name = str(names.get("export") or "")
+                if import_name:
+                    body.append(f"  neighbor {peer_address} route-map {import_name} in\n")
+                if export_name:
+                    body.append(f"  neighbor {peer_address} route-map {export_name} out\n")
+            body.append(" exit-address-family\n!\n")
         return "".join(body)
 
     def _configure_frr_router(self, router: Router):
+        ospf_intents = get_ospf_interface_intents(router)
+        wants_ospf6 = "ipv6" in list(ospf_intents.get("families", []) or [])
         router.addSoftware("frr")
         router.setFile(
             "/etc/frr/frr.conf",
@@ -582,7 +790,12 @@ class Routing(Layer):
                 body=self._render_frr_ospf_block(router) + self._render_frr_bgp_block(router, get_bgp_sessions(router)),
             ),
         )
-        router.setFile("/frr_start", FrrFileTemplates["start_script"])
+        router.setFile(
+            "/frr_start",
+            FrrFileTemplates["start_script"].format(
+                enableOspf6d=FrrFileTemplates["enable_ospf6d"] if wants_ospf6 else ""
+            ),
+        )
         router.appendStartCommand("chmod +x /frr_start")
         router.appendStartCommand("/frr_start")
 
@@ -613,19 +826,26 @@ class Routing(Layer):
         router.setFile("/opt/exabgp/live_control.py", ExaBgpRouterTemplates["live_control"])
         router.setFile("/opt/exabgp/dashboard.py", ExaBgpRouterTemplates["dashboard"])
 
-        routes = "\n".join(f"    route {prefix} next-hop self;" for prefix in router.getBgpAnnouncements())
-        static_block = ExaBgpRouterTemplates["static_block"].format(routes=routes) if routes else ""
+        routes_by_family = {"ipv4": [], "ipv6": []}
+        for prefix in router.getBgpAnnouncements():
+            family = "ipv6" if ip_network(prefix, strict=False).version == 6 else "ipv4"
+            routes_by_family[family].append(f"    route {prefix} next-hop self;")
         neighbor_blocks: List[str] = []
         for session in sessions:
+            family = list(session.get("families", ["ipv4"]) or ["ipv4"])[0]
+            local_address = str(session.get("local_ipv6_address") if family == "ipv6" else session.get("local_address"))
+            peer_address = str(session.get("peer_ipv6_address") if family == "ipv6" else session.get("peer_address"))
+            routes = "\n".join(routes_by_family[family])
+            static_block = ExaBgpRouterTemplates["static_block"].format(routes=routes) if routes else ""
             neighbor_blocks.append(
                 (
                     "neighbor {peer_address} {{\n"
-                    "  router-id {local_address};\n"
+                    "  router-id {router_id};\n"
                     "  local-address {local_address};\n"
                     "  local-as {local_asn};\n"
                     "  peer-as {peer_asn};\n"
                     "  family {{\n"
-                    "    ipv4 unicast;\n"
+                    "    {family} unicast;\n"
                     "  }}\n"
                     "  api {{\n"
                     "    processes [ exabgp_json_sink exabgp_live_control ];\n"
@@ -633,10 +853,12 @@ class Routing(Layer):
                     "{static_block}"
                     "}}\n"
                 ).format(
-                    peer_address=session["peer_address"],
-                    local_address=session["local_address"],
+                    peer_address=peer_address,
+                    router_id=str(session.get("local_address") or router.getLoopbackAddress() or "0.0.0.0"),
+                    local_address=local_address,
                     local_asn=session["local_asn"],
                     peer_asn=session["peer_asn"],
+                    family=family,
                     static_block=static_block,
                 )
             )
@@ -697,10 +919,22 @@ class Routing(Layer):
                     self._loopback_pos += 1
                 else:
                     lbaddr = rnode.getLoopbackAddress()
+                has_ipv6 = any(iface.hasIpv6Address() for iface in rnode.getInterfaces())
+                lbaddr6 = None
+                if has_ipv6:
+                    if rnode.getLoopbackIpv6Address() == None:
+                        lbaddr6 = self._loopback_ipv6_assigner[self._loopback_ipv6_pos]
+                        self._loopback_ipv6_pos += 1
+                    else:
+                        lbaddr6 = rnode.getLoopbackIpv6Address()
 
                 rnode.appendStartCommand('ip li add dummy0 type dummy')
                 rnode.appendStartCommand('ip li set dummy0 up')
                 rnode.appendStartCommand('ip addr add {}/32 dev dummy0'.format(lbaddr))
+                if lbaddr6 is not None:
+                    rnode.appendStartCommand('ip -6 addr add {}/128 dev dummy0'.format(lbaddr6))
+                    rnode.setLabel('loopback_ipv6_addr', lbaddr6)
+                    rnode.setLoopbackIpv6Address(str(lbaddr6))
                 rnode.setLabel('loopback_addr', lbaddr)
                 rnode.setLoopbackAddress(lbaddr)
 
@@ -755,8 +989,19 @@ class Routing(Layer):
                     # this is an exception - Only for service net (not part of simulation)
                     rnode._Node__joinNetwork(svc_net)
                     [l, b, d] = svc_net.getDefaultLinkProperties()
+                    svc_iface = None
+                    for iface in rnode.getInterfaces():
+                        if iface.getNet() == svc_net:
+                            svc_iface = iface
+                            break
+                    if svc_iface is not None and svc_iface.getAddress() is not None:
+                        rnode.appendFile('/ifinfo.txt',
+                                         '{}|{}/{}|{}|{}|{}\n'.format(svc_net.getName(), svc_iface.getAddress(), svc_net.getPrefix().prefixlen, l, b, d))
                     rnode.appendFile('/ifinfo.txt',
-                                     '{}:{}:{}:{}:{}\n'.format(svc_net.getName(), svc_net.getPrefix(), l, b, d))
+                                     '{}|{}|{}|{}|{}\n'.format(svc_net.getName(), svc_net.getPrefix(), l, b, d))
+                    if svc_iface is not None and svc_iface.hasIpv6Address():
+                        rnode.appendFile('/ifinfo.txt',
+                                         '{}|{}/{}|{}|{}|{}\n'.format(svc_net.getName(), svc_iface.getIpv6Address(), svc_net.getIpv6Prefix().prefixlen, l, b, d))
 
                     self._log("Sealing real-world router as{}/{}...".format(rnode.getAsn(), rnode.getName()))
                     rnode.seal(svc_net)
@@ -807,6 +1052,9 @@ class Routing(Layer):
                 self._log("Setting default route for host {} ({}) to router {}".format(name, hif.getAddress(), rif.getAddress()))
                 hnode.appendStartCommand('ip rou del default 2> /dev/null')
                 hnode.appendStartCommand('ip route add default via {} dev {}'.format(rif.getAddress(), rif.getNet().getName()))
+                if hif.hasIpv6Address() and rif.hasIpv6Address():
+                    hnode.appendStartCommand('ip -6 route del default 2> /dev/null')
+                    hnode.appendStartCommand('ip -6 route add default via {} dev {}'.format(rif.getIpv6Address(), rif.getNet().getName()))
 
     def print(self, indent: int) -> str:
         out = ' ' * indent

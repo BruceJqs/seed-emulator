@@ -17,6 +17,7 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 backend = os.environ.get("SEED_LG_BACKEND", "bird")
+families = set(filter(None, os.environ.get("SEED_LG_FAMILIES", "ipv4").split(",")))
 bird_socket = os.environ.get("SEED_LG_BIRD_SOCKET", "/run/bird/bird.ctl")
 
 def run_bird(args):
@@ -60,13 +61,31 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/api/protocols"):
             if backend == "frr":
-                self._json(run_frr(["show bgp summary", "show ip ospf neighbor"]))
+                commands = [
+                    "show bgp summary",
+                    "show ip ospf neighbor",
+                ]
+                if "ipv6" in families:
+                    commands.extend([
+                        "show bgp ipv6 unicast summary",
+                        "show ipv6 ospf6 neighbor",
+                    ])
+                self._json(run_frr(commands))
             else:
                 self._json(run_bird(["show", "protocols"]))
             return
         if self.path.startswith("/api/routes"):
             if backend == "frr":
-                self._json(run_frr(["show bgp ipv4 unicast", "show ip route bgp"]))
+                commands = [
+                    "show bgp ipv4 unicast",
+                    "show ip route bgp",
+                ]
+                if "ipv6" in families:
+                    commands.extend([
+                        "show bgp ipv6 unicast",
+                        "show ipv6 route bgp",
+                    ])
+                self._json(run_frr(commands))
             else:
                 self._json(run_bird(["show", "route", "all"]))
             return
@@ -184,6 +203,7 @@ class BgpLookingGlassServer(Server):
     __sim: Emulator
     __frontend_port: int
     __proxy_port: int
+    __use_management_network: bool
 
     def __init__(self):
         """!
@@ -193,6 +213,7 @@ class BgpLookingGlassServer(Server):
         self.__routers = set()
         self.__frontend_port = 5000
         self.__proxy_port = 8000
+        self.__use_management_network = False
 
     def __installLookingGlass(self, node: Node):
         """!
@@ -244,6 +265,17 @@ class BgpLookingGlassServer(Server):
         """
         return self.__proxy_port
 
+    def useManagementNetwork(self, enabled: bool = True) -> BgpLookingGlassServer:
+        """!
+        @brief use the SEED service network for frontend-to-proxy traffic.
+
+        This keeps Looking Glass observation traffic on a management bridge and
+        avoids depending on emulated host data-plane reachability.
+        """
+        self.__use_management_network = bool(enabled)
+
+        return self
+
     def addRouter(self, asn: int, routerName: str) -> BgpLookingGlassServer:
         """!
         @brief add a router whose route-state should be exposed by this looking glass.
@@ -287,11 +319,75 @@ class BgpLookingGlassServer(Server):
         """
         self.__sim = emulator
 
+    def __ensureManagementInterface(self, node: Node) -> Optional[str]:
+        if not self.__use_management_network:
+            return None
+
+        svc_net = self.__sim.getServiceNetwork()
+        svc_iface = None
+        for iface in node.getInterfaces():
+            if iface.getNet() == svc_net:
+                svc_iface = iface
+                break
+
+        if svc_iface is None:
+            node._Node__joinNetwork(svc_net)
+            for iface in node.getInterfaces():
+                if iface.getNet() == svc_net:
+                    svc_iface = iface
+                    break
+
+            assert svc_iface is not None, 'failed to attach looking glass management interface'
+            if not node.getAttribute('__looking_glass_management_ifinfo', False):
+                [l, b, d] = svc_iface.getLinkProperties()
+                if svc_iface.getAddress() is not None:
+                    node.appendFile(
+                        '/ifinfo.txt',
+                        '{}|{}/{}|{}|{}|{}\n'.format(
+                            svc_net.getName(), svc_iface.getAddress(), svc_net.getPrefix().prefixlen, l, b, d
+                        )
+                    )
+                node.appendFile(
+                    '/ifinfo.txt',
+                    '{}|{}|{}|{}|{}\n'.format(svc_net.getName(), svc_net.getPrefix(), l, b, d)
+                )
+                node.setAttribute('__looking_glass_management_ifinfo', True)
+
+        if svc_iface.getAddress() is None:
+            return None
+        return str(svc_iface.getAddress())
+
     def install(self, node: Node):
         routers: Dict[str, str] = {}
         asn = node.getAsn()
 
         self.__installLookingGlass(node)
+        self.__ensureManagementInterface(node)
+        frontend_nets = {iface.getNet() for iface in node.getInterfaces()}
+        local_router_nets = set(frontend_nets)
+        local_scope = ScopedRegistry(str(asn), self.__sim.getRegistry())
+        for local_router in local_scope.getByType('rnode'):
+            for iface in local_router.getInterfaces():
+                local_router_nets.add(iface.getNet())
+
+        def select_proxy_address(router: Router) -> str:
+            shared_router_addrs = []
+            other_addrs = []
+            for iface in router.getInterfaces():
+                if iface.getAddress() is None:
+                    continue
+                address = str(iface.getAddress())
+                if iface.getNet() in frontend_nets:
+                    return address
+                if iface.getNet() in local_router_nets:
+                    shared_router_addrs.append(address)
+                else:
+                    other_addrs.append(address)
+            if shared_router_addrs:
+                return shared_router_addrs[0]
+            if other_addrs:
+                return other_addrs[0]
+            return str(router.getLoopbackAddress())
 
         for target_asn, router_name in self.__routers:
             resolved_asn = asn if target_asn is None else target_asn
@@ -311,6 +407,7 @@ class BgpLookingGlassServer(Server):
             )
 
             self.__installLookingGlass(router)
+            management_address = self.__ensureManagementInterface(router)
 
             if backend == "bird":
                 router.appendStartCommand('while [ ! -e "{}" ]; do echo "lg: waiting for bird..."; sleep 1; done'.format(
@@ -321,12 +418,15 @@ class BgpLookingGlassServer(Server):
                     'while ! vtysh -c "show version" >/dev/null 2>&1; do echo "lg: waiting for frr..."; sleep 1; done'
                 )
             
-            router.appendStartCommand('SEED_LG_BACKEND="{}" SEED_LG_BIRD_SOCKET="{}" SEED_LG_PROXY_PORT={} python3 /opt/seed-lg/proxy.py'.format(
-                backend, BIRDCTRL, self.__proxy_port
+            families = ["ipv4"]
+            if any(iface.hasIpv6Address() for iface in router.getInterfaces()):
+                families.append("ipv6")
+            router.appendStartCommand('SEED_LG_BACKEND="{}" SEED_LG_FAMILIES="{}" SEED_LG_BIRD_SOCKET="{}" SEED_LG_PROXY_PORT={} python3 /opt/seed-lg/proxy.py'.format(
+                backend, ",".join(families), BIRDCTRL, self.__proxy_port
             ), True)
 
             display_name = router.getName() if resolved_asn == asn else 'as{}_{}'.format(resolved_asn, router.getName())
-            routers[display_name] = str(router.getLoopbackAddress())
+            routers[display_name] = management_address or select_proxy_address(router)
 
         for (router, address) in routers.items():
             node.appendStartCommand('echo "{} {}.lg.as{}.net" >> /etc/hosts'.format(address, router, asn))

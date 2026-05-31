@@ -2,6 +2,7 @@ from __future__ import annotations
 from .Graphable import Graphable
 from .Printable import Printable
 from .Network import Network
+from .Ipv6Addressing import Ipv6Addressing
 from .AddressAssignmentConstraint import AddressAssignmentConstraint
 from .enums import NetworkType, NodeRole
 from .Node import Node, Router
@@ -10,7 +11,7 @@ from .Emulator import Emulator
 from .Configurable import Configurable
 from .Customizable import Customizable
 from .Node import promote_to_real_world_router
-from ipaddress import IPv4Network
+from ipaddress import IPv4Network, IPv6Network
 from typing import Dict, List
 import requests
 
@@ -25,12 +26,13 @@ class AutonomousSystem(Printable, Graphable, Configurable, Customizable):
 
     __asn: int
     __subnets: List[IPv4Network]
+    __ipv6_addressing: Ipv6Addressing
     __routers: Dict[str, Node]
     __hosts: Dict[str, Node]
     __nets: Dict[str, Network]
     __name_servers: List[str]
 
-    def __init__(self, asn: int, subnetTemplate: str = "10.{}.0.0/16"):
+    def __init__(self, asn: int, subnetTemplate: str = "10.{}.0.0/16", ipv6Addressing: Ipv6Addressing = None):
         """!
         @brief AutonomousSystem constructor.
 
@@ -42,8 +44,20 @@ class AutonomousSystem(Printable, Graphable, Configurable, Customizable):
         self.__routers = {}
         self.__nets = {}
         self.__asn = asn
+        self.__ipv6_addressing = ipv6Addressing
         self.__subnets = None if asn > 255 else list(IPv4Network(subnetTemplate.format(asn)).subnets(new_prefix = 24))
         self.__name_servers = []
+
+    def setIpv6Addressing(self, ipv6Addressing: Ipv6Addressing) -> AutonomousSystem:
+        """!
+        @brief Set optional IPv6 addressing allocator for this AS.
+
+        @param ipv6Addressing IPv6 addressing allocator.
+
+        @returns self, for chaining API calls.
+        """
+        self.__ipv6_addressing = ipv6Addressing
+        return self
 
 
 
@@ -168,7 +182,7 @@ class AutonomousSystem(Printable, Graphable, Configurable, Customizable):
         """
         return self.__asn
 
-    def createNetwork(self, name: str, prefix: str = "auto", direct: bool = True, aac: AddressAssignmentConstraint = None) -> Network:
+    def createNetwork(self, name: str, prefix: str = "auto", direct: bool = True, aac: AddressAssignmentConstraint = None, ipv6Prefix: str = "auto") -> Network:
         """!
         @brief Create a new network.
 
@@ -187,8 +201,14 @@ class AutonomousSystem(Printable, Graphable, Configurable, Customizable):
         assert prefix != "auto" or self.__asn <= 255, "can't use auto: asn > 255"
 
         network = IPv4Network(prefix) if prefix != "auto" else self.__subnets.pop(0)
+        ipv6_network = None
+        if ipv6Prefix is not None:
+            if ipv6Prefix == "auto":
+                ipv6_network = self.__ipv6_addressing.nextAsNetworkPrefix(self.__asn) if self.__ipv6_addressing is not None else None
+            else:
+                ipv6_network = IPv6Network(ipv6Prefix)
         assert name not in self.__nets, 'Network with name {} already exist.'.format(name)
-        self.__nets[name] = Network(name, NetworkType.Local, network, aac, direct)
+        self.__nets[name] = Network(name, NetworkType.Local, network, aac, direct, ipv6_network)
 
         return self.__nets[name]
 

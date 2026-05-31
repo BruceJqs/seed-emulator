@@ -85,7 +85,7 @@ while read -sr line; do {
 }; done
 """
 
-DockerCompilerFileTemplates['replace_address_script'] = '''\
+DockerCompilerFileTemplates['replace_address_script'] = r'''\
 #!/bin/bash
 ip -j addr | jq -cr '.[]' | while read -r iface; do {
     ifname="`jq -cr '.ifname' <<< "$iface"`"
@@ -174,15 +174,29 @@ DockerCompilerFileTemplates['compose_service_network_address'] = """\
                 ipv4_address: {address}
 """
 
+DockerCompilerFileTemplates['compose_service_network_ipv6_address'] = """\
+                ipv6_address: {address}
+"""
+
 DockerCompilerFileTemplates['compose_network'] = """\
     {netId}:
+{enableIpv6}
         driver_opts:
             com.docker.network.driver.mtu: {mtu}
         ipam:
             config:
                 - subnet: {prefix}
+{ipv6Ipam}
         labels:
 {labelList}
+"""
+
+DockerCompilerFileTemplates['compose_network_enable_ipv6'] = """\
+        enable_ipv6: true
+"""
+
+DockerCompilerFileTemplates['compose_network_ipv6_ipam'] = """\
+                - subnet: {prefix}
 """
 
 DockerCompilerFileTemplates['seedemu_internet_map'] = """\
@@ -696,6 +710,12 @@ class Docker(Compiler):
             value = net.getPrefix()
         )
 
+        if net.hasIpv6Prefix():
+            labels += DockerCompilerFileTemplates['compose_label_meta'].format(
+                key = 'ipv6_prefix',
+                value = net.getIpv6Prefix()
+            )
+
         if net.getDisplayName() != None:
             labels += DockerCompilerFileTemplates['compose_label_meta'].format(
                 key = 'displayname',
@@ -803,6 +823,12 @@ class Docker(Compiler):
                 key = 'net.{}.address'.format(n),
                 value = '{}/{}'.format(iface.getAddress(), net.getPrefix().prefixlen)
             )
+
+            if iface.hasIpv6Address():
+                labels += DockerCompilerFileTemplates['compose_label_meta'].format(
+                    key = 'net.{}.ipv6_address'.format(n),
+                    value = '{}/{}'.format(iface.getIpv6Address(), net.getIpv6Prefix().prefixlen)
+                )
 
             n += 1
 
@@ -944,14 +970,17 @@ class Docker(Compiler):
                     node.getAsn(), node.getName()
                 ))
 
-            if address == None:
-                address = ""
-            else:
-                address = DockerCompilerFileTemplates['compose_service_network_address'].format(address = address)
+            address_entries = ""
+            if address != None:
+                address_entries += DockerCompilerFileTemplates['compose_service_network_address'].format(address = address)
+            if iface.hasIpv6Address():
+                address_entries += DockerCompilerFileTemplates['compose_service_network_ipv6_address'].format(
+                    address=iface.getIpv6Address()
+                )
 
             node_nets += DockerCompilerFileTemplates['compose_service_network'].format(
                 netId = real_netname,
-                address = address
+                address = address_entries
             )
         return node_nets, dummy_addr_map
 
@@ -1135,6 +1164,12 @@ class Docker(Compiler):
                             opt_keyvals.append(f'- {s.strip()}')
                     else:
                         opt_keyvals.append(repr(o))
+        if node.getRole() in {NodeRole.Router, NodeRole.BorderRouter, NodeRole.OpenVpnRouter, NodeRole.RouteServer}:
+            if any(iface.hasIpv6Address() for iface in node.getInterfaces()):
+                opt_keyvals.append('- net.ipv6.conf.all.forwarding=1')
+                opt_keyvals.append('- net.ipv6.conf.default.forwarding=1')
+                opt_keyvals.append('- net.ipv6.conf.all.disable_ipv6=0')
+                opt_keyvals.append('- net.ipv6.conf.default.disable_ipv6=0')
         if len(opt_keyvals) > 0:
             return DockerCompilerFileTemplates['compose_sysctl'] + '           ' + '\n           '.join( opt_keyvals )
         else:
@@ -1245,9 +1280,17 @@ class Docker(Compiler):
             self._log('self-managed network: using dummy prefix {}'.format(pfx))
 
 
+        ipv6_ipam = ""
+        enable_ipv6 = ""
+        if net.hasIpv6Prefix() and not self.__self_managed_network:
+            enable_ipv6 = DockerCompilerFileTemplates['compose_network_enable_ipv6']
+            ipv6_ipam = DockerCompilerFileTemplates['compose_network_ipv6_ipam'].format(prefix=net.getIpv6Prefix())
+
         return DockerCompilerFileTemplates['compose_network'].format(
             netId = self._getRealNetName(net),
             prefix = net.getAttribute('dummy_prefix') if self.__self_managed_network and net.getType() != NetworkType.Bridge else net.getPrefix(),
+            enableIpv6 = enable_ipv6,
+            ipv6Ipam = ipv6_ipam,
             mtu = net.getMtu(),
             labelList = self._getNetMeta(net)
         )

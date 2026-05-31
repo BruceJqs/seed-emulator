@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
+from ipaddress import ip_network
 from typing import Dict, List, Optional, Tuple
 
 from seedemu.core import BaseSystem, Emulator, Node, ScopedRegistry, Server, Service
 from seedemu.layers.Routing import Router
-from seedemu.layers._bgp_metadata import claim_external_bgp_backend, install_router_bgp_session
+from seedemu.layers._bgp_metadata import claim_external_bgp_backend, install_router_bgp_session, normalize_bgp_families
 
 
 ExaBgpFileTemplates: Dict[str, str] = {}
@@ -205,7 +206,7 @@ class ExaBgpServer(Server):
     __dashboard_port: int
     __enable_dashboard: bool
     __peers: List[Dict[str, object]]
-    __resolved_peers: List[Tuple[Dict[str, object], Router, str, str]]
+    __resolved_peers: List[Tuple[Dict[str, object], Router, str, str, str, str, List[str]]]
     __router_speaker_claimed: bool
 
     def __init__(self):
@@ -234,16 +235,19 @@ class ExaBgpServer(Server):
         router_asn: Optional[int] = None,
         session_name: Optional[str] = None,
         router_relationship: str = "customer",
+        families: Optional[List[str]] = None,
     ) -> "ExaBgpServer":
         relationship = str(router_relationship or "customer").strip().lower() or "customer"
         if relationship not in {"customer", "peer", "provider", "unfiltered"}:
             raise ValueError(f"unsupported router relationship: {router_relationship}")
+        normalized_families = normalize_bgp_families({"families": families}) if families is not None else None
         self.__peers.append(
             {
                 "router_name": str(router_name),
                 "router_asn": int(router_asn) if router_asn is not None else None,
                 "session_name": str(session_name).strip() if session_name is not None else None,
                 "router_relationship": relationship,
+                "families": normalized_families,
             }
         )
         return self
@@ -253,6 +257,7 @@ class ExaBgpServer(Server):
         return self
 
     def addAnnouncement(self, prefix: str) -> "ExaBgpServer":
+        ip_network(prefix, strict=False)
         self.__announce_prefixes.append(str(prefix))
         return self
 
@@ -274,7 +279,7 @@ class ExaBgpServer(Server):
     def isRouterSpeakerClaimed(self) -> bool:
         return self.__router_speaker_claimed
 
-    def _resolve_peer(self, node: Node, peer: Dict[str, object]) -> Tuple[Router, str, str]:
+    def _resolve_peer(self, node: Node, peer: Dict[str, object]) -> Tuple[Router, str, str, str, str]:
         assert self.__emulator is not None, "ExaBgpServer not bound to emulator"
         router_asn = int(peer["router_asn"]) if peer.get("router_asn") is not None else node.getAsn()
         scope = ScopedRegistry(str(router_asn), self.__emulator.getRegistry())
@@ -285,22 +290,56 @@ class ExaBgpServer(Server):
         router = scope.get("rnode", router_name)
         assert isinstance(router, Router)
 
-        local_address = ""
-        peer_address = ""
+        fallback: Optional[Tuple[str, str, str, str]] = None
         for node_iface in node.getInterfaces():
             for router_iface in router.getInterfaces():
                 if node_iface.getNet() != router_iface.getNet():
                     continue
                 local_address = str(node_iface.getAddress())
                 peer_address = str(router_iface.getAddress())
-                break
-            if local_address and peer_address:
-                break
+                local_ipv6_address = ""
+                peer_ipv6_address = ""
+                if node_iface.hasIpv6Address() and router_iface.hasIpv6Address():
+                    local_ipv6_address = str(node_iface.getIpv6Address())
+                    peer_ipv6_address = str(router_iface.getIpv6Address())
+                    return router, local_address, peer_address, local_ipv6_address, peer_ipv6_address
+                if fallback is None:
+                    fallback = (local_address, peer_address, local_ipv6_address, peer_ipv6_address)
 
-        assert local_address and peer_address, (
+        assert fallback is not None, (
             f"ExaBGP node as{node.getAsn()}/{node.getName()} does not share a network with as{router.getAsn()}/{router.getName()}"
         )
-        return router, local_address, peer_address
+        local_address, peer_address, local_ipv6_address, peer_ipv6_address = fallback
+        return router, local_address, peer_address, local_ipv6_address, peer_ipv6_address
+
+    def _announcement_families(self) -> List[str]:
+        found = set()
+        for prefix in self.__announce_prefixes:
+            found.add("ipv6" if ip_network(prefix, strict=False).version == 6 else "ipv4")
+        return [family for family in ["ipv4", "ipv6"] if family in found]
+
+    def _select_peer_families(
+        self,
+        peer: Dict[str, object],
+        *,
+        local_address: str,
+        peer_address: str,
+        local_ipv6_address: str,
+        peer_ipv6_address: str,
+    ) -> List[str]:
+        families = list(peer.get("families") or [])
+        if not families:
+            families = self._announcement_families()
+        if not families:
+            families = ["ipv6"] if local_ipv6_address and peer_ipv6_address else ["ipv4"]
+        families = normalize_bgp_families({"families": families})
+        if "ipv4" in families:
+            assert local_address and peer_address, "ExaBGP IPv4 session requires shared IPv4 addresses"
+        if "ipv6" in families:
+            assert local_ipv6_address and peer_ipv6_address, (
+                "ExaBGP IPv6 session or announcement requires a shared IPv6-enabled network with the peer router"
+            )
+        return families
 
     def _peer_relationship_params(self, relationship: str) -> Tuple[Optional[str], Optional[int], str]:
         if relationship == "customer":
@@ -317,6 +356,9 @@ class ExaBgpServer(Server):
         *,
         local_address: str,
         peer_address: str,
+        local_ipv6_address: str,
+        peer_ipv6_address: str,
+        families: List[str],
         session_name: str,
         relationship: str,
     ):
@@ -327,9 +369,12 @@ class ExaBgpServer(Server):
                 "name": session_name,
                 "kind": "ebgp",
                 "local_address": peer_address,
+                "local_ipv6_address": peer_ipv6_address,
                 "local_asn": router.getAsn(),
                 "peer_address": local_address,
+                "peer_ipv6_address": local_ipv6_address,
                 "peer_asn": self.__local_asn,
+                "families": families,
                 "import_community": import_community,
                 "local_pref": local_pref,
                 "export_policy": export_policy,
@@ -343,21 +388,31 @@ class ExaBgpServer(Server):
         if self.__resolved_peers:
             return
         for index, peer in enumerate(self.__peers):
-            router, local_address, peer_address = self._resolve_peer(node, peer)
+            router, local_address, peer_address, local_ipv6_address, peer_ipv6_address = self._resolve_peer(node, peer)
             session_name = str(peer.get("session_name") or "")
             if not session_name:
                 if len(self.__peers) == 1:
                     session_name = f"exabgp_{self.__local_asn}"
                 else:
                     session_name = f"exabgp_{self.__local_asn}_{router.getName()}_{index}"
+            families = self._select_peer_families(
+                peer,
+                local_address=local_address,
+                peer_address=peer_address,
+                local_ipv6_address=local_ipv6_address,
+                peer_ipv6_address=peer_ipv6_address,
+            )
             self._install_router_peer(
                 router,
                 local_address=local_address,
                 peer_address=peer_address,
+                local_ipv6_address=local_ipv6_address,
+                peer_ipv6_address=peer_ipv6_address,
+                families=families,
                 session_name=session_name,
                 relationship=str(peer.get("router_relationship") or "customer"),
             )
-            self.__resolved_peers.append((peer, router, local_address, peer_address))
+            self.__resolved_peers.append((peer, router, local_address, peer_address, local_ipv6_address, peer_ipv6_address, families))
 
     def install(self, node: Node):
         self.configureOnNode(node)
@@ -373,34 +428,41 @@ class ExaBgpServer(Server):
         node.setFile("/opt/exabgp/dashboard.py", ExaBgpFileTemplates["dashboard"])
 
         neighbor_blocks: List[str] = []
-        routes = ""
-        if self.__announce_prefixes:
-            routes = "\n".join(f"    route {prefix} next-hop self;" for prefix in self.__announce_prefixes)
-        static_block = ExaBgpFileTemplates["static_block"].format(routes=routes) if routes else ""
-        for _peer, router, local_address, peer_address in self.__resolved_peers:
-            neighbor_blocks.append(
-                (
-                    "neighbor {peer_address} {{\n"
-                    "  router-id {local_address};\n"
-                    "  local-address {local_address};\n"
-                    "  local-as {local_asn};\n"
-                    "  peer-as {peer_asn};\n"
-                    "  family {{\n"
-                    "    ipv4 unicast;\n"
-                    "  }}\n"
-                    "  api {{\n"
-                    "    processes [ exabgp_json_sink exabgp_live_control ];\n"
-                    "  }}\n"
-                    "{static_block}"
-                    "}}\n"
-                ).format(
-                    peer_address=peer_address,
-                    local_address=local_address,
-                    local_asn=self.__local_asn,
-                    peer_asn=router.getAsn(),
-                    static_block=static_block,
+        routes_by_family = {"ipv4": [], "ipv6": []}
+        for prefix in self.__announce_prefixes:
+            family = "ipv6" if ip_network(prefix, strict=False).version == 6 else "ipv4"
+            routes_by_family[family].append(f"    route {prefix} next-hop self;")
+        for _peer, router, local_address, peer_address, local_ipv6_address, peer_ipv6_address, families in self.__resolved_peers:
+            for family in families:
+                neighbor_address = peer_ipv6_address if family == "ipv6" else peer_address
+                session_local_address = local_ipv6_address if family == "ipv6" else local_address
+                routes = "\n".join(routes_by_family[family])
+                static_block = ExaBgpFileTemplates["static_block"].format(routes=routes) if routes else ""
+                neighbor_blocks.append(
+                    (
+                        "neighbor {peer_address} {{\n"
+                        "  router-id {router_id};\n"
+                        "  local-address {local_address};\n"
+                        "  local-as {local_asn};\n"
+                        "  peer-as {peer_asn};\n"
+                        "  family {{\n"
+                        "    {family} unicast;\n"
+                        "  }}\n"
+                        "  api {{\n"
+                        "    processes [ exabgp_json_sink exabgp_live_control ];\n"
+                        "  }}\n"
+                        "{static_block}"
+                        "}}\n"
+                    ).format(
+                        peer_address=neighbor_address,
+                        router_id=local_address,
+                        local_address=session_local_address,
+                        local_asn=self.__local_asn,
+                        peer_asn=router.getAsn(),
+                        family=family,
+                        static_block=static_block,
+                    )
                 )
-            )
 
         node.setFile(
             "/etc/exabgp/exabgp.conf",
