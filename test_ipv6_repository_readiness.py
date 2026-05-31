@@ -845,12 +845,12 @@ def test_endpoint_helpers_format_ipv6_safely():
 
 
 def test_address_record_normalizer_handles_dns_a_aaaa_literals():
-    assert normalizeAddressList([" 10.2.0.71 ", " 2000:0:2:0:0:0:0:71 "]) == [
+    assert normalizeAddressList([" 10.2.0.71 ", " [2000:0:2:0:0:0:0:71] "]) == [
         "10.2.0.71",
         "2000:0:2::71",
     ]
     assert normalizeAddressRecord(" web a 10.2.0.71 ") == "web A 10.2.0.71"
-    assert normalizeAddressRecord(" web6 aaaa 2000:0:2:0:0:0:0:71 ") == "web6 AAAA 2000:0:2::71"
+    assert normalizeAddressRecord(" web6 aaaa [2000:0:2:0:0:0:0:71] ") == "web6 AAAA 2000:0:2::71"
     assert normalizeAddressRecord("txt TXT  2000:0:2:0:0:0:0:71") == "txt TXT  2000:0:2:0:0:0:0:71"
     assert normalizeAddressRecord(" ns1. NS a.root.example. ", trimNonAddressRecord=True) == "ns1. NS a.root.example."
 
@@ -871,7 +871,7 @@ def test_node_address_match_helpers_cover_ipv4_and_ipv6():
     emu.render()
 
     assert nodeHasAddress(host, " 10.2.0.71 ")
-    assert nodeHasAddress(host, " 2000:0:2:0:0:0:0:71 ")
+    assert nodeHasAddress(host, " [2000:0:2:0:0:0:0:71] ")
     assert nodeHasAddressInPrefix(host, " 10.2.0.0/24 ")
     assert nodeHasAddressInPrefix(host, " 2000:0:2::/64 ")
     assert not nodeHasAddress(host, "2000:0:2::72")
@@ -1114,9 +1114,9 @@ def test_binding_filters_trim_padded_ip_and_prefix_selectors():
 
     for filter in [
         Filter(ip=" 10.2.0.71 "),
-        Filter(ip=" 2000:0:2::71 "),
+        Filter(ip=" [2000:0:2::71] "),
         Filter(ipv4=" 10.2.0.71 "),
-        Filter(ipv6=" 2000:0:2::71 "),
+        Filter(ipv6=" [2000:0:2::71] "),
         Filter(prefix=" 10.2.0.0/24 "),
         Filter(prefix=" 2000:0:2::/64 "),
         Filter(ipv4Prefix=" 10.2.0.0/24 "),
@@ -1133,7 +1133,7 @@ def test_binding_new_can_create_ipv6_selected_host():
     as2 = base.createAutonomousSystem(2)
     as2.createNetwork("net0")
     dns.install("dns").addZone("example.")
-    emu.addBinding(Binding("dns", filter=Filter(asn=2, ip=" 2000:0:2::53 "), action=Action.NEW))
+    emu.addBinding(Binding("dns", filter=Filter(asn=2, ip=" [2000:0:2::53] "), action=Action.NEW))
 
     emu.addLayer(base)
     emu.addLayer(dns)
@@ -1170,7 +1170,7 @@ def test_ca_install_cert_filter_matches_ipv4_and_ipv6_targets(tmp_path):
     ca_server = CAServer("0.26.1")
     ca_server.setCAStore(_FakeCAStore(tmp_path / "ca-store"))
     ca_server.installCACert(Filter(ip="10.2.0.71"))
-    ca_server.installCACert(Filter(ipv6="2000:0:3::72"))
+    ca_server.installCACert(Filter(ipv6="[2000:0:3::72]"))
     ca_server.installCACert(Filter(prefix="2000:0:4::/64"))
     ca_server._serverConfigure(9, list(node_by_asn.values()))
 
@@ -1777,7 +1777,7 @@ def test_dns_glue_records_use_parsed_address_family():
     zone = DomainNameService().getZone("example.")
 
     zone.addGuleRecord("ns1.example.", " 10.2.0.53 ")
-    zone.addGuleRecord("ns2.example.", " 2000:0:2::53 ")
+    zone.addGuleRecord("ns2.example.", " [2000:0:2::53] ")
 
     glue_records = zone.getGuleRecords()
     assert "ns1.example. A 10.2.0.53" in glue_records
@@ -1791,7 +1791,7 @@ def test_dns_manual_a_aaaa_records_normalize_address_literals():
     zone = DomainNameService().getZone("example.")
 
     zone.addRecord(" web a 10.2.0.71 ")
-    zone.addRecord(" web6 aaaa 2000:0:2:0:0:0:0:71 ")
+    zone.addRecord(" web6 aaaa [2000:0:2:0:0:0:0:71] ")
     zone.addRecord("txt TXT  2000:0:2:0:0:0:0:71")
 
     records = zone.getRecords()
@@ -1806,7 +1806,7 @@ def test_dns_manual_a_aaaa_records_normalize_address_literals():
 def test_dns_manual_a_aaaa_record_deletion_uses_normalized_address_literals():
     zone = DomainNameService().getZone("example.")
 
-    zone.addRecord(" web6 aaaa 2000:0:2:0:0:0:0:71 ")
+    zone.addRecord(" web6 aaaa [2000:0:2:0:0:0:0:71] ")
     zone.addRecord("txt TXT  2000:0:2:0:0:0:0:71")
     zone.deleteRecord("web6 AAAA 2000:0:2::71")
     zone.deleteRecord("txt TXT  2000:0:2:0:0:0:0:71")
@@ -1824,7 +1824,7 @@ def test_dns_manual_master_ips_trim_padded_addresses():
     cache = DomainNameCachingService(autoRoot=False)
 
     dns.addMasterIp("example.", " 10.2.0.53 ")
-    dns.addMasterIp("example.", " 2000:0:2::53 ")
+    dns.addMasterIp("example.", " [2000:0:2::53] ")
     cache.install("cache").addForwardZone("example.", "unused-ns")
 
     as2 = base.createAutonomousSystem(2)
@@ -2020,7 +2020,7 @@ def test_dns_cache_manual_root_hints_trim_padded_records():
 
     cache_server = cache.install("cache").setRootServers([
         " ns1. A 10.2.0.53 ",
-        " ns1. aaaa 2000:0:2:0:0:0:0:53 ",
+        " ns1. aaaa [2000:0:2:0:0:0:0:53] ",
         " ns1. NS a.root.example. ",
     ])
     emu.addBinding(Binding("cache", filter=Filter(asn=2, nodeName="cache"), action=Action.FIRST))

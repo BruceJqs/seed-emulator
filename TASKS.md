@@ -77,7 +77,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - node address/prefix matching helpers are shared by `Binding` and CA
   certificate-install filters instead of duplicating address-family logic;
 - `Filter` / `Binding` address and prefix selectors tolerate padded IPv4/IPv6
-  literals and CIDRs without changing their match semantics;
+  literals, bracketed IPv6 literals, and CIDRs without changing their match
+  semantics;
 - service network compile output remains IPv4-only by default, becomes
   dual-stack only when `serviceNetworkIpv6Prefix` is set, and emits
   per-node `ipv6_address` only for interfaces carrying IPv6 state;
@@ -100,8 +101,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 
 - endpoint helper tests cover IPv4, IPv6, padded host literals, DNS names, URL
   paths, bracketed IPv6 host inputs, and padded multiaddr formatting;
-- shared DNS-style address-record normalization covers manual A/AAAA literals
-  without changing non-address record handling;
+- shared DNS-style address-record normalization covers manual A/AAAA literals,
+  including bracketed IPv6 literals, without changing non-address record
+  handling;
 - address-family normalization accepts common user-facing and socket-family
   spellings such as `ipv4`, `ip6`, `inet`, and `AF_INET6`;
 - migrated service endpoint address-family APIs reuse the shared normalizer
@@ -123,8 +125,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   literal/address-list normalization now route through shared core helpers
   instead of service-local duplication.
 - DNS glue records and manual master IPs normalize explicit IPv4/IPv6 address
-  literals before generating A/AAAA records, slave master lists, or forwarder
-  lists.
+  literals, including bracketed IPv6 literals, before generating A/AAAA records,
+  slave master lists, or forwarder lists.
 - Domain Registrar dynamic DNS updates preserve A as the default record type
   and allow users to explicitly submit AAAA records without changing DNS server
   placement or runtime assumptions.

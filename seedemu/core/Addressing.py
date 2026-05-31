@@ -32,10 +32,17 @@ def normalizeAddressFamily(family: Union[AddressFamily, str, int]) -> AddressFam
     raise ValueError("unsupported address family {}".format(family))
 
 
+def _parseIpLiteral(value: Union[str, object]):
+    candidate = str(value).strip()
+    if candidate.startswith("[") and candidate.endswith("]"):
+        candidate = candidate[1:-1].strip()
+    return ip_address(candidate)
+
+
 def normalizeAddressList(addrs: Iterable[Union[str, object]]) -> List[str]:
     """Normalize IPv4/IPv6 address literals while preserving list order."""
 
-    return [str(ip_address(str(addr).strip())) for addr in addrs]
+    return [str(_parseIpLiteral(addr)) for addr in addrs]
 
 
 def normalizeAddressRecord(record: Union[str, object], trimNonAddressRecord: bool = False) -> str:
@@ -49,19 +56,14 @@ def normalizeAddressRecord(record: Union[str, object], trimNonAddressRecord: boo
     parts = value.strip().split()
     if len(parts) >= 3 and parts[-2].upper() in ("A", "AAAA"):
         parts[-2] = parts[-2].upper()
-        parts[-1] = str(ip_address(parts[-1]))
+        parts[-1] = str(_parseIpLiteral(parts[-1]))
         return " ".join(parts)
     return value.strip() if trimNonAddressRecord else value
 
 
 def _parseHostIpLiteral(host: Union[str, object]):
-    value = str(host).strip()
-    candidate = value
-    if value.startswith("[") and value.endswith("]"):
-        candidate = value[1:-1].strip()
-
     try:
-        return ip_address(candidate)
+        return _parseIpLiteral(host)
     except ValueError:
         return None
 
@@ -84,7 +86,7 @@ def hasInterfaceAddress(iface: "Interface", family: Union[AddressFamily, str, in
 def nodeHasAddress(node: "Node", address: Union[str, object]) -> bool:
     """Check whether a node has an IPv4 or IPv6 address literal."""
 
-    requested = ip_address(str(address).strip())
+    requested = _parseIpLiteral(address)
     family = AddressFamily.IPv4 if requested.version == 4 else AddressFamily.IPv6
     for iface in node.getInterfaces():
         iface_addr = getInterfaceAddress(iface, family)

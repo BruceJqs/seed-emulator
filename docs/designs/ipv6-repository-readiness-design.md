@@ -29,7 +29,8 @@ Existing IPv4 APIs remain IPv4 APIs:
 - `Network.getPrefix()` returns the IPv4 prefix.
 - `Interface.getAddress()` returns the IPv4 address.
 - `Filter(ip=...)` and `Filter(prefix=...)` remain accepted and now parse either
-  IPv4 or IPv6 literals.
+  IPv4 or IPv6 literals; bracketed IPv6 address literals are normalized when a
+  helper accepts address literals.
 
 Dual-stack aware code should use the explicit IPv6 APIs or the shared helpers:
 
@@ -77,7 +78,7 @@ Deferred core items:
 | Looking Glass | Supported | Route-state views separate IPv4/IPv6 output; frontend-to-proxy URLs use shared URL helpers, default to IPv4, and may explicitly select bracketed IPv6 proxy endpoints. |
 | Docker compiler | Supported | Emit IPv6 only for networks/interfaces carrying IPv6 state. |
 | `/etc/hosts` | Baseline dual-stack | Generate IPv4 and IPv6 local entries when available. |
-| DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; manual A/AAAA record literals use shared normalization; masters may include both families; reverse DNS keeps IPv4 `in-addr.arpa.` PTR records and adds `ip6.arpa.` PTR records only when interfaces carry IPv6 state. |
+| DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; manual A/AAAA and glue record literals use shared normalization, including bracketed IPv6 literals; masters may include both families; reverse DNS keeps IPv4 `in-addr.arpa.` PTR records and adds `ip6.arpa.` PTR records only when interfaces carry IPv6 state. |
 | Domain Registrar | Compatible | Dynamic DNS updates preserve A as the default record type and allow explicit AAAA submissions; TLD placement and runtime behavior remain the existing Domain Registrar model. |
 | DNS cache | Compatible | Prefer IPv4 for old resolver behavior; accept IPv6 forwarders/root hints and normalize manual A/AAAA root-hint literals through the shared helper. |
 | Web/CA | Compatible | Existing IPv4 behavior preserved; CA certificate-install filters match IPv4/IPv6 address and prefix selectors through shared node address/prefix helpers; ACME directory URLs use shared URL helpers and can bracket explicit IPv6 CA endpoint literals, but Web HTTPS and ACME runtime behavior still need validation before a full support claim. |

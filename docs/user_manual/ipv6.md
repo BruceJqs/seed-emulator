@@ -190,7 +190,8 @@ endpoint family, not the set of route families queried from the router.
 
 CA certificate installation filters accept IPv4 and IPv6 address/prefix
 selectors. For example, `installCACert(Filter(ipv6="2000:0:3::72"))` installs
-the root CA certificate only on nodes with that IPv6 address. Web HTTPS ACME
+the root CA certificate only on nodes with that IPv6 address; bracketed IPv6
+address literals are normalized by the shared address helpers. Web HTTPS ACME
 directory URLs preserve domain-name defaults and can bracket explicit IPv6 CA
 endpoint literals, but Web HTTPS and ACME runtime behavior remain compatible
 and not fully migrated.
@@ -264,9 +265,9 @@ service needs stable Local-network-first address selection with service-network
 fallback. Use `nodeHasAddress()` and `nodeHasAddressInPrefix()` when matching a
 node against IPv4 or IPv6 address/prefix selectors. Use
 `normalizeAddressList()` when a service accepts a list of IPv4/IPv6 literals,
-and use `normalizeAddressRecord()` when a service accepts DNS-style manual
-A/AAAA records and needs canonical IPv4/IPv6 literals without changing other
-record types.
+including bracketed IPv6 address literals, and use `normalizeAddressRecord()`
+when a service accepts DNS-style manual A/AAAA records and needs canonical
+IPv4/IPv6 literals without changing other record types.
 
 Do not claim service-level IPv6 support until the service has a minimal IPv6 or
 dual-stack example and a regression check showing that old IPv4 behavior is

@@ -4,7 +4,7 @@ from .Emulator import Emulator
 from .Node import Node
 from .Filter import Filter
 from .BaseSystem import BaseSystem
-from .Addressing import nodeHasAddress, nodeHasAddressInPrefix
+from .Addressing import nodeHasAddress, nodeHasAddressInPrefix, normalizeAddressList
 from enum import Enum
 from typing import List
 from ipaddress import ip_address, ip_network
@@ -14,7 +14,7 @@ from .Scope import Scope, ScopeTier
 
 
 def _parseIpFilter(value):
-    return ip_address(str(value).strip())
+    return ip_address(normalizeAddressList([value])[0])
 
 
 def _parsePrefixFilter(value):
