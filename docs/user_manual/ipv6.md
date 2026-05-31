@@ -208,7 +208,9 @@ faucet, utility, and WebSocket/HTTP node URLs. The underlying Ethereum and
 Chainlink runtime path has not been validated as full IPv6 support.
 
 Ethereum faucet/utility generated URLs and bootnode/beacon helper fetch URLs
-preserve IPv4 defaults. In a dual-stack emulation, call
+preserve IPv4 defaults and select referenced nodes through the shared
+Local-network-first helper, falling back to the service network when a
+referenced node has no Local interface. In a dual-stack emulation, call
 `blockchain.setEndpointAddressFamily(AddressFamily.IPv6)` to generate bracketed
 IPv6 HTTP RPC, faucet, enode-fetch, beacon-identity, and beacon-setup URLs for
 those helpers. Ethereum ENR content, peer discovery, bootnode bind/listener,

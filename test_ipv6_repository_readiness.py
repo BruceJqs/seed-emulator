@@ -507,6 +507,61 @@ def _render_ethereum_endpoint_topology(family=AddressFamily.IPv4):
     return faucet_node, utility_node, faucet_util
 
 
+def _render_ethereum_service_network_endpoint_topology(family=AddressFamily.IPv4):
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base(enableIpv6=True)
+    ethereum = _FakeEthereumService()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createHost("eth").joinNetwork(
+        "000_svc",
+        address="192.168.66.71",
+        ipv6Address="fd00:66::71",
+    )
+    as2.createHost("faucet").joinNetwork(
+        "000_svc",
+        address="192.168.66.72",
+        ipv6Address="fd00:66::72",
+    )
+    as2.createHost("utility").joinNetwork(
+        "000_svc",
+        address="192.168.66.73",
+        ipv6Address="fd00:66::73",
+    )
+
+    for vnode, node_name in (
+        ("eth-vnode", "eth"),
+        ("faucet-vnode", "faucet"),
+        ("utility-vnode", "utility"),
+    ):
+        emu.addBinding(Binding(vnode, filter=Filter(asn=2, nodeName=node_name), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(ethereum)
+    emu.getServiceNetwork()
+    emu.render()
+
+    blockchain = object.__new__(Blockchain)
+    blockchain.setEndpointAddressFamily(family)
+    eth_address = blockchain._Blockchain__getIpByVnodeName(emu, "eth-vnode")
+    faucet_address = blockchain._Blockchain__getIpByVnodeName(emu, "faucet-vnode")
+
+    faucet_node = emu.getRegistry().get("2", "hnode", "faucet")
+    FaucetServer._installScriptFiles(_new_test_faucet_server(eth_address), faucet_node)
+
+    utility_node = emu.getRegistry().get("2", "hnode", "utility")
+    EthUtilityServer._installScriptFile(
+        _new_test_utility_server(eth_address, faucet_address),
+        utility_node,
+    )
+
+    faucet_util = FaucetUtil(endpointAddressFamily=family)
+    faucet_util.setFaucetServerInfo("faucet-vnode", 80)
+    faucet_util.configure(emu)
+
+    return faucet_node, utility_node, faucet_util
+
+
 def _render_ethereum_bootstrap_endpoint_topology(family=AddressFamily.IPv4):
     base = Base(enableIpv6=True)
     as2 = base.createAutonomousSystem(2)
@@ -514,6 +569,59 @@ def _render_ethereum_bootstrap_endpoint_topology(family=AddressFamily.IPv4):
     boot = as2.createHost("boot").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
     peer = as2.createHost("peer").joinNetwork("net0", address="10.2.0.72", ipv6Address="2000:0:2::72")
     base.configure(Emulator())
+
+    blockchain = object.__new__(Blockchain)
+    blockchain._consensus = ConsensusMechanism.POA
+    blockchain._chain_id = 1337
+    blockchain._chain_name = "poa-helper"
+    blockchain._genesis = _FakeGenesis()
+    blockchain._eth_service = _FakeEthereumService()
+    blockchain._boot_node_addresses = []
+    blockchain._boot_node_enode_urls = []
+    blockchain._beacon_node_api_urls = []
+    blockchain._joined_accounts = []
+    blockchain._joined_signer_accounts = []
+    blockchain._validator_ids = []
+    blockchain._beacon_setup_node_address = ""
+    blockchain._beacon_setup_node_url = ""
+    blockchain._miner_node_address = []
+    blockchain._emu_mnemonic = "test mnemonic"
+    blockchain._emu_account_balance = 0
+    blockchain._total_accounts_per_node = 0
+    blockchain.setEndpointAddressFamily(family)
+
+    boot_server = object.__new__(EthereumServer)
+    EthereumServer.__init__(boot_server, 1, blockchain)
+    boot_server.setBootNode(True)
+    boot_server._mnemonic_accounts = []
+    peer_server = object.__new__(EthereumServer)
+    EthereumServer.__init__(peer_server, 2, blockchain)
+    peer_server._mnemonic_accounts = []
+
+    blockchain._doConfigure(boot, boot_server)
+    blockchain._doConfigure(peer, peer_server)
+    boot_server.install(boot, _FakeEthereumService())
+    peer_server.install(peer, _FakeEthereumService())
+
+    return boot, peer, blockchain
+
+
+def _render_ethereum_service_network_bootstrap_endpoint_topology(family=AddressFamily.IPv4):
+    base = Base(enableIpv6=True)
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    as2 = base.createAutonomousSystem(2)
+    boot = as2.createHost("boot").joinNetwork(
+        "000_svc",
+        address="192.168.66.71",
+        ipv6Address="fd00:66::71",
+    )
+    peer = as2.createHost("peer").joinNetwork(
+        "000_svc",
+        address="192.168.66.72",
+        ipv6Address="fd00:66::72",
+    )
+    emu.getServiceNetwork()
+    base.configure(emu)
 
     blockchain = object.__new__(Blockchain)
     blockchain._consensus = ConsensusMechanism.POA
@@ -1838,6 +1946,45 @@ def test_ethereum_http_utility_urls_can_select_ipv6_helpers():
     assert "http://10.2.0.72:80" not in combined
 
 
+def test_ethereum_http_utility_urls_fall_back_to_service_network_ipv4():
+    faucet, utility, faucet_util = _render_ethereum_service_network_endpoint_topology()
+
+    faucet_app = _file_content(faucet, "/faucet/app.py")
+    utility_fund = _file_content(utility, "/utility_server/fund_account.py")
+    utility_deploy = _file_content(utility, "/utility_server/deploy_contract.py")
+    combined = "\n".join([faucet_app, utility_fund, utility_deploy])
+
+    assert "connect_to_geth('http://192.168.66.71:8545', 'POA')" in faucet_app
+    assert 'RPC_URL    = "http://192.168.66.71:8545"' in utility_fund
+    assert 'FAUCET_URL = "http://192.168.66.72:80"' in utility_fund
+    assert 'request_url = "http://192.168.66.72:80/fundme"' in utility_fund
+    assert 'RPC_URL    = "http://192.168.66.71:8545"' in utility_deploy
+    assert faucet_util.getFacuetUrl() == "http://192.168.66.72:80/"
+    assert faucet_util.getFaucetFundUrl() == "http://192.168.66.72:80/fundme"
+    assert "fd00:66::" not in combined
+
+
+def test_ethereum_http_utility_urls_fall_back_to_service_network_ipv6():
+    faucet, utility, faucet_util = _render_ethereum_service_network_endpoint_topology(
+        AddressFamily.IPv6
+    )
+
+    faucet_app = _file_content(faucet, "/faucet/app.py")
+    utility_fund = _file_content(utility, "/utility_server/fund_account.py")
+    utility_deploy = _file_content(utility, "/utility_server/deploy_contract.py")
+    combined = "\n".join([faucet_app, utility_fund, utility_deploy])
+
+    assert "connect_to_geth('http://[fd00:66::71]:8545', 'POA')" in faucet_app
+    assert 'RPC_URL    = "http://[fd00:66::71]:8545"' in utility_fund
+    assert 'FAUCET_URL = "http://[fd00:66::72]:80"' in utility_fund
+    assert 'request_url = "http://[fd00:66::72]:80/fundme"' in utility_fund
+    assert 'RPC_URL    = "http://[fd00:66::71]:8545"' in utility_deploy
+    assert faucet_util.getFacuetUrl() == "http://[fd00:66::72]:80/"
+    assert faucet_util.getFaucetFundUrl() == "http://[fd00:66::72]:80/fundme"
+    assert "http://fd00:66::71:8545" not in combined
+    assert "http://192.168.66.71:8545" not in combined
+
+
 def test_ethereum_bootstrap_helper_urls_default_to_ipv4_on_dual_stack_nodes():
     boot, peer, blockchain = _render_ethereum_bootstrap_endpoint_topology()
 
@@ -1868,6 +2015,33 @@ def test_ethereum_bootstrap_helper_urls_can_select_ipv6_helpers():
     assert '$(curl -s "$node")' in bootstrapper
     assert "http://2000:0:2::71:8088/eth-enode-url" not in peer_nodes
     assert "http://10.2.0.71:8088/eth-enode-url" not in peer_nodes
+
+
+def test_ethereum_bootstrap_helper_urls_fall_back_to_service_network_ipv4():
+    boot, peer, blockchain = _render_ethereum_service_network_bootstrap_endpoint_topology()
+
+    peer_nodes = _file_content(peer, "/tmp/eth-nodes")
+
+    assert blockchain.getBootNodes() == ["192.168.66.71"]
+    assert blockchain.getBootNodeEnodeUrls() == ["http://192.168.66.71:8088/eth-enode-url"]
+    assert _file_content(boot, "/tmp/eth-nodes") == "http://192.168.66.71:8088/eth-enode-url"
+    assert peer_nodes == "http://192.168.66.71:8088/eth-enode-url"
+    assert "fd00:66::" not in peer_nodes
+
+
+def test_ethereum_bootstrap_helper_urls_fall_back_to_service_network_ipv6():
+    boot, peer, blockchain = _render_ethereum_service_network_bootstrap_endpoint_topology(
+        AddressFamily.IPv6
+    )
+
+    peer_nodes = _file_content(peer, "/tmp/eth-nodes")
+
+    assert blockchain.getBootNodes() == ["192.168.66.71"]
+    assert blockchain.getBootNodeEnodeUrls() == ["http://[fd00:66::71]:8088/eth-enode-url"]
+    assert _file_content(boot, "/tmp/eth-nodes") == "http://[fd00:66::71]:8088/eth-enode-url"
+    assert peer_nodes == "http://[fd00:66::71]:8088/eth-enode-url"
+    assert "http://fd00:66::71:8088/eth-enode-url" not in peer_nodes
+    assert "http://192.168.66.71:8088/eth-enode-url" not in peer_nodes
 
 
 def test_ethereum_pos_helper_urls_default_to_ipv4_on_dual_stack_nodes():

@@ -12,10 +12,9 @@ from seedemu.core import (
     Emulator,
     formatHostPort,
     formatUrl,
-    getInterfaceAddress,
+    getNodeAddress,
     normalizeAddressFamily,
 )
-from seedemu.core.enums import NetworkType
 from .FaucetServer import FaucetServer
 from .EthUtilityServer import EthUtilityServer
 from typing import Dict, List
@@ -154,16 +153,12 @@ class Blockchain:
             makedirs('{}/{}/{}/ethash'.format(save_path, self._chain_name, server.getId()))
 
     def __getNodeEndpointAddress(self, node: Node) -> str:
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        for iface in ifaces:
-            address = getInterfaceAddress(iface, self._endpoint_address_family)
-            if address is not None:
-                return str(address)
-        assert False, 'Node {} has no {} address.'.format(
+        address = getNodeAddress(node, self._endpoint_address_family, preferLocal=True)
+        assert address is not None, 'Node {} has no {} address.'.format(
             node.getName(),
             self._endpoint_address_family.value,
         )
+        return str(address)
 
     def configure(self, emulator:Emulator):
         pending_targets = self._eth_service.getPendingTargets()
@@ -202,20 +197,12 @@ class Blockchain:
     
     def __getIpByVnodeName(self, emulator, nodename:str) -> str:
         node = emulator.getBindingFor(nodename)
-        address: str = None
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        for iface in ifaces:
-            net = iface.getNet()
-            if net.getType() == NetworkType.Local:
-                address = getInterfaceAddress(iface, self._endpoint_address_family)
-                if address is not None:
-                    return str(address)
-
-        assert address is not None, 'Node {} has no {} Local address.'.format(
+        address = getNodeAddress(node, self._endpoint_address_family, preferLocal=True)
+        assert address is not None, 'Node {} has no {} address.'.format(
             node.getName(),
             self._endpoint_address_family.value,
         )
+        return str(address)
     
     def getAllServerNames(self):
         server_names = {}

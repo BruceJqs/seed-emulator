@@ -1,7 +1,6 @@
 from typing import Dict
-from seedemu.core import AddressFamily, Configurable, formatHost, getInterfaceAddress, normalizeAddressFamily
+from seedemu.core import AddressFamily, Configurable, formatHost, getNodeAddress, normalizeAddressFamily
 from seedemu.core.Emulator import Emulator
-from seedemu.core.enums import NetworkType
 
 from .EthTemplates import (
     FaucetServerFileTemplates,
@@ -81,17 +80,9 @@ class FaucetUtil(Configurable):
     
     def __getIpByVnodeName(self, nodename:str, emulator:Emulator) -> str:
         node = emulator.getBindingFor(nodename)
-        address: str = None
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        for iface in ifaces:
-            net = iface.getNet()
-            if net.getType() == NetworkType.Local:
-                address = getInterfaceAddress(iface, self.__endpoint_address_family)
-                if address is not None:
-                    return str(address)
-
-        assert address is not None, 'Node {} has no {} Local address.'.format(
+        address = getNodeAddress(node, self.__endpoint_address_family, preferLocal=True)
+        assert address is not None, 'Node {} has no {} address.'.format(
             node.getName(),
             self.__endpoint_address_family.value,
         )
+        return str(address)
