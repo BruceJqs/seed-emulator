@@ -5,7 +5,7 @@ from UtilityServerHelper import UtilityServerHelper
 
 
 ####################################################
-util_server_url = "http://{util_server}:{util_server_port}"
+util_server_url = "{util_server_url}"
 contract_name   = "oracle-" + "{node_name}"
 ####################################################
 
@@ -28,4 +28,3 @@ data['contract_address'] = contract_address
 util_server = UtilityServerHelper(util_server_url)
 util_server.wait_for_server_ready() # Block here until the server is ready
 util_server.register_info(data)     # Register the oracle contract address
-

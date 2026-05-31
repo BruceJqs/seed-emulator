@@ -82,6 +82,7 @@ class ChainlinkUserServer(ChainlinkBaseServer):
              ChainlinkUserTemplate['get_oracle_addresses'].format(
                   util_server=self._util_server_ip, 
                   util_server_port=self._util_server_port, 
+                  util_server_url=self._util_server_url,
                   oracle_contract_names=self.__chainlink_servers,
                   link_contract_name=LinkTokenFileTemplate['link_contract_name']))
 
@@ -90,16 +91,20 @@ class ChainlinkUserServer(ChainlinkBaseServer):
                 ChainlinkUserTemplate['deploy_user_contract'].format(
                     eth_server=self._eth_server_ip, 
                     eth_server_http_port=self._eth_server_http_port, 
+                    eth_server_http_url=self._eth_server_http_url,
                     faucet_server=self._faucet_server_ip, 
                     faucet_server_port=self._faucet_server_port, 
+                    faucet_url=self._faucet_server_url,
                     chain_id=self._chain_id))
 
         node.setFile(f'{self.__DIR}/set_contract_addresses.py', 
                 ChainlinkUserTemplate['set_contract_addresses'].format(
                     eth_server=self._eth_server_ip, 
                     eth_server_http_port=self._eth_server_http_port, 
+                    eth_server_http_url=self._eth_server_http_url,
                     faucet_server=self._faucet_server_ip, 
                     faucet_server_port=self._faucet_server_port, 
+                    faucet_url=self._faucet_server_url,
                     chain_id=self._chain_id))
 
         # The Link contract abi is needed for funding the user contract with
@@ -111,15 +116,18 @@ class ChainlinkUserServer(ChainlinkBaseServer):
                 ChainlinkUserTemplate['fund_user_contract'].format(
                     chain_id=self._chain_id, 
                     eth_server=self._eth_server_ip, 
-                    eth_server_http_port=self._eth_server_http_port)) 
+                    eth_server_http_port=self._eth_server_http_port,
+                    eth_server_http_url=self._eth_server_http_url))
 
         node.setFile(f'{self.__DIR}/request_eth_price.py', 
                 ChainlinkUserTemplate['request_eth_price'].format(
                     chain_id=self._chain_id,
                     eth_server=self._eth_server_ip,
                     eth_server_http_port=self._eth_server_http_port,
+                    eth_server_http_url=self._eth_server_http_url,
                     faucet_server=self._faucet_server_ip,
                     faucet_server_port=self._faucet_server_port,
+                    faucet_url=self._faucet_server_url,
                     external_url=self.__external_url,
                     path=self.__path))
 

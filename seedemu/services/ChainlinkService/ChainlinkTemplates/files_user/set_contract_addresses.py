@@ -4,8 +4,8 @@ import json, os, logging
 from EthereumHelper import EthereumHelper 
 
 #############################################
-eth_url    = "http://{eth_server}:{eth_server_http_port}"
-faucet_url = "http://{faucet_server}:{faucet_server_port}"
+eth_url    = "{eth_server_http_url}"
+faucet_url = "{faucet_url}"
 chain_id   = {chain_id} 
 #############################################
 
@@ -60,4 +60,3 @@ if tx_receipt['status'] == 0:
     logging.error("Failed to add oracles to user contract.")
     exit()
 logging.info("Successfully add oracles to user contract.")
-

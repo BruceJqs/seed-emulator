@@ -161,6 +161,10 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   address-family and host-port helpers, default to IPv4, and explicitly select
   bracketed IPv6 endpoints when requested; Monero daemon runtime behavior still
   needs validation before a support claim.
+- Chainlink generated RPC, faucet, utility, and WebSocket/HTTP node URLs now
+  route through shared address-family and URL helpers, default to IPv4, and
+  explicitly select bracketed IPv6 URLs when requested; Ethereum/Chainlink
+  runtime behavior still needs validation before a support claim.
 
 ## Phase 6: Separate Designs Before Code
 

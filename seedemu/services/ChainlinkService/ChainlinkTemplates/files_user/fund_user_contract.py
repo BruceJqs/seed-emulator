@@ -4,7 +4,7 @@ import os, json, logging
 from EthereumHelper import EthereumHelper
 
 ###########################################
-eth_url    = "http://{eth_server}:{eth_server_http_port}"
+eth_url    = "{eth_server_http_url}"
 chain_id   = {chain_id}
 ###########################################
 
@@ -69,4 +69,3 @@ logging.info("Transferred LINK tokens to user contract successfully.")
 # Check the balance of user contract
 balance = link_contract.functions.balanceOf(user_contract_address).call()
 logging.info("User contract balance: " + str(balance))
-

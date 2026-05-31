@@ -81,9 +81,10 @@ Deferred core items:
 | Traffic services | Compatible | Raw receiver targets are unchanged; receiver vnodes can be resolved to IPv4 or IPv6 targets through shared node-address helpers, but each tool still needs runtime validation before a full support claim. |
 | Kubo/IPFS | Compatible | Bootstrap RPC URLs and peer multiaddrs use shared endpoint helpers, default to IPv4, and may explicitly select IPv6; broader Kubo runtime behavior still needs validation before a full support claim. |
 | Monero | Compatible | Seed and full-node RPC endpoint lists use shared address-family and host-port helpers, default to IPv4, and may explicitly select IPv6; daemon listener/runtime behavior still needs validation before a full support claim. |
+| Chainlink | Compatible | Generated Chainlink RPC, faucet, utility, and node WebSocket/HTTP URLs use shared endpoint helpers, default to IPv4, and may explicitly select bracketed IPv6 URLs; Ethereum/Chainlink runtime behavior still needs validation before a full support claim. |
 | Email | IPv4-first | Provider/gateway/default-route logic must be redesigned before IPv6 claim. |
 | Tor | IPv4-first | Bind/listener and directory authority addressing need a separate migration. |
-| Ethereum/Chainlink | IPv4-first | HTTP, ENR, RPC, and generated URL formatting need helper-based migration. |
+| Ethereum | IPv4-first | HTTP, ENR, RPC, and peer discovery behavior need helper-based migration and runtime validation. |
 | SCION | Separate design | Underlay, crossConnect, and SCION control tooling currently assume IPv4. |
 | MPLS/EVPN | Separate design | Routing identifiers and dataplane assumptions need dedicated validation. |
 | k8s/internetmap2 | Out of this branch | Do not claim IPv6 support until their own branch validates it. |

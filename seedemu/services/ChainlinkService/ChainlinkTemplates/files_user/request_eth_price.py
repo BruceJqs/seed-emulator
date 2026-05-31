@@ -6,8 +6,8 @@ from EthereumHelper import EthereumHelper
 
 
 ###########################################
-eth_url      = "http://{eth_server}:{eth_server_http_port}"
-faucet_url   = "http://{faucet_server}:{faucet_server_port}"
+eth_url      = "{eth_server_http_url}"
+faucet_url   = "{faucet_url}"
 chain_id     = {chain_id}
 external_url = "{external_url}"
 path         = "{path}"
@@ -62,4 +62,3 @@ average_price = user_contract.functions.averagePrice().call()
 logging.info("Response count: " + str(response_count))
 logging.info("Average ETH price: " + str(average_price))
 logging.info("Chainlink user example service completed.")
-

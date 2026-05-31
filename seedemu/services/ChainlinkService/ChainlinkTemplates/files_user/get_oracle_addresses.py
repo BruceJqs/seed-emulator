@@ -5,7 +5,7 @@ from UtilityServerHelper import UtilityServerHelper
 
 
 ####################################################
-util_server_url = "http://{util_server}:{util_server_port}"
+util_server_url = "{util_server_url}"
 oracle_contract_names = {oracle_contract_names}
 link_contract_name    = "{link_contract_name}"
 ####################################################
@@ -44,4 +44,3 @@ if not os.path.exists(directory):
     os.makedirs(directory)
 with open(directory + '/contract_addresses.json', 'w') as f:
     json.dump(data, f)
-

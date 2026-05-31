@@ -141,8 +141,9 @@ Current categories:
   OSPFv3, ExaBGP, Looking Glass;
 - baseline dual-stack: DNS authoritative records and `/etc/hosts`;
 - compatible but not fully migrated: DNS cache, Web/CA, traffic wrappers,
-  Kubo bootstrap endpoints, Monero seed/RPC endpoint formatting;
-- IPv4-first pending design: Email, Tor, Ethereum, Chainlink;
+  Kubo bootstrap endpoints, Monero seed/RPC endpoint formatting, Chainlink
+  generated URL formatting;
+- IPv4-first pending design: Email, Tor, Ethereum;
 - separate design required: SCION underlay, cross-connect, DHCPv6, MPLS/EVPN,
   real-world connectivity, OpenVPN, k8s, internetmap2.
 
@@ -164,6 +165,12 @@ Monero seed and full-node RPC endpoint lists preserve IPv4 defaults. In a
 dual-stack emulation, call `blockchain.setEndpointAddressFamily(AddressFamily.IPv6)`
 to generate bracketed IPv6 `host:port` endpoints for those lists. Monero daemon
 listener behavior has not been runtime-validated as full IPv6 support.
+
+Chainlink generated URLs preserve IPv4 defaults. In a dual-stack emulation,
+call `chainlink.setEndpointAddressFamily(AddressFamily.IPv6)` or pass
+`endpointAddressFamily=AddressFamily.IPv6` to generate bracketed IPv6 RPC,
+faucet, utility, and WebSocket/HTTP node URLs. The underlying Ethereum and
+Chainlink runtime path has not been validated as full IPv6 support.
 
 See
 [Repository-Wide IPv6 Readiness Design](../designs/ipv6-repository-readiness-design.md)

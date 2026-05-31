@@ -9,6 +9,8 @@ from seedemu.core import (
     Binding,
     Emulator,
     Filter,
+    Server,
+    Service,
     formatHostPort,
     formatMultiaddr,
     formatUrl,
@@ -19,6 +21,7 @@ from seedemu.core import (
 from seedemu.layers import Base, EtcHosts
 from seedemu.services import (
     CAServer,
+    ChainlinkService,
     DomainNameCachingService,
     DomainNameService,
     KuboService,
@@ -66,6 +69,69 @@ class _FakeCAStore:
 
     def getStorePath(self) -> str:
         return str(self._store_path)
+
+
+class _FakeEthServer(Server):
+    def __init__(self, chain_id: int = 1337, http_port: int = 8545, ws_port: int = 8546):
+        super().__init__()
+        self._chain_id = chain_id
+        self._http_port = http_port
+        self._ws_port = ws_port
+
+    def install(self, node):
+        pass
+
+    def getChainId(self) -> int:
+        return self._chain_id
+
+    def getGethHttpPort(self) -> int:
+        return self._http_port
+
+    def getGethWsPort(self) -> int:
+        return self._ws_port
+
+
+class _FakePortServer(Server):
+    def __init__(self, port: int):
+        super().__init__()
+        self._port = port
+
+    def install(self, node):
+        pass
+
+    def getPort(self) -> int:
+        return self._port
+
+
+class _FakeUtilityServer(_FakePortServer):
+    def __init__(self, port: int):
+        super().__init__(port)
+        self.deployed_contracts = []
+
+    def deployContractByContent(self, contract_name: str, abi_content: str, bin_content: str):
+        self.deployed_contracts.append((contract_name, abi_content, bin_content))
+
+
+class _FakeEthereumService(Service):
+    def __init__(self):
+        super().__init__()
+        self._pending_targets = {
+            "eth-vnode": _FakeEthServer(),
+            "faucet-vnode": _FakePortServer(80),
+            "utility-vnode": _FakeUtilityServer(5000),
+        }
+
+    def _createServer(self) -> Server:
+        raise AssertionError("fake Ethereum service does not create servers dynamically")
+
+    def configure(self, emulator: Emulator):
+        pass
+
+    def render(self, emulator: Emulator):
+        pass
+
+    def getName(self) -> str:
+        return "EthereumService"
 
 
 def _render_kubo_bootstrap_topology(kubo: KuboService):
@@ -139,6 +205,49 @@ def _render_monero_endpoint_topology(family=AddressFamily.IPv4):
     return (
         emu.getRegistry().get("2", "hnode", "client"),
         emu.getRegistry().get("2", "hnode", "light"),
+    )
+
+
+def _render_chainlink_endpoint_topology(family=AddressFamily.IPv4):
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+    ethereum = _FakeEthereumService()
+    chainlink = ChainlinkService(
+        eth_server="eth-vnode",
+        faucet_server="faucet-vnode",
+        utility_server="utility-vnode",
+    )
+    if family != AddressFamily.IPv4:
+        chainlink.setEndpointAddressFamily(family)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("eth").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+    as2.createHost("faucet").joinNetwork("net0", address="10.2.0.72", ipv6Address="2000:0:2::72")
+    as2.createHost("utility").joinNetwork("net0", address="10.2.0.73", ipv6Address="2000:0:2::73")
+    as2.createHost("chainlink").joinNetwork("net0", address="10.2.0.74", ipv6Address="2000:0:2::74")
+    as2.createHost("user").joinNetwork("net0", address="10.2.0.75", ipv6Address="2000:0:2::75")
+
+    chainlink.install("chainlink-vnode")
+    chainlink.installUserServer("user-vnode").setChainlinkServers(["chainlink-vnode"])
+
+    for vnode, node_name in (
+        ("eth-vnode", "eth"),
+        ("faucet-vnode", "faucet"),
+        ("utility-vnode", "utility"),
+        ("chainlink-vnode", "chainlink"),
+        ("user-vnode", "user"),
+    ):
+        emu.addBinding(Binding(vnode, filter=Filter(asn=2, nodeName=node_name), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(ethereum)
+    emu.addLayer(chainlink)
+    emu.render()
+
+    return (
+        emu.getRegistry().get("2", "hnode", "chainlink"),
+        emu.getRegistry().get("2", "hnode", "user"),
     )
 
 
@@ -993,3 +1102,69 @@ def test_monero_endpoints_can_select_ipv6_helpers():
     assert 'UPSTREAMS=("[2000:0:2::71]:28081" "[2000:0:2::72]:28081")' in light_script
     assert 'if [[ "$endpoint" =~ ^\\[(.*)\\]:([0-9]+)$ ]]; then' in client_script
     assert "--add-exclusive-node=10.2.0.71:28080" not in client_script
+
+
+def test_chainlink_generated_urls_default_to_ipv4_on_dual_stack_nodes():
+    chainlink, user = _render_chainlink_endpoint_topology()
+
+    config = _file_content(chainlink, "/chainlink/config.toml")
+    oracle_script = _file_content(chainlink, "/chainlink/deploy_oracle_contract.py")
+    register_script = _file_content(chainlink, "/chainlink/register_contract.py")
+    auth_sender_script = _file_content(chainlink, "/chainlink/fund_auth_sender.py")
+    user_deploy_script = _file_content(user, "/chainlink_user/deploy_user_contract.py")
+    user_oracle_script = _file_content(user, "/chainlink_user/get_oracle_addresses.py")
+    combined = "\n".join(
+        [
+            config,
+            oracle_script,
+            register_script,
+            auth_sender_script,
+            user_deploy_script,
+            user_oracle_script,
+        ]
+    )
+
+    assert "WSURL = 'ws://10.2.0.71:8546'" in config
+    assert "HTTPURL = 'http://10.2.0.71:8545'" in config
+    assert 'eth_url    = "http://10.2.0.71:8545"' in oracle_script
+    assert 'faucet_url = "http://10.2.0.72:80"' in auth_sender_script
+    assert 'util_server_url    = "http://10.2.0.73:5000"' in oracle_script
+    assert 'util_server_url = "http://10.2.0.73:5000"' in register_script
+    assert 'eth_url    = "http://10.2.0.71:8545"' in user_deploy_script
+    assert 'faucet_url = "http://10.2.0.72:80"' in user_deploy_script
+    assert 'util_server_url = "http://10.2.0.73:5000"' in user_oracle_script
+    assert "2000:0:2::" not in combined
+
+
+def test_chainlink_generated_urls_can_select_ipv6_helpers():
+    chainlink, user = _render_chainlink_endpoint_topology(AddressFamily.IPv6)
+
+    config = _file_content(chainlink, "/chainlink/config.toml")
+    oracle_script = _file_content(chainlink, "/chainlink/deploy_oracle_contract.py")
+    register_script = _file_content(chainlink, "/chainlink/register_contract.py")
+    auth_sender_script = _file_content(chainlink, "/chainlink/fund_auth_sender.py")
+    user_deploy_script = _file_content(user, "/chainlink_user/deploy_user_contract.py")
+    user_oracle_script = _file_content(user, "/chainlink_user/get_oracle_addresses.py")
+    combined = "\n".join(
+        [
+            config,
+            oracle_script,
+            register_script,
+            auth_sender_script,
+            user_deploy_script,
+            user_oracle_script,
+        ]
+    )
+
+    assert "WSURL = 'ws://[2000:0:2::71]:8546'" in config
+    assert "HTTPURL = 'http://[2000:0:2::71]:8545'" in config
+    assert 'eth_url    = "http://[2000:0:2::71]:8545"' in oracle_script
+    assert 'faucet_url = "http://[2000:0:2::72]:80"' in auth_sender_script
+    assert 'util_server_url    = "http://[2000:0:2::73]:5000"' in oracle_script
+    assert 'util_server_url = "http://[2000:0:2::73]:5000"' in register_script
+    assert 'eth_url    = "http://[2000:0:2::71]:8545"' in user_deploy_script
+    assert 'faucet_url = "http://[2000:0:2::72]:80"' in user_deploy_script
+    assert 'util_server_url = "http://[2000:0:2::73]:5000"' in user_oracle_script
+    assert "http://10.2.0.71:8545" not in combined
+    assert "http://10.2.0.72:80" not in combined
+    assert "http://10.2.0.73:5000" not in combined

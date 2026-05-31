@@ -4,7 +4,7 @@ import os, json, logging
 from FaucetHelper import FaucetHelper
 
 ###########################################
-faucet_url = "http://{faucet_server}:{faucet_server_port}"
+faucet_url = "{faucet_url}"
 ###########################################
 
 # Change the work folder to where the program is
@@ -20,5 +20,4 @@ with open('./info/auth_sender.txt', 'r') as file:
 faucet = FaucetHelper(faucet_url)
 faucet.wait_for_server_ready()
 faucet.send_fundme_request(sender, 10)
-
 

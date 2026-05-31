@@ -90,8 +90,8 @@ ChainID = '{chain_id}'
 
 [[EVM.Nodes]]
 Name = 'SEED Emulator'
-WSURL = 'ws://{eth_server_ip}:{eth_server_ws_port}'
-HTTPURL = 'http://{eth_server_ip}:{eth_server_http_port}'
+WSURL = '{eth_server_ws_url}'
+HTTPURL = '{eth_server_http_url}'
 """
 
 ChainlinkFileTemplate['secrets'] = """\
@@ -127,5 +127,4 @@ server {{
     }}
 }}
 """
-
 
