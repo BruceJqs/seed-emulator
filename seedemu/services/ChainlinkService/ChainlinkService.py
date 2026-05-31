@@ -1,8 +1,7 @@
 from seedemu import *
-from seedemu.core import AddressFamily, getInterfaceAddress, normalizeAddressFamily
+from seedemu.core import AddressFamily, getNodeAddress, normalizeAddressFamily
 from seedemu.core.Node import Node
 from seedemu.core.Service import Server
-from seedemu.core.enums import NetworkType
 #from seedemu.services.ChainlinkService.ChainlinkTemplates import *
 from .ChainlinkTemplates import *
 from .ChainlinkBaseServer import *
@@ -260,20 +259,12 @@ class ChainlinkService(Service):
         node = emulator.getBindingFor(vnode)
         assert node != None, 'Virtual node {} has not been bound to a physical node yet.'.format(vnode)
 
-        address: str = None
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        for iface in ifaces:
-            net = iface.getNet()
-            if net.getType() == NetworkType.Local:
-                address = getInterfaceAddress(iface, self.__endpoint_address_family)
-                if address is not None:
-                    break
-        assert address is not None, 'Node {} has no {} Local address.'.format(
+        address = getNodeAddress(node, self.__endpoint_address_family, preferLocal=True)
+        assert address is not None, 'Node {} has no {} address.'.format(
             node.getName(),
             self.__endpoint_address_family.value,
         )
-        return address
+        return str(address)
 
     def _doConfigure(self, node: Node, server: Server):
         """!

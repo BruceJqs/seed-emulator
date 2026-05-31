@@ -372,6 +372,69 @@ def _render_chainlink_endpoint_topology(family=AddressFamily.IPv4):
     )
 
 
+def _render_chainlink_service_network_endpoint_topology(family=AddressFamily.IPv4):
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base(enableIpv6=True)
+    ethereum = _FakeEthereumService()
+    chainlink = ChainlinkService(
+        eth_server="eth-vnode",
+        faucet_server="faucet-vnode",
+        utility_server="utility-vnode",
+    )
+    if family != AddressFamily.IPv4:
+        chainlink.setEndpointAddressFamily(family)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createHost("eth").joinNetwork(
+        "000_svc",
+        address="192.168.66.71",
+        ipv6Address="fd00:66::71",
+    )
+    as2.createHost("faucet").joinNetwork(
+        "000_svc",
+        address="192.168.66.72",
+        ipv6Address="fd00:66::72",
+    )
+    as2.createHost("utility").joinNetwork(
+        "000_svc",
+        address="192.168.66.73",
+        ipv6Address="fd00:66::73",
+    )
+    as2.createHost("chainlink").joinNetwork(
+        "000_svc",
+        address="192.168.66.74",
+        ipv6Address="fd00:66::74",
+    )
+    as2.createHost("user").joinNetwork(
+        "000_svc",
+        address="192.168.66.75",
+        ipv6Address="fd00:66::75",
+    )
+
+    chainlink.install("chainlink-vnode")
+    chainlink.installUserServer("user-vnode").setChainlinkServers(["chainlink-vnode"])
+
+    for vnode, node_name in (
+        ("eth-vnode", "eth"),
+        ("faucet-vnode", "faucet"),
+        ("utility-vnode", "utility"),
+        ("chainlink-vnode", "chainlink"),
+        ("user-vnode", "user"),
+    ):
+        emu.addBinding(Binding(vnode, filter=Filter(asn=2, nodeName=node_name), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(ethereum)
+    emu.addLayer(chainlink)
+    emu.getServiceNetwork()
+    emu.render()
+
+    return (
+        emu.getRegistry().get("2", "hnode", "chainlink"),
+        emu.getRegistry().get("2", "hnode", "user"),
+    )
+
+
 def _new_test_faucet_server(eth_server_address: str):
     server = object.__new__(FaucetServer)
     server._FaucetServer__max_fund_amount = 10
@@ -1675,6 +1738,50 @@ def test_chainlink_generated_urls_can_select_ipv6_helpers():
     assert "http://10.2.0.71:8545" not in combined
     assert "http://10.2.0.72:80" not in combined
     assert "http://10.2.0.73:5000" not in combined
+
+
+def test_chainlink_generated_urls_fall_back_to_service_network_ipv4():
+    chainlink, user = _render_chainlink_service_network_endpoint_topology()
+
+    config = _file_content(chainlink, "/chainlink/config.toml")
+    oracle_script = _file_content(chainlink, "/chainlink/deploy_oracle_contract.py")
+    auth_sender_script = _file_content(chainlink, "/chainlink/fund_auth_sender.py")
+    user_deploy_script = _file_content(user, "/chainlink_user/deploy_user_contract.py")
+    user_oracle_script = _file_content(user, "/chainlink_user/get_oracle_addresses.py")
+    combined = "\n".join(
+        [config, oracle_script, auth_sender_script, user_deploy_script, user_oracle_script]
+    )
+
+    assert "WSURL = 'ws://192.168.66.71:8546'" in config
+    assert 'eth_url    = "http://192.168.66.71:8545"' in oracle_script
+    assert 'faucet_url = "http://192.168.66.72:80"' in auth_sender_script
+    assert 'eth_url    = "http://192.168.66.71:8545"' in user_deploy_script
+    assert 'util_server_url = "http://192.168.66.73:5000"' in user_oracle_script
+    assert "fd00:66::" not in combined
+
+
+def test_chainlink_generated_urls_fall_back_to_service_network_ipv6():
+    chainlink, user = _render_chainlink_service_network_endpoint_topology(
+        AddressFamily.IPv6
+    )
+
+    config = _file_content(chainlink, "/chainlink/config.toml")
+    oracle_script = _file_content(chainlink, "/chainlink/deploy_oracle_contract.py")
+    auth_sender_script = _file_content(chainlink, "/chainlink/fund_auth_sender.py")
+    user_deploy_script = _file_content(user, "/chainlink_user/deploy_user_contract.py")
+    user_oracle_script = _file_content(user, "/chainlink_user/get_oracle_addresses.py")
+    combined = "\n".join(
+        [config, oracle_script, auth_sender_script, user_deploy_script, user_oracle_script]
+    )
+
+    assert "WSURL = 'ws://[fd00:66::71]:8546'" in config
+    assert 'eth_url    = "http://[fd00:66::71]:8545"' in oracle_script
+    assert 'faucet_url = "http://[fd00:66::72]:80"' in auth_sender_script
+    assert 'eth_url    = "http://[fd00:66::71]:8545"' in user_deploy_script
+    assert 'util_server_url = "http://[fd00:66::73]:5000"' in user_oracle_script
+    assert "http://fd00:66::71:8545" not in combined
+    assert "ws://fd00:66::71:8546" not in combined
+    assert "http://192.168.66.71:8545" not in combined
 
 
 def test_ethereum_http_utility_urls_default_to_ipv4_on_dual_stack_nodes():
