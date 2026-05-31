@@ -174,6 +174,11 @@ configuration is generated. Authoritative zone creation and hosting APIs use
 the same canonical zone-name normalization, so padded zone inputs do not change
 generated BIND zone names or zone file paths.
 
+`EtcHosts` writes IPv4 and IPv6 entries for node interfaces that carry those
+addresses. Service-network Bridge addresses are intentionally kept so
+service-only nodes remain resolvable. IX peering addresses are skipped, matching
+the existing rule that peering LAN addresses should not become host aliases.
+
 Domain Registrar dynamic updates preserve A as the default record type. The
 registration page also allows users to explicitly choose AAAA records for IPv6
 addresses, and rejects submitted IP addresses whose family does not match the

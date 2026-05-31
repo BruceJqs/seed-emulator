@@ -29,7 +29,7 @@ from seedemu.core import (
     normalizeAddressRecord,
     normalizePrefix,
 )
-from seedemu.core.enums import NodeRole
+from seedemu.core.enums import NetworkType, NodeRole
 from seedemu.hooks import ResolvConfHook, ResolvConfHookByAs
 from seedemu.layers import Base, EtcHosts
 from seedemu.services import (
@@ -2010,6 +2010,68 @@ def test_dns_and_etc_hosts_emit_ipv6_records_when_available():
     hosts_file = _file_content(node, "/tmp/etc-hosts")
     assert any(line.startswith("10.2.0.71 ") and "web.example" in line for line in hosts_file.splitlines())
     assert any(line.startswith("2000:0:2::71 ") and "web.example" in line for line in hosts_file.splitlines())
+
+
+def test_etc_hosts_keeps_service_network_addresses_for_service_only_nodes():
+    emu = Emulator(serviceNetworkIpv6Prefix="fd00:66::/64")
+    base = Base(enableIpv6=True)
+    hosts = EtcHosts()
+
+    as2 = base.createAutonomousSystem(2)
+    svc = as2.createHost("svc").joinNetwork(
+        "000_svc",
+        address="192.168.66.71",
+        ipv6Address="fd00:66::71",
+    )
+    svc.addHostName("svc.example")
+
+    emu.getServiceNetwork()
+    emu.addLayer(base)
+    emu.addLayer(hosts)
+    emu.render()
+
+    node = emu.getRegistry().get("2", "hnode", "svc")
+    hosts_file = _file_content(node, "/tmp/etc-hosts")
+
+    assert any(line.startswith("192.168.66.71 ") and "svc.example" in line for line in hosts_file.splitlines())
+    assert any(line.startswith("fd00:66::71 ") and "svc.example" in line for line in hosts_file.splitlines())
+
+
+def test_etc_hosts_skips_internet_exchange_addresses_but_keeps_router_local_addresses():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+    hosts = EtcHosts(only_hosts=False)
+
+    base.createInternetExchange(100)
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    router = (
+        as2.createRouter("r1")
+        .joinNetwork("net0", address="10.2.0.254", ipv6Address="2000:0:2::254")
+        .joinNetwork("ix100")
+    )
+    router.addHostName("r1.example")
+
+    emu.addLayer(base)
+    emu.addLayer(hosts)
+    emu.render()
+
+    node = emu.getRegistry().get("2", "rnode", "r1")
+    hosts_file = _file_content(node, "/tmp/etc-hosts")
+    lines = hosts_file.splitlines()
+    ix_addresses = []
+    for iface in node.getInterfaces():
+        if iface.getNet().getType() == NetworkType.InternetExchange:
+            if iface.getAddress() is not None:
+                ix_addresses.append(str(iface.getAddress()))
+            if iface.hasIpv6Address():
+                ix_addresses.append(str(iface.getIpv6Address()))
+
+    assert ix_addresses
+    assert any(line.startswith("10.2.0.254 ") and "r1.example" in line for line in lines)
+    assert any(line.startswith("2000:0:2::254 ") and "r1.example" in line for line in lines)
+    for address in ix_addresses:
+        assert not any(line.startswith("{} ".format(address)) for line in lines)
 
 
 def test_dns_resolve_to_node_emits_dual_stack_records_when_available():

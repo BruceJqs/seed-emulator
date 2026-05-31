@@ -29,17 +29,16 @@ class EtcHosts(Layer):
         """
         addresses = []
         for iface in node.getInterfaces():
-            if iface.getNet().getType() == NetworkType.Bridge:
-                pass
             if iface.getNet().getType() == NetworkType.InternetExchange:
-                pass
-            else:
-                ipv4_address = getInterfaceAddress(iface, AddressFamily.IPv4)
-                if ipv4_address is not None:
-                    addresses.append(str(ipv4_address))
-                ipv6_address = getInterfaceAddress(iface, AddressFamily.IPv6)
-                if ipv6_address is not None:
-                    addresses.append(str(ipv6_address))
+                continue
+
+            # Keep Bridge/service-network addresses for service-only nodes.
+            ipv4_address = getInterfaceAddress(iface, AddressFamily.IPv4)
+            if ipv4_address is not None:
+                addresses.append(str(ipv4_address))
+            ipv6_address = getInterfaceAddress(iface, AddressFamily.IPv6)
+            if ipv6_address is not None:
+                addresses.append(str(ipv6_address))
 
         return addresses
 
