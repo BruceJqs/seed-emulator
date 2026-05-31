@@ -2478,6 +2478,13 @@ def test_traffic_service_receiver_vnodes_default_to_ipv4_targets():
 
     generator = emu.getRegistry().get("2", "hnode", "generator")
     assert _file_content(generator, "/root/traffic-targets").strip() == "10.2.0.71"
+    script = _file_content(generator, "/root/traffic_generator_iperf3.sh")
+    assert 'ping_target "$client"' in script
+    assert 'case "$target" in' in script
+    assert 'ping -6 -c1 "$target" > /dev/null' in script
+    assert 'ping -c1 "$target" > /dev/null' in script
+    assert 'if [[ "$target" == *:* ]]; then' not in script
+    assert "while true; do ping -c1 $client > /dev/null && break; done;" not in script
 
 
 def test_traffic_service_receiver_vnodes_can_select_ipv6_targets():
@@ -2504,6 +2511,10 @@ def test_traffic_service_receiver_vnodes_can_select_ipv6_targets():
 
     generator = emu.getRegistry().get("2", "hnode", "generator")
     assert _file_content(generator, "/root/traffic-targets").strip() == "2000:0:2::71"
+    script = _file_content(generator, "/root/traffic_generator_iperf3.sh")
+    assert 'case "$target" in' in script
+    assert '*:*)' in script
+    assert 'ping -6 -c1 "$target" > /dev/null' in script
 
 
 def test_kubo_bootstrap_endpoints_default_to_ipv4_on_dual_stack_nodes():

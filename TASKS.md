@@ -201,7 +201,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - Traffic generator raw receiver target lists remain unchanged.
 - Traffic generator receiver vnode targets can be resolved through shared core
   node-address helpers, default to IPv4, and explicitly select IPv6 when
-  requested.
+  requested; generated reachability probes select IPv6 ping for IPv6 literal
+  targets while preserving the existing IPv4/hostname ping path.
 - Kubo bootstrap RPC URLs, peer multiaddrs, and the legacy `getIP` utility now
   route through shared endpoint helpers with Local-network-first,
   service-network fallback address selection, default to IPv4, and explicitly

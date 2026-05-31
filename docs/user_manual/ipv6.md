@@ -180,7 +180,10 @@ forwarders only for zone-server nodes that actually have IPv6 state.
 
 Traffic generators preserve existing raw receiver target lists. For explicit
 address-family selection, use `addReceiverVnodes(..., family=AddressFamily.IPv6)`
-to resolve receiver virtual nodes through the shared node-address helpers.
+to resolve receiver virtual nodes through the shared node-address helpers. The
+generated reachability probe uses IPv6 ping for IPv6 literal targets while
+preserving the existing IPv4/hostname ping path. Individual traffic tools still
+need runtime validation before a full IPv6 support claim.
 
 Kubo bootstrap endpoints preserve IPv4 defaults and select bootstrap node
 addresses through the shared Local-network-first helper, falling back to the

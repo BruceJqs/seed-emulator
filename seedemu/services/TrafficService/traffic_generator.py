@@ -9,8 +9,19 @@ if TYPE_CHECKING:
 class TrafficGenerator(Server):
     startup_script = """
 echo "Check if targets are reachable";
+ping_target () {{
+    target="$1"
+    case "$target" in
+    *:*)
+        ping -6 -c1 "$target" > /dev/null
+        ;;
+    *)
+        ping -c1 "$target" > /dev/null
+        ;;
+    esac
+}}
 while read client; do
-    while true; do ping -c1 $client > /dev/null && break; done;
+    while true; do ping_target "$client" && break; done;
 done < /root/traffic-targets
 echo "Starting traffic generator"
 while read client; do
