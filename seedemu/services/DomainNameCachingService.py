@@ -2,6 +2,7 @@ from __future__ import annotations
 from seedemu.core import AddressFamily, Configurable, Service, Server, getNodePreferredAddress
 from seedemu.core import Node, ScopedRegistry, Emulator
 from .DomainNameService import DomainNameService
+from ipaddress import ip_address
 from typing import List, Dict
 
 DomainNameCachingServiceFileTemplates: Dict[str, str] = {}
@@ -88,7 +89,7 @@ class DomainNameCachingServer(Server, Configurable):
         return getNodePreferredAddress(node, (AddressFamily.IPv4, AddressFamily.IPv6), preferLocal=False)
 
     def __formatBindAddressList(self, addrs: List[str]) -> str:
-        return '; '.join([str(addr) for addr in addrs])
+        return '; '.join([str(ip_address(str(addr).strip())) for addr in addrs])
 
     def addForwardZone(self, zone: str, vnode: str) -> DomainNameCachingServer:
         """!
