@@ -113,7 +113,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - DNS authoritative and cache service address selection now routes through
   shared core node-address helpers instead of service-local duplication.
 - DNS glue records and manual master IPs normalize explicit IPv4/IPv6 address
-  literals before generating A/AAAA records or forwarder lists.
+  literals before generating A/AAAA records, slave master lists, or forwarder
+  lists.
 - Domain Registrar dynamic DNS updates preserve A as the default record type
   and allow users to explicitly submit AAAA records without changing DNS server
   placement or runtime assumptions.

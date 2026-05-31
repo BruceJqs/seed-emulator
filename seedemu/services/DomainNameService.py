@@ -561,14 +561,17 @@ class DomainNameService(Service):
 
         return self
 
-    def setAllMasterIp(self, masters: Dict[str: List[str]]):
+    def setAllMasterIp(self, masters: Dict[str, List[str]]):
         """!
         @brief override all master IPs, to be used for merger. Do not use unless
         you know what you are doing.
 
         @param masters master dict.
         """
-        self.__masters = masters
+        self.__masters = {
+            zone: [str(ip_address(str(addr).strip())) for addr in addrs]
+            for zone, addrs in masters.items()
+        }
 
     def getMasterIp(self) -> Dict [str, List[str]]:
         """!

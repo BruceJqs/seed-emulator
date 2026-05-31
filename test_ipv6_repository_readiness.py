@@ -1767,6 +1767,32 @@ def test_dns_cache_forward_zone_normalizes_imported_master_ips():
     assert " 2000:0:2::53 " not in named_local
 
 
+def test_dns_slave_master_ips_normalize_imported_addresses():
+    emu = Emulator()
+    base = Base()
+    dns = DomainNameService()
+
+    dns.setAllMasterIp({"example.": [" 10.2.0.53 ", " 2000:0:2::53 "]})
+    dns.install("slave-ns").addZone("example.")
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("slave").joinNetwork("net0", address="10.2.0.54")
+    emu.addBinding(Binding("slave-ns", filter=Filter(asn=2, nodeName="slave"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(dns)
+    emu.render()
+
+    slave_node = emu.getRegistry().get("2", "hnode", "slave")
+    named_zones = _file_content(slave_node, "/etc/bind/named.conf.zones")
+
+    assert dns.getMasterIp()["example."] == ["10.2.0.53", "2000:0:2::53"]
+    assert 'masters { 10.2.0.53;2000:0:2::53; };' in named_zones
+    assert " 10.2.0.53 " not in named_zones
+    assert " 2000:0:2::53 " not in named_zones
+
+
 def test_reverse_dns_keeps_ipv4_only_default():
     emu = Emulator()
     base = Base()
