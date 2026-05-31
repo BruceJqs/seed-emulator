@@ -2206,6 +2206,52 @@ def test_dns_imported_master_ips_normalize_zone_names():
     assert 'forwarders { 10.2.0.53; 2000:0:2::53; };' in named_local
 
 
+def test_dns_get_zone_normalizes_canonical_zone_names():
+    dns = DomainNameService()
+
+    padded_zone = dns.getZone(" example ")
+    dotted_zone = dns.getZone("example.")
+    root_zone = dns.getZone("  .  ")
+
+    padded_zone.addRecord("web A 10.2.0.71")
+
+    assert padded_zone is dotted_zone
+    assert root_zone is dns.getRootZone()
+    assert padded_zone.getName() == "example."
+    assert "example" in dns.getRootZone().getSubZones()
+    assert " example " not in dns.getRootZone().getSubZones()
+    assert "web A 10.2.0.71" in dotted_zone.getRecords()
+
+
+def test_dns_server_add_zone_normalizes_canonical_zone_names():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+    dns = DomainNameService()
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("ns").joinNetwork("net0", address="10.2.0.53", ipv6Address="2000:0:2::53")
+
+    server = dns.install("ns-example").addZone(" example ").setMaster()
+    emu.addBinding(Binding("ns-example", filter=Filter(asn=2, nodeName="ns"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(dns)
+    emu.render()
+
+    ns = emu.getRegistry().get("2", "hnode", "ns")
+    named_zones = _file_content(ns, "/etc/bind/named.conf.zones")
+    zone_file = _file_content(ns, "/etc/bind/zones/example.")
+
+    assert server.getZones() == ["example."]
+    assert dns.getMasterIp()["example."] == ["10.2.0.53", "2000:0:2::53"]
+    assert 'zone "example." { type master;' in named_zones
+    assert 'zone " example "' not in named_zones
+    assert "$ORIGIN example." in zone_file
+    assert "ns1.example. A 10.2.0.53" in zone_file
+    assert "ns1.example. AAAA 2000:0:2::53" in zone_file
+
+
 def test_dns_slave_master_ips_normalize_imported_addresses():
     emu = Emulator()
     base = Base()

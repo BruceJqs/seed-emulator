@@ -83,7 +83,7 @@ Deferred core items:
 | Looking Glass | Supported | Route-state views separate IPv4/IPv6 output; frontend-to-proxy URLs use shared URL helpers, default to IPv4, and may explicitly select bracketed IPv6 proxy endpoints. |
 | Docker compiler | Supported | Emit IPv6 only for networks/interfaces carrying IPv6 state. |
 | `/etc/hosts` | Baseline dual-stack | Generate IPv4 and IPv6 local entries when available. |
-| DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; manual A/AAAA and glue record literals use shared normalization, including bracketed IPv6 literals, and reject address-family mismatches such as A-with-IPv6 or AAAA-with-IPv4; masters may include both families and master-IP zone keys are normalized to canonical DNS zone names; reverse DNS keeps IPv4 `in-addr.arpa.` PTR records and adds `ip6.arpa.` PTR records only when interfaces carry IPv6 state. |
+| DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; manual A/AAAA and glue record literals use shared normalization, including bracketed IPv6 literals, and reject address-family mismatches such as A-with-IPv6 or AAAA-with-IPv4; authoritative zone inputs and master-IP zone keys are normalized to canonical DNS zone names, and masters may include both address families; reverse DNS keeps IPv4 `in-addr.arpa.` PTR records and adds `ip6.arpa.` PTR records only when interfaces carry IPv6 state. |
 | Domain Registrar | Compatible | Dynamic DNS updates preserve A as the default record type, allow explicit AAAA submissions, and reject submitted IP addresses whose family does not match the selected A/AAAA record type; TLD placement and runtime behavior remain the existing Domain Registrar model. |
 | DNS cache | Compatible | Prefer IPv4 for old resolver behavior; accept IPv6 forwarders/root hints, normalize manual A/AAAA root-hint literals through the shared helper, normalize forward-zone names to canonical DNS zone names, and use shared node-address helpers for forward-zone fallback to authoritative zone servers. |
 | Web/CA | Compatible | Existing IPv4 behavior preserved; CA certificate-install filters match IPv4/IPv6 address and prefix selectors through shared node address/prefix helpers; CA IP/network helper parsing uses shared address and prefix normalization; CA domain inputs trim DNS names and normalize padded or bracketed IPv4/IPv6 endpoint literals before ACME directory URLs use shared URL helpers, but Web HTTPS and ACME runtime behavior still need validation before a full support claim. |
@@ -142,6 +142,6 @@ Repository-level IPv6 work should keep these checks green:
 - Explicit resolver nameserver inputs, including `ResolvConfHook` and
   `ResolvConfHookByAs`, use shared address-list normalization before writing
   `resolv.conf` commands.
-- DNS cache forward-zone fallback resolves canonical authoritative zone-server
-  names, normalizes forward-zone names before lookup/output, and emits IPv6
+- Authoritative DNS and DNS cache forward-zone fallback resolve canonical
+  zone names, normalize zone inputs before lookup/output, and emit IPv6
   forwarders only for zone-server nodes with IPv6 state.

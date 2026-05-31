@@ -8,6 +8,14 @@ import requests
 DomainNameServiceFileTemplates: Dict[str, str] = {}
 ROOT_ZONE_URL = 'https://www.internic.net/domain/root.zone'
 
+
+def _normalizeZoneName(domain: str) -> str:
+    domain = str(domain).strip()
+    if domain == '' or domain == '.':
+        return '.'
+    return domain if domain[-1] == '.' else '{}.'.format(domain)
+
+
 DomainNameServiceFileTemplates['named_options'] = '''\
 options {
 	directory "/var/cache/bind";
@@ -272,7 +280,7 @@ class DomainNameServer(Server):
 
         @returns self, for chaining API calls.
         """
-        self.__zones.add((zonename, createNsAndSoa))
+        self.__zones.add((_normalizeZoneName(zonename), createNsAndSoa))
 
         return self
 
@@ -501,7 +509,8 @@ class DomainNameService(Service):
 
         @returns zone handler.
         """
-        if domain == '.' or domain == '': return self.__rootZone
+        domain = self.__normalizeZoneName(domain)
+        if domain == '.': return self.__rootZone
         path: List[str] = sub(r'\.$', '', domain).split('.')
         path.reverse()
         zoneptr = self.__rootZone
@@ -547,10 +556,7 @@ class DomainNameService(Service):
         return info
 
     def __normalizeZoneName(self, domain: str) -> str:
-        domain = str(domain).strip()
-        if domain == '' or domain == '.':
-            return '.'
-        return domain if domain[-1] == '.' else '{}.'.format(domain)
+        return _normalizeZoneName(domain)
 
     def addMasterIp(self, zone: str, addr: str) -> DomainNameService:
         """!

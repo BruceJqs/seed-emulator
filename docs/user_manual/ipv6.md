@@ -170,7 +170,9 @@ zone. Manual DNS A/AAAA records use shared normalization and reject mismatched
 address families, such as an A record with an IPv6 literal or an AAAA record
 with an IPv4 literal. Manual and imported authoritative master-IP zone keys are
 normalized to canonical DNS zone names before slave or cache forwarder
-configuration is generated.
+configuration is generated. Authoritative zone creation and hosting APIs use
+the same canonical zone-name normalization, so padded zone inputs do not change
+generated BIND zone names or zone file paths.
 
 Domain Registrar dynamic updates preserve A as the default record type. The
 registration page also allows users to explicitly choose AAAA records for IPv6
