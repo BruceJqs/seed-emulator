@@ -86,6 +86,9 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
 - `Filter` / `Binding` address and prefix selectors tolerate padded IPv4/IPv6
   literals, bracketed IPv6 literals, and CIDRs without changing their match
   semantics;
+- explicit-family `Filter` selectors such as `ipv4`, `ipv6`, `ipv4Prefix`, and
+  `ipv6Prefix` use shared node match helpers with a family guard so wrong-family
+  literals do not accidentally match;
 - shared prefix normalization canonicalizes IPv4/IPv6 CIDR inputs for
   `Binding`, node prefix matching, and ExaBGP announcements without changing
   IPv4 defaults;

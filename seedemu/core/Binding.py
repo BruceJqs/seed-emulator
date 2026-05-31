@@ -290,15 +290,15 @@ class Binding(Printable):
 
             requested_ip_filters = []
             if filter.ip != None:
-                requested_ip_filters.append(filter.ip)
+                requested_ip_filters.append((filter.ip, None))
             if filter.ipv4 != None:
-                requested_ip_filters.append(filter.ipv4)
+                requested_ip_filters.append((filter.ipv4, "ipv4"))
             if filter.ipv6 != None:
-                requested_ip_filters.append(filter.ipv6)
+                requested_ip_filters.append((filter.ipv6, "ipv6"))
 
             ip_miss = False
-            for requested_ip in requested_ip_filters:
-                if not nodeHasAddress(node, requested_ip):
+            for requested_ip, family in requested_ip_filters:
+                if not nodeHasAddress(node, requested_ip, family):
                     self.__log('node as{}/{} does not have IP {}, trying next node.'.format(scope, name, requested_ip))
                     ip_miss = True
                     break
@@ -307,15 +307,15 @@ class Binding(Printable):
 
             requested_prefix_filters = []
             if filter.prefix != None:
-                requested_prefix_filters.append(filter.prefix)
+                requested_prefix_filters.append((filter.prefix, None))
             if filter.ipv4Prefix != None:
-                requested_prefix_filters.append(filter.ipv4Prefix)
+                requested_prefix_filters.append((filter.ipv4Prefix, "ipv4"))
             if filter.ipv6Prefix != None:
-                requested_prefix_filters.append(filter.ipv6Prefix)
+                requested_prefix_filters.append((filter.ipv6Prefix, "ipv6"))
 
             prefix_miss = False
-            for requested_prefix in requested_prefix_filters:
-                if not nodeHasAddressInPrefix(node, requested_prefix):
+            for requested_prefix, family in requested_prefix_filters:
+                if not nodeHasAddressInPrefix(node, requested_prefix, family):
                     self.__log('node as{}/{} not in prefix {}, trying next node.'.format(scope, name, requested_prefix))
                     prefix_miss = True
                     break

@@ -980,6 +980,14 @@ def test_node_address_match_helpers_cover_ipv4_and_ipv6():
     assert nodeHasAddress(host, " [2000:0:2:0:0:0:0:71] ")
     assert nodeHasAddressInPrefix(host, " 10.2.0.0/24 ")
     assert nodeHasAddressInPrefix(host, " [2000:0:2::]/64 ")
+    assert nodeHasAddress(host, "10.2.0.71", AddressFamily.IPv4)
+    assert nodeHasAddress(host, " [2000:0:2::71] ", AddressFamily.IPv6)
+    assert nodeHasAddressInPrefix(host, "10.2.0.0/24", AddressFamily.IPv4)
+    assert nodeHasAddressInPrefix(host, " [2000:0:2::]/64 ", AddressFamily.IPv6)
+    assert not nodeHasAddress(host, "10.2.0.71", AddressFamily.IPv6)
+    assert not nodeHasAddress(host, " [2000:0:2::71] ", AddressFamily.IPv4)
+    assert not nodeHasAddressInPrefix(host, "10.2.0.0/24", AddressFamily.IPv6)
+    assert not nodeHasAddressInPrefix(host, " [2000:0:2::]/64 ", AddressFamily.IPv4)
     assert not nodeHasAddress(host, "2000:0:2::72")
     assert not nodeHasAddressInPrefix(host, "2000:0:3::/64")
 
@@ -1257,6 +1265,26 @@ def test_binding_filters_trim_padded_ip_and_prefix_selectors():
         assert Binding("svc", action=Action.FIRST, filter=filter).getCandidate("svc", emu, peek=True).getName() == "dual"
 
 
+def test_binding_explicit_family_filters_reject_wrong_family_literals():
+    emu = Emulator()
+    base = Base(enableIpv6=True)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("dual").joinNetwork("net0", address="10.2.0.71", ipv6Address="2000:0:2::71")
+
+    emu.addLayer(base)
+    emu.render()
+
+    for filter in [
+        Filter(ipv4="2000:0:2::71"),
+        Filter(ipv6="10.2.0.71"),
+        Filter(ipv4Prefix="2000:0:2::/64"),
+        Filter(ipv6Prefix="10.2.0.0/24"),
+    ]:
+        assert Binding("svc", action=Action.FIRST, filter=filter).getCandidate("svc", emu, peek=True) is None
+
+
 def test_binding_new_can_create_ipv6_selected_host():
     emu = Emulator()
     base = Base(enableIpv6=True)
@@ -1304,6 +1332,10 @@ def test_ca_install_cert_filter_matches_ipv4_and_ipv6_targets(tmp_path):
     ca_server.installCACert(Filter(ip="10.2.0.71"))
     ca_server.installCACert(Filter(ipv6="[2000:0:3::72]"))
     ca_server.installCACert(Filter(prefix="[2000:0:4::]/64"))
+    ca_server.installCACert(Filter(ipv4="2000:0:5::73"))
+    ca_server.installCACert(Filter(ipv6="10.5.0.73"))
+    ca_server.installCACert(Filter(ipv4Prefix="2000:0:5::/64"))
+    ca_server.installCACert(Filter(ipv6Prefix="10.5.0.0/24"))
     ca_server._serverConfigure(9, list(node_by_asn.values()))
 
     cert_path = "/usr/local/share/ca-certificates/SEEDEMU_Internal_Root_CA_9.crt"

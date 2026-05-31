@@ -104,20 +104,21 @@ def _nodeMatchesFilter(node: Node, filter: Filter) -> bool:
         return False
 
     requested_ips = [
-        ip for ip in [filter.ip, filter.ipv4, filter.ipv6]
-        if ip is not None
+        (filter.ip, None),
+        (filter.ipv4, "ipv4"),
+        (filter.ipv6, "ipv6"),
     ]
-    for requested_ip in requested_ips:
-        if not nodeHasAddress(node, requested_ip):
+    for requested_ip, family in requested_ips:
+        if requested_ip is not None and not nodeHasAddress(node, requested_ip, family):
             return False
 
     requested_prefixes = [
-        prefix
-        for prefix in [filter.prefix, filter.ipv4Prefix, filter.ipv6Prefix]
-        if prefix is not None
+        (filter.prefix, None),
+        (filter.ipv4Prefix, "ipv4"),
+        (filter.ipv6Prefix, "ipv6"),
     ]
-    for requested_prefix in requested_prefixes:
-        if not nodeHasAddressInPrefix(node, requested_prefix):
+    for requested_prefix, family in requested_prefixes:
+        if requested_prefix is not None and not nodeHasAddressInPrefix(node, requested_prefix, family):
             return False
 
     return filter.custom is None or filter.custom(node.getName(), node)

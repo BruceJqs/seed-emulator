@@ -157,25 +157,45 @@ def hasInterfaceAddress(iface: "Interface", family: Union[AddressFamily, str, in
     return getInterfaceAddress(iface, family) is not None
 
 
-def nodeHasAddress(node: "Node", address: Union[str, object]) -> bool:
+def nodeHasAddress(
+    node: "Node",
+    address: Union[str, object],
+    family: Union[AddressFamily, str, int, None] = None,
+) -> bool:
     """Check whether a node has an IPv4 or IPv6 address literal."""
 
     requested = _parseIpLiteral(address)
-    family = AddressFamily.IPv4 if requested.version == 4 else AddressFamily.IPv6
+    if family is None:
+        selected_family = AddressFamily.IPv4 if requested.version == 4 else AddressFamily.IPv6
+    else:
+        selected_family = normalizeAddressFamily(family)
+        expected_version = 4 if selected_family == AddressFamily.IPv4 else 6
+        if requested.version != expected_version:
+            return False
     for iface in node.getInterfaces():
-        iface_addr = getInterfaceAddress(iface, family)
+        iface_addr = getInterfaceAddress(iface, selected_family)
         if iface_addr is not None and str(iface_addr) == str(requested):
             return True
     return False
 
 
-def nodeHasAddressInPrefix(node: "Node", prefix: Union[str, object]) -> bool:
+def nodeHasAddressInPrefix(
+    node: "Node",
+    prefix: Union[str, object],
+    family: Union[AddressFamily, str, int, None] = None,
+) -> bool:
     """Check whether any node address is inside an IPv4 or IPv6 prefix."""
 
     network = ip_network(normalizePrefix(prefix))
-    family = AddressFamily.IPv4 if network.version == 4 else AddressFamily.IPv6
+    if family is None:
+        selected_family = AddressFamily.IPv4 if network.version == 4 else AddressFamily.IPv6
+    else:
+        selected_family = normalizeAddressFamily(family)
+        expected_version = 4 if selected_family == AddressFamily.IPv4 else 6
+        if network.version != expected_version:
+            return False
     for iface in node.getInterfaces():
-        iface_addr = getInterfaceAddress(iface, family)
+        iface_addr = getInterfaceAddress(iface, selected_family)
         if iface_addr is not None and iface_addr in network:
             return True
     return False

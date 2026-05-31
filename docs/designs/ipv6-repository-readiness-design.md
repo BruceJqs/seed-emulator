@@ -30,7 +30,9 @@ Existing IPv4 APIs remain IPv4 APIs:
 - `Interface.getAddress()` returns the IPv4 address.
 - `Filter(ip=...)` and `Filter(prefix=...)` remain accepted and now parse either
   IPv4 or IPv6 literals; bracketed IPv6 address literals are normalized when a
-  helper accepts address literals.
+  helper accepts address literals. Explicit-family selectors such as
+  `Filter(ipv4=...)`, `Filter(ipv6=...)`, `Filter(ipv4Prefix=...)`, and
+  `Filter(ipv6Prefix=...)` require the literal to match the selected family.
 
 Dual-stack aware code should use the explicit IPv6 APIs or the shared helpers:
 
@@ -129,6 +131,8 @@ Repository-level IPv6 work should keep these checks green:
 - Existing IPv4 examples compile without IPv6 Compose fields.
 - A15-A17 keep proving the control-plane path.
 - `Filter` / `Binding` match IPv4 and IPv6 addresses/prefixes.
+  Explicit-family selectors reject wrong-family literals instead of falling
+  back to the literal's parsed family.
 - IPv6 prefix allocation rejects reserved infrastructure reuse and overlapping
   explicit AS/IX prefixes, including late `Base.enableIpv6()` migration paths;
   explicit root, AS/IX, and service-network IPv6 prefixes use shared prefix

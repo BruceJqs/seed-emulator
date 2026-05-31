@@ -329,7 +329,10 @@ rewritten as path segments. Use
 `getNodeAddress()`, `getNodePreferredAddress()`, or `getNodeAddresses()` when a
 service needs stable Local-network-first address selection with service-network
 fallback. Use `nodeHasAddress()` and `nodeHasAddressInPrefix()` when matching a
-node against IPv4 or IPv6 address/prefix selectors. Use
+node against IPv4 or IPv6 address/prefix selectors. Pass an explicit
+`AddressFamily` to those match helpers when implementing family-specific
+selectors such as `Filter(ipv4=...)` or `Filter(ipv6Prefix=...)`, so
+wrong-family literals do not accidentally match. Use
 `normalizeAddressList()` when a service accepts a list of IPv4/IPv6 literals,
 including bracketed IPv6 address literals. Use `normalizePrefix()` when a
 service accepts IPv4/IPv6 CIDR prefixes, and use `normalizeAddressRecord()` when
