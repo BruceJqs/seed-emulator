@@ -211,7 +211,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   preserve the existing first-interface IPv4 default, and explicitly select
   bracketed IPv6 URLs when requested; the legacy dropper fallback brackets bare
   IPv6 host arguments, and DGA dropper runners may consume preformatted
-  HTTP(S) URLs without re-wrapping them, but BYOB client/server runtime
+  HTTP(S) URLs without re-wrapping them while bracketing bare IPv6 host
+  fallbacks before generating dropper URLs, but BYOB client/server runtime
   behavior and DGA endpoint handling still need validation before a support
   claim.
 - CA `installCACert(Filter(...))` target selection now matches IPv4 and IPv6

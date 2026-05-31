@@ -1502,6 +1502,8 @@ def test_botnet_dga_dropper_runner_accepts_preformatted_urls():
 
     assert 'if [[ "$host" =~ ^https?:// ]]; then' in script
     assert 'url="$host"' in script
+    assert 'if [[ "$host" == *:* && "${host:0:1}" != "[" ]]; then' in script
+    assert 'host="[$host]"' in script
     assert 'url="http://$host/clients/droppers/client.py"' in script
 
 
