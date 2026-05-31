@@ -1,5 +1,5 @@
 from __future__ import annotations
-from seedemu.core import Node, Printable, Emulator, Service, Server, getNodeAddresses, normalizeAddressRecord
+from seedemu.core import Node, Printable, Emulator, Service, Server, getNodeAddresses, normalizeAddressList, normalizeAddressRecord
 from typing import List, Dict, Tuple, Set
 from re import sub
 from random import randint
@@ -556,7 +556,7 @@ class DomainNameService(Service):
 
         @returns self, for chaining API calls.
         """
-        address = str(ip_address(str(addr).strip()))
+        address = normalizeAddressList([addr])[0]
         if zone in self.__masters.keys():
             self.__masters[zone].append(address)
         else:
@@ -572,7 +572,7 @@ class DomainNameService(Service):
         @param masters master dict.
         """
         self.__masters = {
-            zone: [str(ip_address(str(addr).strip())) for addr in addrs]
+            zone: normalizeAddressList(addrs)
             for zone, addrs in masters.items()
         }
 

@@ -20,6 +20,7 @@ from seedemu.core import (
     getNodeAddresses,
     getNodePreferredAddress,
     normalizeAddressFamily,
+    normalizeAddressList,
     normalizeAddressRecord,
 )
 from seedemu.core.enums import NodeRole
@@ -842,6 +843,10 @@ def test_endpoint_helpers_format_ipv6_safely():
 
 
 def test_address_record_normalizer_handles_dns_a_aaaa_literals():
+    assert normalizeAddressList([" 10.2.0.71 ", " 2000:0:2:0:0:0:0:71 "]) == [
+        "10.2.0.71",
+        "2000:0:2::71",
+    ]
     assert normalizeAddressRecord(" web a 10.2.0.71 ") == "web A 10.2.0.71"
     assert normalizeAddressRecord(" web6 aaaa 2000:0:2:0:0:0:0:71 ") == "web6 AAAA 2000:0:2::71"
     assert normalizeAddressRecord("txt TXT  2000:0:2:0:0:0:0:71") == "txt TXT  2000:0:2:0:0:0:0:71"

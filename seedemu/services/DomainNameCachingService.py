@@ -1,8 +1,7 @@
 from __future__ import annotations
-from seedemu.core import AddressFamily, Configurable, Service, Server, getNodePreferredAddress, normalizeAddressRecord
+from seedemu.core import AddressFamily, Configurable, Service, Server, getNodePreferredAddress, normalizeAddressList, normalizeAddressRecord
 from seedemu.core import Node, ScopedRegistry, Emulator
 from .DomainNameService import DomainNameService
-from ipaddress import ip_address
 from typing import List, Dict
 
 DomainNameCachingServiceFileTemplates: Dict[str, str] = {}
@@ -89,7 +88,7 @@ class DomainNameCachingServer(Server, Configurable):
         return getNodePreferredAddress(node, (AddressFamily.IPv4, AddressFamily.IPv6), preferLocal=False)
 
     def __formatBindAddressList(self, addrs: List[str]) -> str:
-        return '; '.join([str(ip_address(str(addr).strip())) for addr in addrs])
+        return '; '.join(normalizeAddressList(addrs))
 
     def __normalizeRootServerRecord(self, record: str) -> str:
         return normalizeAddressRecord(record, trimNonAddressRecord=True)
