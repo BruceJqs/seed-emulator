@@ -219,7 +219,11 @@ if [ ! -e /tor-config-done ]; then
 	  TOR_HS_ADDR=127.0.0.1
 	fi
 	if [ -z "${{TOR_HS_TARGET}}" ]; then
-	  TOR_HS_TARGET="${{TOR_HS_ADDR}}:${{TOR_HS_PORT}}"
+	  TOR_HS_TARGET_HOST="${{TOR_HS_ADDR}}"
+	  if [[ "${{TOR_HS_TARGET_HOST}}" == *:* && "${{TOR_HS_TARGET_HOST:0:1}}" != "[" ]]; then
+	    TOR_HS_TARGET_HOST="[${{TOR_HS_TARGET_HOST}}]"
+	  fi
+	  TOR_HS_TARGET="${{TOR_HS_TARGET_HOST}}:${{TOR_HS_PORT}}"
 	fi
 	echo -e "HiddenServicePort ${{TOR_HS_PORT}} ${{TOR_HS_TARGET}}" >> /etc/tor/torrc
 	;;

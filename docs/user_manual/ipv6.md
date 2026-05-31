@@ -254,8 +254,10 @@ literals are normalized and bracketed correctly without bracketing DNS names.
 Hidden-service backends linked with `linkByVnode(...,
 family=AddressFamily.IPv6)` resolve through the shared Local-network-first
 helper and fall back to the service network when the backend node has no Local
-interface. Tor bind/listener, directory authority, consensus, and daemon
-runtime behavior still require a separate migration.
+interface. If no preformatted hidden-service target is provided, the entrypoint
+fallback brackets bare IPv6 `TOR_HS_ADDR` values before writing
+`HiddenServicePort`. Tor bind/listener, directory authority, consensus, and
+daemon runtime behavior still require a separate migration.
 
 See
 [Repository-Wide IPv6 Readiness Design](../designs/ipv6-repository-readiness-design.md)

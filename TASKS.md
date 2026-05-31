@@ -253,9 +253,11 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   defaults, normalizing and bracketing explicit IPv6 literals without
   bracketing DNS names, and resolving `linkByVnode(...,
   family=AddressFamily.IPv6)` targets with Local-network-first,
-  service-network fallback address selection; Tor bind/listener, directory
-  authority, consensus, and daemon runtime behavior remain IPv4-first and need
-  a separate migration before any support claim.
+  service-network fallback address selection; the entrypoint hidden-service
+  fallback brackets bare IPv6 `TOR_HS_ADDR` values when no preformatted target
+  is provided, but Tor bind/listener, directory authority, consensus, and
+  daemon runtime behavior remain IPv4-first and need a separate migration
+  before any support claim.
 
 ## Phase 6: Separate Designs Before Code
 

@@ -1352,7 +1352,11 @@ def test_tor_da_downloader_urls_use_shared_endpoint_helpers():
     assert "http://[2000:0:2::71]:8888" in entrypoint
     assert "http://[2000:0:2::71]:8888/torrc.da" in entrypoint
     assert "http://2000:0:2::71:8888" not in entrypoint
-    assert 'TOR_HS_TARGET="${TOR_HS_ADDR}:${TOR_HS_PORT}"' in entrypoint
+    assert 'TOR_HS_TARGET_HOST="${TOR_HS_ADDR}"' in entrypoint
+    assert 'if [[ "${TOR_HS_TARGET_HOST}" == *:* && "${TOR_HS_TARGET_HOST:0:1}" != "[" ]]; then' in entrypoint
+    assert 'TOR_HS_TARGET_HOST="[${TOR_HS_TARGET_HOST}]"' in entrypoint
+    assert 'TOR_HS_TARGET="${TOR_HS_TARGET_HOST}:${TOR_HS_PORT}"' in entrypoint
+    assert 'TOR_HS_TARGET="${TOR_HS_ADDR}:${TOR_HS_PORT}"' not in entrypoint
     assert "HiddenServicePort ${TOR_HS_PORT} ${TOR_HS_TARGET}" in entrypoint
 
 
