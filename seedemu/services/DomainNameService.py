@@ -547,6 +547,7 @@ class DomainNameService(Service):
         return info
 
     def __normalizeZoneName(self, domain: str) -> str:
+        domain = str(domain).strip()
         if domain == '' or domain == '.':
             return '.'
         return domain if domain[-1] == '.' else '{}.'.format(domain)
@@ -560,6 +561,7 @@ class DomainNameService(Service):
 
         @returns self, for chaining API calls.
         """
+        zone = self.__normalizeZoneName(zone)
         address = normalizeAddressList([addr])[0]
         if zone in self.__masters.keys():
             self.__masters[zone].append(address)
@@ -576,7 +578,7 @@ class DomainNameService(Service):
         @param masters master dict.
         """
         self.__masters = {
-            zone: normalizeAddressList(addrs)
+            self.__normalizeZoneName(zone): normalizeAddressList(addrs)
             for zone, addrs in masters.items()
         }
 

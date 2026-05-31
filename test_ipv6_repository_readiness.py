@@ -2125,6 +2125,34 @@ def test_dns_manual_master_ips_trim_padded_addresses():
     assert 'forwarders { 10.2.0.53; 2000:0:2::53; };' in named_local
 
 
+def test_dns_manual_master_ips_normalize_zone_names():
+    emu = Emulator()
+    base = Base()
+    dns = DomainNameService()
+    cache = DomainNameCachingService(autoRoot=False)
+
+    dns.addMasterIp(" example ", " 10.2.0.53 ")
+    dns.addMasterIp("example.", " [2000:0:2::53] ")
+    cache.install("cache").addForwardZone("example.", "unused-ns")
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("cache").joinNetwork("net0", address="10.2.0.54")
+    emu.addBinding(Binding("cache", filter=Filter(asn=2, nodeName="cache"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(dns)
+    emu.addLayer(cache)
+    emu.render()
+
+    cache_node = emu.getRegistry().get("2", "hnode", "cache")
+    named_local = _file_content(cache_node, "/etc/bind/named.conf.local")
+
+    assert dns.getMasterIp()["example."] == ["10.2.0.53", "2000:0:2::53"]
+    assert " example " not in dns.getMasterIp()
+    assert 'forwarders { 10.2.0.53; 2000:0:2::53; };' in named_local
+
+
 def test_dns_cache_forward_zone_normalizes_imported_master_ips():
     emu = Emulator()
     base = Base()
@@ -2150,6 +2178,32 @@ def test_dns_cache_forward_zone_normalizes_imported_master_ips():
     assert 'forwarders { 10.2.0.53; 2000:0:2::53; };' in named_local
     assert " 10.2.0.53 " not in named_local
     assert " 2000:0:2::53 " not in named_local
+
+
+def test_dns_imported_master_ips_normalize_zone_names():
+    emu = Emulator()
+    base = Base()
+    dns = DomainNameService()
+    cache = DomainNameCachingService(autoRoot=False)
+
+    dns.setAllMasterIp({" example ": [" 10.2.0.53 ", " 2000:0:2::53 "]})
+    cache.install("cache").addForwardZone("example.", "unused-ns")
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createHost("cache").joinNetwork("net0", address="10.2.0.54")
+    emu.addBinding(Binding("cache", filter=Filter(asn=2, nodeName="cache"), action=Action.FIRST))
+
+    emu.addLayer(base)
+    emu.addLayer(dns)
+    emu.addLayer(cache)
+    emu.render()
+
+    cache_node = emu.getRegistry().get("2", "hnode", "cache")
+    named_local = _file_content(cache_node, "/etc/bind/named.conf.local")
+
+    assert dns.getMasterIp() == {"example.": ["10.2.0.53", "2000:0:2::53"]}
+    assert 'forwarders { 10.2.0.53; 2000:0:2::53; };' in named_local
 
 
 def test_dns_slave_master_ips_normalize_imported_addresses():

@@ -143,7 +143,8 @@ Current readiness coverage added in `test_ipv6_repository_readiness.py`:
   instead of service-local duplication.
 - DNS glue records and manual master IPs normalize explicit IPv4/IPv6 address
   literals, including bracketed IPv6 literals, before generating A/AAAA records,
-  slave master lists, or forwarder lists.
+  slave master lists, or forwarder lists; manual and imported master-IP zone
+  keys are normalized to canonical DNS zone names before lookup/output.
 - Domain Registrar dynamic DNS updates preserve A as the default record type
   and allow users to explicitly submit AAAA records while rejecting A/AAAA
   updates whose submitted IP address does not match the selected record family,
