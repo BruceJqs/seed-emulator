@@ -12,6 +12,7 @@ from seedemu.core import (
     formatHostPort,
     formatUrl,
     getNodeAddress,
+    normalizeAddressList,
     normalizeAddressFamily,
 )
 from typing import List, Dict, Tuple, Union
@@ -285,6 +286,14 @@ BUILD_COMMANDS = """build_temps="build-essential automake" && \
 """
 
 
+def _normalizeTorHost(host) -> str:
+    value = str(host).strip()
+    try:
+        return normalizeAddressList([value])[0]
+    except ValueError:
+        return value
+
+
 class TorNodeType(Enum):
     """!
     @brief Tor node types.
@@ -374,7 +383,7 @@ class TorServer(Server):
 
         @returns self, for chaining API calls.
         """
-        self.__hs_link = (addr, port)
+        self.__hs_link = (_normalizeTorHost(addr), port)
         self.__hs_link_is_vnode = False
 
         return self
@@ -496,7 +505,7 @@ class TorService(Service):
 
         @returns self, for chaining API calls.
         """
-        self.__da_nodes.append(addr)
+        self.__da_nodes.append(_normalizeTorHost(addr))
 
         return self
 

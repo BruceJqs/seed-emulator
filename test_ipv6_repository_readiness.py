@@ -1252,6 +1252,22 @@ def test_tor_da_downloader_urls_use_shared_endpoint_helpers():
     assert "HiddenServicePort ${TOR_HS_PORT} ${TOR_HS_TARGET}" in entrypoint
 
 
+def test_tor_da_downloader_urls_normalize_address_literals_without_bracketing_names():
+    node = _render_tor_host("tor-relay-normalized")
+
+    tor = TorService()
+    tor.addDirAuthority(" [2000:0:2:0:0:0:0:71] ")
+    tor.addDirAuthority(" da.example ")
+    TorServer().install(node, tor)
+    entrypoint = _file_content(node, "/usr/local/bin/tor-entrypoint")
+
+    assert tor.getDirAuthority() == ["2000:0:2::71", "da.example"]
+    assert "http://[2000:0:2::71]:8888/torrc.da" in entrypoint
+    assert "http://da.example:8888/torrc.da" in entrypoint
+    assert "http://[da.example]" not in entrypoint
+    assert "http://2000:0:2::71:8888" not in entrypoint
+
+
 def test_tor_hidden_service_backend_targets_use_shared_endpoint_helpers():
     node = _render_tor_host("tor-hs")
 
@@ -1270,6 +1286,26 @@ def test_tor_hidden_service_backend_targets_use_shared_endpoint_helpers():
     assert "export TOR_HS_PORT=8080" in ipv6_commands
     assert "export TOR_HS_TARGET=[2000:0:2::80]:8080" in ipv6_commands
     assert "export TOR_HS_TARGET=2000:0:2::80:8080" not in ipv6_commands
+
+
+def test_tor_hidden_service_backend_literals_are_normalized_before_formatting():
+    ipv6_node = _render_tor_host("tor-hs6-normalized")
+    ipv6_server = TorServer().setRole(TorNodeType.HS).setLink(" [2000:0:2:0:0:0:0:80] ", 8080)
+    ipv6_server.configure(ipv6_node, TorService())
+    ipv6_commands = _start_commands(ipv6_node)
+
+    assert "export TOR_HS_ADDR=2000:0:2::80" in ipv6_commands
+    assert "export TOR_HS_TARGET=[2000:0:2::80]:8080" in ipv6_commands
+    assert "export TOR_HS_TARGET=[2000:0:2:0:0:0:0:80]:8080" not in ipv6_commands
+
+    name_node = _render_tor_host("tor-hs-name")
+    name_server = TorServer().setRole(TorNodeType.HS).setLink(" backend.example ", 8080)
+    name_server.configure(name_node, TorService())
+    name_commands = _start_commands(name_node)
+
+    assert "export TOR_HS_ADDR=backend.example" in name_commands
+    assert "export TOR_HS_TARGET=backend.example:8080" in name_commands
+    assert "export TOR_HS_TARGET=[backend.example]:8080" not in name_commands
 
 
 def test_tor_hidden_service_vnode_targets_default_to_ipv4():
