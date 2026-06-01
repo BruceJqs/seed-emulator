@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .EthEnum import ConsensusMechanism, EthUnit
 from .EthUtil import Genesis, EthAccount, AccountStructure
-from .EthereumServer import EthereumServer, PoAServer, PoWServer, PoSServer
+from .EthereumServer import EthereumServer, PoAServer, PoSBeaconServer, PoSBeaconSetupServer, PoSGethServer, PoWServer, PoSVcServer, PoSServer
 from os import mkdir, path, makedirs, rename
 from seedemu.core import (
     AddressFamily,
@@ -61,23 +61,26 @@ class Blockchain:
 
         @returns An instance of The Blockchain class.
         """
-        self._eth_service = service 
-        self._consensus = consensus 
-        self._chain_name = chainName 
+        self._eth_service = service
+        self._consensus = consensus
+        self._chain_name = chainName
         self._genesis = Genesis(self._consensus)
-        self._boot_node_addresses = [] 
+        self._boot_node_addresses = []
         self._boot_node_enode_urls = []
         self._beacon_node_api_urls = []
-        self._miner_node_address = [] 
+        self._miner_node_address = []
         self._joined_accounts = []
-        self._joined_signer_accounts = [] 
-        self._validator_ids = [] 
+        self._joined_signer_accounts = []
+        self._validator_ids = []
+        self._validator_withdraw_addresses = {}
         self._beacon_setup_node_address = ''
         self._beacon_setup_node_url = ''
+        self._beacon_boot_node_address = []
+        self._geth_boot_node_address = []
         self._pending_targets = [] #
         self._emu_mnemonic = "great awesome fun seed security lab protect system network prevent attack future"
         self._total_accounts_per_node = 1
-        self._emu_account_balance = 32 * EthUnit.ETHER.value
+        self._emu_account_balance = 100 * EthUnit.ETHER.value
         self._local_mnemonic = "great amazing fun seed lab protect network system security prevent attack future"
         self._local_accounts_total = 5
         self._local_account_balance = 10 * EthUnit.ETHER.value
@@ -85,42 +88,67 @@ class Blockchain:
         self._target_aggregater_per_committee = 2
         self._target_committee_size = 3
         self._endpoint_address_family = AddressFamily.IPv4
-        
+        self._beacon_to_geth_vnode = {}
+        self._vc_to_beacon_vnode = {}
+        self._beacon_to_geth_ip = {}
+        self._vc_to_beacon_ip = {}
+
 
     def _doConfigure(self, node:Node, server:Server):
         if isinstance(server, FaucetServer):
             self._log('configuring as{}/{} as an faucet node...'.format(node.getAsn(), node.getName()))
             self.addLocalAccount(server.getFaucetAddress(), balance=server.getFaucetBalance())
-            return   
+            return
 
         if isinstance(server, EthUtilityServer):
             self._log('configuring as{}/{} as an eth init and info node...'.format(node.getAsn(), node.getName()))
             return
-        
+
         self._log('configuring as{}/{} as an eth node...'.format(node.getAsn(), node.getName()))
 
         ifaces = node.getInterfaces()
         assert len(ifaces) > 0, 'EthereumService::_doConfigure(): node as{}/{} has not interfaces'.format()
-        
+        endpoint_address = self.__getNodeEndpointAddress(node)
+        ipv4_address = str(ifaces[0].getAddress())
+
         if server.isBootNode():
-            endpoint_address = self.__getNodeEndpointAddress(node)
-            self._log('adding as{}/{} as consensus-{} bootnode...'.format(node.getAsn(), node.getName(), self._consensus.value))
-            self._boot_node_addresses.append(str(ifaces[0].getAddress()))
-            self._boot_node_enode_urls.append(
-                formatUrl("http", endpoint_address, server.getBootNodeHttpPort(), "/eth-enode-url")
-            )
-            self._beacon_node_api_urls.append(
-                formatUrl("http", endpoint_address, 8000, "/eth/v1/node/identity")
-            )
-        
+            if isinstance(server, PoSBeaconServer):
+                self._beacon_boot_node_address.append(ipv4_address)
+                self._beacon_node_api_urls.append(
+                    formatUrl("http", endpoint_address, 8000, "/eth/v1/node/identity")
+                )
+            elif isinstance(server, PoSGethServer):
+                self._geth_boot_node_address.append(ipv4_address)
+                self._boot_node_enode_urls.append(
+                    formatUrl("http", endpoint_address, server.getBootNodeHttpPort(), "/eth-enode-url")
+                )
+            elif isinstance(server, PoSServer):
+                self._log('adding as{}/{} as consensus-{} bootnode...'.format(node.getAsn(), node.getName(), self._consensus.value))
+                self._boot_node_addresses.append(ipv4_address)
+                self._boot_node_enode_urls.append(
+                    formatUrl("http", endpoint_address, server.getBootNodeHttpPort(), "/eth-enode-url")
+                )
+                self._beacon_node_api_urls.append(
+                    formatUrl("http", endpoint_address, 8000, "/eth/v1/node/identity")
+                )
+            elif isinstance(server, PoAServer):
+                self._log('adding as{}/{} as consensus-{} bootnode...'.format(node.getAsn(), node.getName(), self._consensus.value))
+                self._boot_node_addresses.append(ipv4_address)
+                self._boot_node_enode_urls.append(
+                    formatUrl("http", endpoint_address, server.getBootNodeHttpPort(), "/eth-enode-url")
+                )
+            else:
+                self._log('adding as{}/{} as consensus-{} bootnode...'.format(node.getAsn(), node.getName(), self._consensus.value))
+                self._boot_node_addresses.append(ipv4_address)
+                self._boot_node_enode_urls.append(
+                    formatUrl("http", endpoint_address, server.getBootNodeHttpPort(), "/eth-enode-url")
+                )
+
+
         if self._consensus == ConsensusMechanism.POS:
-            if server.isStartMiner():
-                self._log('adding as{}/{} as consensus-{} miner...'.format(node.getAsn(), node.getName(), self._consensus.value))
-                self._miner_node_address.append(str(ifaces[0].getAddress())) 
-            if server.isBeaconSetupNode():
-                endpoint_address = self.__getNodeEndpointAddress(node)
+            if isinstance(server, PoSBeaconSetupServer) or (isinstance(server, PoSServer) and server.isBeaconSetupNode()):
                 self._beacon_setup_node_address = formatHostPort(
-                    str(ifaces[0].getAddress()),
+                    ipv4_address,
                     server.getBeaconSetupHttpPort(),
                 )
                 self._beacon_setup_node_url = formatUrl(
@@ -129,21 +157,29 @@ class Blockchain:
                     server.getBeaconSetupHttpPort(),
                     "/testnet",
                 )
+            elif server.isStartMiner():
+                self._log('adding as{}/{} as consensus-{} miner...'.format(node.getAsn(), node.getName(), self._consensus.value))
+                self._miner_node_address.append(ipv4_address)
 
         server._createAccounts(self)
-        
+
         accounts = server._getAccounts()
         if len(accounts) > 0:
-            if self._consensus == ConsensusMechanism.POS and server.isValidatorAtRunning():
-                accounts[0].balance = 33 * EthUnit.ETHER.value
+            if isinstance(server, PoSVcServer):
+                if self._consensus == ConsensusMechanism.POS and server.isValidatorAtRunning():
+                    accounts[0].balance = 100 * EthUnit.ETHER.value
             self._joined_accounts.extend(accounts)
             if self._consensus in [ConsensusMechanism.POA] and server.isStartMiner():
                 self._joined_signer_accounts.append(accounts[0])
+        if self._consensus == ConsensusMechanism.POS and hasattr(server, "isValidatorAtGenesis") and server.isValidatorAtGenesis():
+            vid = str(server.getId())
+            self._validator_ids.append(vid)
+            if hasattr(server, "getWithdrawAddress"):
+                self._validator_withdraw_addresses[vid] = server.getWithdrawAddress()
 
-        if self._consensus == ConsensusMechanism.POS and server.isValidatorAtGenesis():
-            self._validator_ids.append(str(server.getId()))
-        
+
         server._generateGethStartCommand(str(ifaces[0].getAddress()))
+
 
         if self._eth_service.isSave():
             save_path = self._eth_service.getSavePath()
@@ -189,12 +225,25 @@ class Blockchain:
                 server.setFaucetUrl(self.__getIpByVnodeName(emulator, linked_faucet_node_name))
                 faucet_server:FaucetServer = emulator.getServerByVirtualNodeName(linked_faucet_node_name)
                 server.setFaucetPort(faucet_server.getPort())
-  
+
+            elif isinstance(server, PoSBeaconServer):
+                geth_vnode = server.getConnectGethVNode()
+                if geth_vnode != '':
+                    ip = self.__getIpByVnodeName(emulator, geth_vnode)
+                    if ip:
+                        server.setConnectedGethIp(ip)
+            elif isinstance(server, PoSVcServer):
+                beacon_vnode = server.getConnectBeaconVNode()
+                if beacon_vnode != '':
+                    ip = self.__getIpByVnodeName(emulator, beacon_vnode)
+                    if ip:
+                        server.setConnectedBeaconIp(ip)
+
         self._genesis.addAccounts(self.getAllAccounts())
-        
+
         if self._consensus in [ConsensusMechanism.POA] :
             self._genesis.setSigner(self.getAllSignerAccounts())
-    
+
     def __getIpByVnodeName(self, emulator, nodename:str) -> str:
         node = emulator.getBindingFor(nodename)
         address = getNodeAddress(node, self._endpoint_address_family, preferLocal=True)
@@ -203,7 +252,10 @@ class Blockchain:
             self._endpoint_address_family.value,
         )
         return str(address)
-    
+
+    def getIpByVnodeName(self, emulator, nodename:str) -> str:
+        return self.__getIpByVnodeName(emulator, nodename)
+
     def getAllServerNames(self):
         server_names = {}
         pending_targets = self._eth_service.getPendingTargets()
@@ -250,7 +302,7 @@ class Blockchain:
     def getAllAccounts(self) -> List[AccountStructure]:
         """!
         @brief Get a joined list of all the created accounts on all nodes in the blockchain.
-        
+
         @returns List of accounts.
         """
         return self._joined_accounts
@@ -258,7 +310,7 @@ class Blockchain:
     def getAllSignerAccounts(self) -> List[AccountStructure]:
         """!
         @brief Get a list of all signer accounts on all nodes in the blockchain.
-        
+
         returns List of signer accounts.
         """
         return self._joined_signer_accounts
@@ -266,10 +318,13 @@ class Blockchain:
     def getValidatorIds(self) -> List[str]:
         """!
         @brief Get a list of all validators ids on all nodes in the blockchain.
-        
+
         @returns List of all validators ids.
         """
         return self._validator_ids
+
+    def getValidatorWithdrawAddress(self, validator_id: str) -> str:
+        return self._validator_withdraw_addresses.get(str(validator_id), "")
 
     def getBeaconSetupNodeIp(self) -> str:
         """!
@@ -278,6 +333,24 @@ class Blockchain:
         @returns The IP address.
         """
         return self._beacon_setup_node_address
+    def  getBeaconBootNodeIP(self) -> str:
+        """!
+        @brief Get the IP of a beacon boot node.
+
+        @returns The IP address.
+        """
+        return self._beacon_boot_node_address
+    def getGethBootNodeIP(self) -> str:
+        """!
+        @brief Get the IP of a geth boot node.
+
+        @returns The IP address.
+        """
+        return self._geth_boot_node_address
+    def getBeaconBootNodes(self) -> List[str]:
+        return list(self._beacon_boot_node_address)
+    def getGethBootNodes(self) -> List[str]:
+        return list(self._geth_boot_node_address)
 
     def getBeaconSetupNodeUrl(self) -> str:
         """!
@@ -290,8 +363,8 @@ class Blockchain:
     def setGenesis(self, genesis:str) -> EthereumServer:
         """!
         @brief Set the custom genesis.
-        
-        @param genesis The genesis file contents to set. 
+
+        @param genesis The genesis file contents to set.
 
         @returns Self, for chaining API calls.
         """
@@ -303,7 +376,7 @@ class Blockchain:
         """!
         @brief Get the genesis file content.
 
-        @returns Genesis. 
+        @returns Genesis.
         """
         return self._genesis
 
@@ -313,11 +386,11 @@ class Blockchain:
 
         @param consensusMechanism Consensus mechanism to set (supports POW, POA and POS).
 
-        @returns Self, for chaining API calls. 
+        @returns Self, for chaining API calls.
         """
         self._consensus = consensus
         self._genesis = Genesis(self._consensus)
-        
+
         return self
 
     def setEndpointAddressFamily(self, family) -> Blockchain:
@@ -346,14 +419,14 @@ class Blockchain:
         @returns ConsensusMechanism
         """
         return self._consensus
-    
+
 
     def setGasLimitPerBlock(self, gasLimit:int):
         """!
         @brief Set GasLimit at Genesis (the limit of gas cost per block).
 
         @param gasLimit The gas limit per block.
-        
+
         @returns Self, for chaining API calls.
         """
         self._genesis.setGasLimit(gasLimit)
@@ -382,7 +455,57 @@ class Blockchain:
         eth = self._eth_service
         self._pending_targets.append(vnode)
         return eth.installByBlockchain(vnode, self)
-    
+    def createGethNode(self, vnode: str) -> EthereumServer:
+        """!
+        @brief Create a node belongs to this blockchain.
+
+        @param vnode The name of vnode.
+
+        @returns EthereumServer
+        """
+        nodetype = 'geth'
+        eth = self._eth_service
+        self._pending_targets.append(vnode)
+        return eth.installByBlockchain(vnode, self,nodetype="geth")
+    def createBeaconNode(self, vnode: str) -> EthereumServer:
+        """!
+        @brief Create a node belongs to this blockchain.
+
+        @param vnode The name of vnode.
+
+        @returns EthereumServer
+        """
+        nodetype = 'beacon'
+        eth = self._eth_service
+        self._pending_targets.append(vnode)
+        return eth.installByBlockchain(vnode, self,nodetype="beacon")
+
+    def createVcNode(self, vnode: str) -> EthereumServer:
+        """!
+        @brief Create a node belongs to this blockchain.
+
+        @param vnode The name of vnode.
+
+        @returns EthereumServer
+        """
+        nodetype = 'beacon'
+        eth = self._eth_service
+        self._pending_targets.append(vnode)
+        return eth.installByBlockchain(vnode, self,nodetype="vc")
+
+    def createBeaconSetupNode(self, vnode: str) -> EthereumServer:
+        """!
+        @brief Create a node belongs to this blockchain.
+
+        @param vnode The name of vnode.
+
+        @returns EthereumServer
+        """
+        nodetype = 'beaconsetup'
+        eth = self._eth_service
+        self._pending_targets.append(vnode)
+        return eth.installByBlockchain(vnode, self, nodetype="beaconsetup")
+
     def addCode(self, address: str, code: str) -> Blockchain:
         """!
         @brief Add code to an account by setting code field of genesis file.
@@ -394,7 +517,7 @@ class Blockchain:
         """
         self._genesis.addCode(address, code)
         return self
-    
+
     def addLocalAccount(self, address: str, balance: int, unit:EthUnit=EthUnit.ETHER) -> Blockchain:
         """!
         @brief Allocate balance to an external account by setting alloc field of genesis file.
@@ -407,7 +530,7 @@ class Blockchain:
         """
         balance = balance * unit.value
         self._genesis.addLocalAccount(address, balance)
-        
+
         return self
 
     def addLocalAccountsFromMnemonic(self, mnemonic:str, total:int, balance:int, unit:EthUnit=EthUnit.ETHER) -> Blockchain:
@@ -435,7 +558,7 @@ class Blockchain:
     def getChainId(self) -> int:
         """!
         @brief Get the chain Id of the blockchain.
-        
+
         @returns The chain Id of this blockchain.
         """
         return self._chain_id
@@ -459,7 +582,7 @@ class Blockchain:
     def getEmuAccountParameters(self):
         """!
         @brief Get values of mnemonic, balance, and total_per_node value used for the account generation.
-        
+
         returns The value of mnemonic, balance, and total_per_node.
         """
         return self._emu_mnemonic, self._emu_account_balance, self._total_accounts_per_node
@@ -483,9 +606,9 @@ class Blockchain:
     def setTargetAggregatorPerCommittee(self, target_aggregator_per_committee:int):
         """!
         @brief Set target aggregator per committee for Beacon chain.
-        
+
         @param target_aggregator_per_committee The target value of the number of aggregator per committee to set.
-        
+
         @returns Self, for chaining calls.
         """
         self._target_aggregater_per_committee = target_aggregator_per_committee
@@ -494,7 +617,7 @@ class Blockchain:
     def getTargetAggregatorPerCommittee(self):
         """!
         @brief Get the value of target aggregator per committee for Beacon chain.
-        
+
         @returns The value of target_aggregator_per_committee.
         """
         return self._target_aggregater_per_committee
@@ -517,7 +640,7 @@ class Blockchain:
         @returns The value of target_committee_size.
         """
         return self._target_committee_size
-    
+
     def createEthUtilityServer(self, vnode:str, port:int, linked_eth_node:str, linked_faucet_node:str):
         """!
         @brief Create an EthUtilityServer Server that can deploy contract and runs webserver to provide contract address info.
@@ -527,11 +650,11 @@ class Blockchain:
         eth = self._eth_service
         self._pending_targets.append(vnode)
         return eth.installEthUtilityServer(vnode, self, port, linked_eth_node, linked_faucet_node)
-    
+
     def createFaucetServer(self, vnode:str, port:int, linked_eth_node:str, balance=1000, max_fund_amount=10):
         """!
         @brief Create a Faucet Server that can fund ethereum accounts using http api.
-        
+
         @param vnode: name of faucet server vnode.
         @param port: port number of Faucet http server.
         @param linked_eth_node: vnode name of eth node to link.
@@ -554,12 +677,12 @@ class Blockchain:
         """
 
         pending_targets = self._eth_service.getPendingTargets()
-        if vnode in self._pending_targets: 
+        if vnode in self._pending_targets:
             if isinstance(pending_targets[vnode], FaucetServer):
                return pending_targets[vnode]
         return None
 
-    
+
     def getFaucetServerInfo(self) -> List[Dict]:
         faucetInfo = []
         for key, value in self._eth_service.getPendingTargets().items():
@@ -576,7 +699,7 @@ class Blockchain:
             if key in self._pending_targets and isinstance(value, FaucetServer):
                 faucetServerNames.append(key)
         return faucetServerNames
-    
+
     def getEthServerNames(self) -> List[str]:
         ethServerNames = []
         for key, value in self._eth_service.getPendingTargets().items():
@@ -600,12 +723,12 @@ class Blockchain:
         @brief Return an instance of the utility server based on the provided name.
 
         @param vnode: name of the server
- 
+
         @returns an instance of EthUtilityServer
         """
 
         pending_targets = self._eth_service.getPendingTargets()
-        if vnode in self._pending_targets: 
+        if vnode in self._pending_targets:
             if isinstance(pending_targets[vnode], EthUtilityServer):
                return pending_targets[vnode]
         return None
@@ -616,7 +739,7 @@ class Blockchain:
             if key in self._pending_targets and isinstance(value, EthUtilityServer):
                 ethUtilityServerNames.append(key)
         return ethUtilityServerNames
-    
+
     def getUtilityServerInfo(self) -> List[Dict]:
         ethUtilityServerInfo = []
         for key, value in self._eth_service.getPendingTargets().items():
@@ -659,7 +782,7 @@ class EthereumService(Service):
         of the block chain by saving the datadir of every node. Default to
         false.
         @param savePath (optional) The path to save containers' datadirs on the
-        host. Default to "./eth-states". 
+        host. Default to "./eth-states".
         @param override (optional) If true, override the output folder if it already
         exist. False by default.
 
@@ -676,7 +799,7 @@ class EthereumService(Service):
 
     def getName(self):
         return 'EthereumService'
-    
+
     def getAllServerNames(self):
         server_names = {}
         for chain_name, blockchain_obj in self.__blockchains.items():
@@ -693,14 +816,14 @@ class EthereumService(Service):
     def _doConfigure(self, node: Node, server: EthereumServer):
         blockchain = server.getBlockchain()
         blockchain._doConfigure(node, server)
-    
+
     def configure(self, emulator: Emulator):
         if self.__save_state:
             self._createSharedFolder()
         super().configure(emulator)
         for blockchain in self.__blockchains.values():
             blockchain.configure(emulator)
-        
+
     def _createSharedFolder(self):
         if path.exists(self.__save_path):
             if self.__override:
@@ -717,8 +840,8 @@ class EthereumService(Service):
                 self._log('eth_state folder "{}" already exist. Set "override = True" when calling compile() to override.'.format(self.__save_path))
                 exit(1)
         mkdir(self.__save_path)
-        
-    def _doInstall(self, node: Node, server: Server):
+
+    def _doInstall(self, node: Node, server: Server):   ##这里的server是基类 service的render 传进来的
         self._log('installing eth on as{}/{}...'.format(node.getAsn(), node.getName()))
         if isinstance(server, EthereumServer):
             server.install(node, self)
@@ -727,7 +850,7 @@ class EthereumService(Service):
         elif isinstance(server, EthUtilityServer):
             server.install(node)
 
-    def _createServer(self, blockchain: Blockchain = None) -> Server:
+    def _createServer(self, blockchain: Blockchain = None,nodetype:str =None) -> Server:
         self.__serial += 1
         assert blockchain != None, 'EthereumService::_createServer(): create server using Blockchain::createNode() not EthereumService::install()'.format()
         consensus = blockchain.getConsensusMechanism()
@@ -736,27 +859,37 @@ class EthereumService(Service):
         if consensus == ConsensusMechanism.POW:
             return PoWServer(self.__serial, blockchain)
         if consensus == ConsensusMechanism.POS:
-            return PoSServer(self.__serial, blockchain)
-        
+            if nodetype == 'geth':
+                return PoSGethServer(self.__serial, blockchain)
+            if nodetype == "beacon":
+                return PoSBeaconServer(self.__serial, blockchain)
+            if nodetype == "beaconsetup":
+                return PoSBeaconSetupServer(self.__serial, blockchain)
+            if nodetype == "vc":
+                return PoSVcServer(self.__serial, blockchain)
+            if nodetype == None:
+                return PoSServer(self.__serial, blockchain)
+
     def _createFaucetServer(self, blockchain:Blockchain, linked_eth_node:str, port:int, balance:int, max_fund_amount:int) -> FaucetServer:
         return FaucetServer(blockchain, linked_eth_node, port, balance, max_fund_amount)
 
     def _createEthUtilityServer(self, blockchain:Blockchain, port:int, linked_eth_node:str, linked_faucet_node:str) -> EthUtilityServer:
         return EthUtilityServer(blockchain, port, linked_eth_node, linked_faucet_node)
 
-    def installByBlockchain(self, vnode: str, blockchain: Blockchain) -> EthereumServer:
+    def installByBlockchain(self, vnode: str, blockchain: Blockchain,nodetype:str = None) -> EthereumServer:
         """!
-        @brief Install the service on a node identified by given name. 
-                This API is called by Blockchain Class. 
+        @brief Install the service on a node identified by given name.
+                This API is called by Blockchain Class.
 
-        @param vnode The name of the virtual node. 
+        @param vnode The name of the virtual node.
         @param blockchain The blockchain that the created node is belongs to.
-        
+
         @returns EthereumServer.
         """
         if vnode in self._pending_targets.keys(): return self._pending_targets[vnode]
 
-        s = self._createServer(blockchain)
+
+        s = self._createServer(blockchain,nodetype)
         self._pending_targets[vnode] = s
 
         return self._pending_targets[vnode]
@@ -771,13 +904,13 @@ class EthereumService(Service):
         self._pending_targets[vnode] = s
 
         return self._pending_targets[vnode]
-    
+
     def installEthUtilityServer(self, vnode:str, blockchain:Blockchain, port:int, linked_eth_node:str, linked_faucet_node:str):
         if vnode in self._pending_targets.keys(): return self._pending_targets[vnode]
 
         s = self._createEthUtilityServer(blockchain, port, linked_eth_node, linked_faucet_node)
         self._pending_targets[vnode] = s
-        
+
         return self._pending_targets[vnode]
 
     def getBlockchainNames(self) -> List[str]:
@@ -788,7 +921,7 @@ class EthereumService(Service):
         """
         blockchainNames = [chainName for chainName in self.__blockchains.keys()]
         return blockchainNames
-    
+
     def getBlockchainByName(self, blockchainName) -> Blockchain:
         """!
         @brief get Blockchain object by its name
@@ -796,11 +929,11 @@ class EthereumService(Service):
         @returns a blockchain object
         """
         return self.__blockchains[blockchainName]
-    
-    
-        
 
-    
+
+
+
+
     def createBlockchain(self, chainName:str, consensus: ConsensusMechanism, chainId: int = -1):
         """!
         @brief Create an instance of Blockchain class which is a sub-layer of the EthereumService.
@@ -811,8 +944,8 @@ class EthereumService(Service):
 
         @returns an instance of Blockchain class.
         """
-        
-        if chainId < 0 : 
+
+        if chainId < 0 :
             chainId = self.__blockchain_id
             self.__blockchain_id += 1
         blockchain = Blockchain(self, chainName, chainId, consensus)

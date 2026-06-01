@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BOOTNODES_FILE="/tmp/beacon-nodes"
+BOOTNODES_FILE="/tmp/beacon-eth-nodes"
 OUTPUT_ENR_FILE="/tmp/bc_enrs.txt"
 
 MAX_RETRIES=60

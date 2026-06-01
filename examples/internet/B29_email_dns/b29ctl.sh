@@ -62,7 +62,7 @@ b29_up() {
   "$SCRIPT_DIR/manage_roundcube.sh" accounts || true
   log "Starting Roundcube ..."
   "$SCRIPT_DIR/manage_roundcube.sh" start
-  log "Done. Map: http://localhost:8080/pro/home  Roundcube: http://localhost:8082"
+  log "Done. Map: http://localhost:8080/pro/map  Roundcube: http://localhost:8082"
 }
 
 b29_down() {

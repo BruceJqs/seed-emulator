@@ -27,14 +27,12 @@ while read -r node; do {{
         }}
 
         ($validatorAtGenesis) && {{
-            eth2-val-tools keystores --source-mnemonic "{validator_mnemonic}" --source-max {validator_key_end} --source-min {validator_key_start} --out-loc "/tmp/vc/assigned_data" 
+            eth2-val-tools keystores --source-mnemonic "{validator_mnemonic}" --source-max {validator_key_end} --source-min {validator_key_start} --out-loc "/tmp/vc/assigned_data"
             mkdir /tmp/vc/local-testnet/testnet/validators
             cp -r /tmp/vc/assigned_data/keys/* /tmp/vc/local-testnet/testnet/validators/
             cp -r /tmp/vc/assigned_data/secrets /tmp/vc/local-testnet/testnet/
         }}
 
-        
-        
         echo "[beacon_client] starting lighthouse beacon client"
         {bc_start_command}
 
@@ -47,7 +45,7 @@ while read -r node; do {{
         }}
 
         # while loop till bc client is ready
-        while ! curl --http0.9 -sHf http://{ip_address}:8000 > /dev/null; do
+        while ! curl --http0.9 -sHf "{beacon_node_url}" > /dev/null; do
             echo "eth: local beacon node not ready, waiting..."
             sleep 3
         done
@@ -57,7 +55,6 @@ while read -r node; do {{
         echo "[validator client] starting lighthouse validator client"
         {vc_start_command}
         }}
-        
+
     }}
 }}; done < /tmp/beacon-setup-node
-
