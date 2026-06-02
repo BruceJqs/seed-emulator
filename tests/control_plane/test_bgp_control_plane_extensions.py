@@ -10,6 +10,7 @@ import pytest
 
 from seedemu.compiler import Docker, Platform
 from seedemu.core import Binding, Emulator, Filter
+from seedemu.core.Node import DEFAULT_SOFTWARE
 from seedemu.layers import Base, Ebgp, Ibgp, Ospf, PeerRelationship, Routing
 from seedemu.layers._bgp_metadata import set_bgp_backend
 from seedemu.services import BgpLookingGlassService, ExaBgpService
@@ -41,6 +42,11 @@ def _compiled_output_text(output_dir: Path) -> str:
         if path.is_file():
             chunks.append(path.read_text(encoding="utf-8", errors="replace"))
     return "\n".join(chunks)
+
+
+def test_default_node_software_uses_installable_netcat_package():
+    assert "netcat-openbsd" in DEFAULT_SOFTWARE
+    assert "netcat" not in DEFAULT_SOFTWARE
 
 
 def test_legacy_frr_bgp_layer_is_removed():
