@@ -37,6 +37,10 @@ See [design.md](design.md)
 
 Control-plane extension design: [control-plane-extension-design.md](control-plane-extension-design.md)
 
+IPv6 control-plane/readiness designs:
+[ipv6-control-plane-design.md](ipv6-control-plane-design.md) and
+[ipv6-repository-readiness-design.md](ipv6-repository-readiness-design.md)
+
 ## Case study
 
 ### BGP peering
