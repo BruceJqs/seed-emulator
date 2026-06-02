@@ -9,8 +9,6 @@ from seedemu.core.enums import NetworkType
 BGP_BACKEND_ATTR = "__bgp_backend"
 BGP_SESSION_INTENTS_ATTR = "__bgp_session_intents"
 BGP_CONNECTED_EXPORT_ATTR = "__bgp_connected_export"
-BGP_CONNECTED_EXPORT_RENDERED_ATTR = "__bgp_connected_export_rendered"
-BGP_BOOTSTRAPPED_ATTR = "__bgp_bootstrapped"
 OSPF_INTERFACE_INTENTS_ATTR = "__ospf_interface_intents"
 
 BGP_BACKEND_BIRD = "bird"
@@ -21,53 +19,6 @@ BGP_KIND_EBGP = "ebgp"
 BGP_KIND_IBGP = "ibgp"
 BGP_EXPORT_ALL = "all"
 BGP_EXPORT_LOCAL_AND_CUSTOMER = "local_and_customer"
-
-COMMUNITY_ALIAS_BY_NAME = {
-    "LOCAL_COMM": lambda asn: f"{asn}:0:0",
-    "CUSTOMER_COMM": lambda asn: f"{asn}:1:0",
-    "PEER_COMM": lambda asn: f"{asn}:2:0",
-    "PROVIDER_COMM": lambda asn: f"{asn}:3:0",
-}
-
-BIRD_BGP_COMMONS_TEMPLATE = """\
-define LOCAL_COMM = ({localAsn}, 0, 0);
-define CUSTOMER_COMM = ({localAsn}, 1, 0);
-define PEER_COMM = ({localAsn}, 2, 0);
-define PROVIDER_COMM = ({localAsn}, 3, 0);
-"""
-
-BIRD_RS_PEER_TEMPLATE = """\
-    ipv4 {{
-        import all;
-        export all;
-    }};
-    rs client;
-    local {localAddress} as {localAsn};
-    neighbor {peerAddress} as {peerAsn};
-"""
-
-BIRD_ROUTER_PEER_TEMPLATE = """\
-    ipv4 {{
-        table t_bgp;
-        import {importClause};
-        export {exportClause};
-{nextHopSelfClause}    }};
-    local {localAddress} as {localAsn};
-    neighbor {peerAddress} as {peerAsn};
-"""
-
-BIRD_IBGP_PEER_TEMPLATE = """\
-    ipv4 {{
-        table t_bgp;
-        import all;
-        export all;
-        igp table {igpTable};
-    }};
-    local {localAddress} as {localAsn};
-    neighbor {peerAddress} as {peerAsn};
-"""
-
-CONNECTED_EXPORT_FILTER = "filter { bgp_large_community.add(LOCAL_COMM); bgp_local_pref = 40; accept; }"
 
 
 def get_bgp_backend(node: Router) -> str:
@@ -82,7 +33,9 @@ def get_bgp_backend(node: Router) -> str:
     if backend in {None, ""}:
         backend = node.getLabel().get(BGP_BACKEND_LABEL, BGP_BACKEND_BIRD)
     backend = str(backend or BGP_BACKEND_BIRD).strip().lower()
-    return backend if backend in {BGP_BACKEND_BIRD, BGP_BACKEND_FRR} else BGP_BACKEND_BIRD
+    if backend not in {BGP_BACKEND_BIRD, BGP_BACKEND_FRR}:
+        raise ValueError(f"unsupported BGP backend: {backend}")
+    return backend
 
 
 def set_bgp_backend(node: Router, backend: str) -> None:
@@ -175,66 +128,6 @@ def mark_bgp_connected_export(node: Router) -> None:
 
 def has_bgp_connected_export(node: Router) -> bool:
     return bool(node.getAttribute(BGP_CONNECTED_EXPORT_ATTR, False))
-
-
-def ensure_bird_bgp_base(node: Router) -> None:
-    if get_bgp_backend(node) != "bird":
-        return
-    if not node.getAttribute(BGP_BOOTSTRAPPED_ATTR, False):
-        node.setAttribute(BGP_BOOTSTRAPPED_ATTR, True)
-        node.appendFile("/etc/bird/bird.conf", BIRD_BGP_COMMONS_TEMPLATE.format(localAsn=node.getAsn()))
-    node.addTable("t_bgp")
-    node.addTablePipe("t_bgp")
-    if has_bgp_connected_export(node) and not node.getAttribute(BGP_CONNECTED_EXPORT_RENDERED_ATTR, False):
-        node.addTablePipe("t_direct", "t_bgp", exportFilter=CONNECTED_EXPORT_FILTER)
-        node.setAttribute(BGP_CONNECTED_EXPORT_RENDERED_ATTR, True)
-
-
-def _bird_import_clause(session: Dict[str, Any]) -> str:
-    if session["import_community"] and session["local_pref"] is not None:
-        return (
-            "filter {\n"
-            f"            bgp_large_community.add({session['import_community']});\n"
-            f"            bgp_local_pref = {int(session['local_pref'])};\n"
-            "            accept;\n"
-            "        }"
-        )
-    return "all"
-
-
-def _bird_export_clause(session: Dict[str, Any]) -> str:
-    if session["export_policy"] == BGP_EXPORT_LOCAL_AND_CUSTOMER:
-        return "where bgp_large_community ~ [LOCAL_COMM, CUSTOMER_COMM]"
-    return "all"
-
-
-def render_bird_protocol_body(session: Dict[str, Any]) -> str:
-    normalized = normalize_bgp_session(session)
-    if normalized["route_server_client"]:
-        return BIRD_RS_PEER_TEMPLATE.format(
-            localAddress=normalized["local_address"],
-            localAsn=normalized["local_asn"],
-            peerAddress=normalized["peer_address"],
-            peerAsn=normalized["peer_asn"],
-        )
-    if normalized["kind"] == BGP_KIND_IBGP:
-        return BIRD_IBGP_PEER_TEMPLATE.format(
-            localAddress=normalized["local_address"],
-            localAsn=normalized["local_asn"],
-            peerAddress=normalized["peer_address"],
-            peerAsn=normalized["peer_asn"],
-            igpTable=normalized["igp_table"],
-        )
-    next_hop_self_clause = "        next hop self;\n" if normalized["next_hop_self"] else ""
-    return BIRD_ROUTER_PEER_TEMPLATE.format(
-        importClause=_bird_import_clause(normalized),
-        exportClause=_bird_export_clause(normalized),
-        nextHopSelfClause=next_hop_self_clause,
-        localAddress=normalized["local_address"],
-        localAsn=normalized["local_asn"],
-        peerAddress=normalized["peer_address"],
-        peerAsn=normalized["peer_asn"],
-    )
 
 
 def install_router_bgp_session(node: Router, session: Dict[str, Any]) -> Dict[str, Any]:

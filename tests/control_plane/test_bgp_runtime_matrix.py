@@ -11,7 +11,7 @@ import re
 import pytest
 
 
-REPO_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 PYTHON = Path(os.environ.get("PYTHON", sys.executable))
 
 

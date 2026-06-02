@@ -5,139 +5,18 @@ from seedemu.core.enums import NetworkType
 from typing import Dict, List, Set, Tuple
 from ipaddress import IPv4Network
 
-from ._bgp_metadata import get_bgp_backend, get_bgp_sessions, get_ospf_interface_intents, has_bgp_connected_export, ensure_bird_bgp_base, render_bird_protocol_body
+from ._bgp_metadata import (
+    BGP_EXPORT_LOCAL_AND_CUSTOMER,
+    BGP_KIND_IBGP,
+    get_bgp_backend,
+    get_bgp_sessions,
+    get_ospf_interface_intents,
+    has_bgp_connected_export,
+)
+from .routing_templates import BirdFileTemplates, FrrFileTemplates
 
-RoutingFileTemplates: Dict[str, str] = {}
-
-RoutingFileTemplates["rs_bird"] = """\
-router id {routerId};
-ipv4 table t_direct;
-protocol device {{
-}}
-"""
-
-RoutingFileTemplates["rnode_bird_direct_interface"] = """
-    interface "{interfaceName}";
-"""
-
-RoutingFileTemplates["rnode_bird"] = """\
-router id {routerId};
-ipv4 table t_direct;
-protocol device {{
-}}
-protocol kernel {{
-    ipv4 {{
-        import all;
-        export all;
-    }};
-    learn;
-}}
-"""
-
-RoutingFileTemplates['rnode_bird_direct'] = """
-    ipv4 {{
-        table t_direct;
-        import all;
-    }};
-{interfaces}
-"""
-
-RoutingFileTemplates['bird_ospf_body'] = """
-    ipv4 {{
-        table t_ospf;
-        import all;
-        export all;
-    }};
-    area 0 {{
-{interfaces}
-    }};
-"""
-
-RoutingFileTemplates['bird_ospf_interface'] = """\
-        interface "{interfaceName}" {{ hello 1; dead count 2; }};
-"""
-
-RoutingFileTemplates['bird_ospf_stub_interface'] = """\
-        interface "{interfaceName}" {{ stub; }};
-"""
-
-FrrFileTemplates: Dict[str, str] = {}
-
-FrrFileTemplates["managed_block"] = """\
-! ===== seedemu-routing-frr begin =====
-frr defaults traditional
-service integrated-vtysh-config
-hostname {hostname}
-!
-{body}
-! ===== seedemu-routing-frr end =====
-"""
-
-FrrFileTemplates["start_script"] = """\
-#!/bin/bash
-set -e
-sed -i 's/bgpd=no/bgpd=yes/' /etc/frr/daemons
-sed -i 's/zebra=no/zebra=yes/' /etc/frr/daemons
-sed -i 's/staticd=no/staticd=yes/' /etc/frr/daemons
-sed -i 's/ospfd=no/ospfd=yes/' /etc/frr/daemons
-service frr start
-"""
-
-FrrFileTemplates["route_map_connected"] = """\
-route-map RM_CONNECTED_TO_BGP permit 10
- set large-community {local_comm} additive
- set local-preference 40
-!
-"""
-
-FrrFileTemplates["community_lists"] = """\
-bgp large-community-list standard LC_LOCAL permit {local_comm}
-bgp large-community-list standard LC_CUSTOMER permit {customer_comm}
-bgp large-community-list standard LC_LOCAL_OR_CUSTOMER permit {local_comm}
-bgp large-community-list standard LC_LOCAL_OR_CUSTOMER permit {customer_comm}
-!
-"""
-
-FrrFileTemplates["import_route_map"] = """\
-route-map {name} permit 10
- set large-community {community} additive
- set local-preference {local_pref}
-!
-"""
-
-FrrFileTemplates["export_route_map_local_customer"] = """\
-route-map {name} permit 10
- match large-community LC_LOCAL_OR_CUSTOMER
-!
-route-map {name} deny 100
-!
-"""
-
-FrrFileTemplates["export_route_map_all"] = """\
-route-map {name} permit 10
-!
-"""
-
-FrrFileTemplates["ospf_interface_active"] = """\
-interface {interface}
- ip ospf area 0
- ip ospf hello-interval 1
- ip ospf dead-interval 2
-!
-"""
-
-FrrFileTemplates["ospf_interface_passive"] = """\
-interface {interface}
- ip ospf area 0
- ip ospf passive
-!
-"""
-
-FrrFileTemplates["ospf_router"] = """\
-router ospf
- ospf router-id {router_id}
-!
-"""
+BIRD_BGP_BOOTSTRAPPED_ATTR = "__routing_bird_bgp_bootstrapped"
+BIRD_CONNECTED_EXPORT_RENDERED_ATTR = "__routing_bird_connected_export_rendered"
 
 def _session_route_map_name(prefix: str, session_name: str) -> str:
     safe = "".join(ch if ch.isalnum() else "_" for ch in str(session_name or "session"))
@@ -180,6 +59,52 @@ def _render_frr_session_route_maps(local_asn: int, sessions: List[Dict]) -> Tupl
         map_names[name] = {"import": import_name, "export": export_name}
 
     return "".join(body), map_names
+
+
+def _bird_import_clause(session: Dict) -> str:
+    if session["import_community"] and session["local_pref"] is not None:
+        return (
+            "filter {\n"
+            f"            bgp_large_community.add({session['import_community']});\n"
+            f"            bgp_local_pref = {int(session['local_pref'])};\n"
+            "            accept;\n"
+            "        }"
+        )
+    return "all"
+
+
+def _bird_export_clause(session: Dict) -> str:
+    if session["export_policy"] == BGP_EXPORT_LOCAL_AND_CUSTOMER:
+        return "where bgp_large_community ~ [LOCAL_COMM, CUSTOMER_COMM]"
+    return "all"
+
+
+def _render_bird_protocol_body(session: Dict) -> str:
+    if session["route_server_client"]:
+        return BirdFileTemplates["rs_peer"].format(
+            localAddress=session["local_address"],
+            localAsn=session["local_asn"],
+            peerAddress=session["peer_address"],
+            peerAsn=session["peer_asn"],
+        )
+    if session["kind"] == BGP_KIND_IBGP:
+        return BirdFileTemplates["ibgp_peer"].format(
+            localAddress=session["local_address"],
+            localAsn=session["local_asn"],
+            peerAddress=session["peer_address"],
+            peerAsn=session["peer_asn"],
+            igpTable=session["igp_table"],
+        )
+    next_hop_self_clause = "        next hop self;\n" if session["next_hop_self"] else ""
+    return BirdFileTemplates["router_peer"].format(
+        importClause=_bird_import_clause(session),
+        exportClause=_bird_export_clause(session),
+        nextHopSelfClause=next_hop_self_clause,
+        localAddress=session["local_address"],
+        localAsn=session["local_asn"],
+        peerAddress=session["peer_address"],
+        peerAsn=session["peer_asn"],
+    )
 
 
 class Routing(Layer):
@@ -239,9 +164,7 @@ class Routing(Layer):
         if not BaseSystem.doesAContainB(base,BaseSystem.SEEDEMU_ROUTER) and base !=BaseSystem.SEEDEMU_ROUTER:
             node.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
 
-    def _configure_rs(self, rs_node: Node):
-        if get_bgp_backend(rs_node) != "bird":
-            return
+    def _configure_bird_rs(self, rs_node: Node):
         rs_node.appendStartCommand('[ ! -d /run/bird ] && mkdir /run/bird')
         rs_node.appendStartCommand('bird -d', True)
         self._log("Bootstrapping bird.conf for RS {}...".format(rs_node.getName()))
@@ -253,9 +176,20 @@ class Routing(Layer):
 
         assert issubclass(rs_node.__class__, Router)
         rs_node.setBorderRouter(True)
-        rs_node.setFile("/etc/bird/bird.conf", RoutingFileTemplates["rs_bird"].format(
+        rs_node.setFile("/etc/bird/bird.conf", BirdFileTemplates["rs_base"].format(
             routerId = rs_iface.getAddress()
         ))
+
+    def _configure_rs(self, rs_node: Node):
+        backend = get_bgp_backend(rs_node)
+        if backend == "bird":
+            self._configure_bird_rs(rs_node)
+        elif backend == "frr":
+            raise NotImplementedError(
+                "FRR route-server nodes are not supported yet; use BIRD route servers"
+            )
+        else:
+            raise ValueError(f"unsupported routing backend for route server: {backend}")
 
     def _configure_bird_router(self, rnode: Router):
         ifaces = ''
@@ -264,28 +198,46 @@ class Routing(Layer):
             net = iface.getNet()
             if net.isDirect():
                 has_localnet = True
-                ifaces += RoutingFileTemplates["rnode_bird_direct_interface"].format(
+                ifaces += BirdFileTemplates["router_direct_interface"].format(
                     interfaceName = net.getName()
                 )
         rnode.setFile("/etc/bird/bird.conf",
-            RoutingFileTemplates["rnode_bird"].format(
+            BirdFileTemplates["router_base"].format(
               routerId = rnode.getLoopbackAddress()))
         if get_bgp_backend(rnode) == "bird":
             rnode.appendStartCommand('[ ! -d /run/bird ] && mkdir /run/bird')
             rnode.appendStartCommand('bird -d', True)
         if has_localnet:
             rnode.addProtocol('direct', 'local_nets',
-                              RoutingFileTemplates['rnode_bird_direct'].format(interfaces = ifaces))
+                              BirdFileTemplates["direct_protocol"].format(interfaces = ifaces))
 
-    def _render_bird_sessions(self, router: Router):
+    def _ensure_bird_bgp_base(self, router: Router):
+        if not router.getAttribute(BIRD_BGP_BOOTSTRAPPED_ATTR, False):
+            router.setAttribute(BIRD_BGP_BOOTSTRAPPED_ATTR, True)
+            router.appendFile(
+                "/etc/bird/bird.conf",
+                BirdFileTemplates["bgp_commons"].format(localAsn=router.getAsn()),
+            )
+        router.addTable("t_bgp")
+        router.addTablePipe("t_bgp")
+        if has_bgp_connected_export(router) and not router.getAttribute(BIRD_CONNECTED_EXPORT_RENDERED_ATTR, False):
+            router.addTablePipe(
+                "t_direct",
+                "t_bgp",
+                exportFilter=BirdFileTemplates["connected_export_filter"],
+            )
+            router.setAttribute(BIRD_CONNECTED_EXPORT_RENDERED_ATTR, True)
+
+    def _render_bird_sessions(self, router: Router, include_bgp_base: bool = True):
         if router.getAttribute("__routing_bird_sessions_rendered", False):
             return
         sessions = get_bgp_sessions(router)
         if not sessions:
             return
-        ensure_bird_bgp_base(router)
+        if include_bgp_base or any(not session["route_server_client"] for session in sessions):
+            self._ensure_bird_bgp_base(router)
         for session in sessions:
-            router.addProtocol("bgp", session["name"], render_bird_protocol_body(session))
+            router.addProtocol("bgp", session["name"], _render_bird_protocol_body(session))
         router.setAttribute("__routing_bird_sessions_rendered", True)
 
     def _render_bird_ospf(self, router: Router):
@@ -298,11 +250,11 @@ class Routing(Layer):
             return
         ospf_interfaces = ""
         for iface_name in passive:
-            ospf_interfaces += RoutingFileTemplates['bird_ospf_stub_interface'].format(interfaceName=iface_name)
+            ospf_interfaces += BirdFileTemplates["ospf_stub_interface"].format(interfaceName=iface_name)
         for iface_name in active:
-            ospf_interfaces += RoutingFileTemplates['bird_ospf_interface'].format(interfaceName=iface_name)
+            ospf_interfaces += BirdFileTemplates["ospf_interface"].format(interfaceName=iface_name)
         router.addTable('t_ospf')
-        router.addProtocol('ospf', 'ospf1', RoutingFileTemplates['bird_ospf_body'].format(interfaces=ospf_interfaces))
+        router.addProtocol('ospf', 'ospf1', BirdFileTemplates["ospf_body"].format(interfaces=ospf_interfaces))
         router.addTablePipe('t_ospf')
         router.setAttribute("__routing_bird_ospf_rendered", True)
 
@@ -406,8 +358,11 @@ class Routing(Layer):
             if type == 'rs':
                 rs_node: Node = obj
                 self._ensureRouterBaseSystem(rs_node)
-                if get_bgp_backend(rs_node) == "bird":
+                rs_backend = get_bgp_backend(rs_node)
+                if rs_backend == "bird":
                     self._installBird(rs_node)
+                elif rs_backend != "frr":
+                    raise ValueError(f"unsupported routing backend for route server: {rs_backend}")
                 self._configure_rs(rs_node)
             if type == 'rnode':
                 rnode: Router = obj
@@ -433,13 +388,16 @@ class Routing(Layer):
                 assert len(r_ifaces) > 0, "router node {}/{} has no interfaces".format(rnode.getAsn(), rnode.getName())
 
                 self._ensureRouterBaseSystem(rnode)
-                if get_bgp_backend(rnode) == "bird":
+                backend = get_bgp_backend(rnode)
+                if backend == "bird":
                     self._installBird(rnode)
                     self._configure_bird_router(rnode)
-                else:
+                elif backend == "frr":
                     self._log("Deferring routing daemon setup for AS{} Router {} (backend={})...".format(
-                        scope, name, get_bgp_backend(rnode)
+                        scope, name, backend
                     ))
+                else:
+                    raise ValueError(f"unsupported routing backend for router as{scope}/{name}: {backend}")
 
     def render(self, emulator: Emulator):
         reg = emulator.getRegistry()
@@ -471,6 +429,18 @@ class Routing(Layer):
             if type == 'rs' or type == 'rnode':
                 assert issubclass(obj.__class__, Router), 'routing: render: adding new RS/Router after routing layer configured is not currently supported.'
 
+            if type == 'rs':
+                rs_node: Router = obj
+                backend = get_bgp_backend(rs_node)
+                if backend == "bird":
+                    self._render_bird_sessions(rs_node, include_bgp_base=False)
+                elif backend == "frr":
+                    raise NotImplementedError(
+                        "FRR route-server nodes are not supported yet; use BIRD route servers"
+                    )
+                else:
+                    raise ValueError(f"unsupported routing backend for route server: {backend}")
+
             if type == 'rnode':
                 rnode: Router = obj
                 if rnode.hasExtension('RealWorldRouter'): # could also be ScionRouter which needs RealWorldAccess
@@ -488,10 +458,14 @@ class Routing(Layer):
                 if backend == "bird":
                     self._render_bird_ospf(rnode)
                     self._render_bird_sessions(rnode)
-                if backend == "frr" and not rnode.getAttribute("__routing_backend_rendered", False):
+                elif backend == "frr":
+                    if rnode.getAttribute("__routing_backend_rendered", False):
+                        continue
                     self._log("Rendering FRR backend for AS{} Router {}...".format(scope, name))
                     self._configure_frr_router(rnode)
                     rnode.setAttribute("__routing_backend_rendered", True)
+                else:
+                    raise ValueError(f"unsupported routing backend for router as{scope}/{name}: {backend}")
 
             if type in ['hnode', 'csnode']:
                 hnode: Node = obj

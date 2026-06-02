@@ -7,40 +7,6 @@ from enum import Enum
 
 from ._bgp_metadata import install_router_bgp_session, record_bgp_session
 
-EbgpFileTemplates: Dict[str, str] = {}
-
-EbgpFileTemplates["bgp_commons"] = """\
-define LOCAL_COMM = ({localAsn}, 0, 0);
-define CUSTOMER_COMM = ({localAsn}, 1, 0);
-define PEER_COMM = ({localAsn}, 2, 0);
-define PROVIDER_COMM = ({localAsn}, 3, 0);
-"""
-
-EbgpFileTemplates["rs_bird_peer"] =  """
-    ipv4 {{
-        import all;
-        export all;
-    }};
-    rs client;
-    local {localAddress} as {localAsn};
-    neighbor {peerAddress} as {peerAsn};
-"""
-
-EbgpFileTemplates["rnode_bird_peer"] = """
-    ipv4 {{
-        table t_bgp;
-        import filter {{
-            bgp_large_community.add({importCommunity});
-            bgp_local_pref = {bgpPref};
-            accept;
-        }};
-        export {exportFilter};
-        next hop self;
-    }};
-    local {localAddress} as {localAsn};
-    neighbor {peerAddress} as {peerAsn};
-"""
-
 class PeerRelationship(Enum):
     """!
     @brief Relationship between peers.
@@ -95,12 +61,6 @@ class Ebgp(Layer, Graphable):
         assert routerA != routerB, 'cannot peer with oneself.'
 
         if rsNode is not None:
-            rsNode.addProtocol('bgp', 'p_as{}'.format(routerA.getAsn()), EbgpFileTemplates["rs_bird_peer"].format(
-                localAddress=addrA,
-                localAsn=rsNode.getAsn(),
-                peerAddress=addrB,
-                peerAsn=routerA.getAsn(),
-            ))
             record_bgp_session(
                 rsNode,
                 {

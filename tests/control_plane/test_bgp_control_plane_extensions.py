@@ -11,6 +11,7 @@ import pytest
 from seedemu.compiler import Docker, Platform
 from seedemu.core import Binding, Emulator, Filter
 from seedemu.layers import Base, Ebgp, Ibgp, Ospf, PeerRelationship, Routing
+from seedemu.layers._bgp_metadata import set_bgp_backend
 from seedemu.services import BgpLookingGlassService, ExaBgpService
 
 
@@ -54,6 +55,61 @@ def test_router_rejects_legacy_exabgp_backends():
         as2.createRouter("exabgp", routingBackend="exabgp")
     with pytest.raises(AssertionError, match="unsupported routing backend"):
         as2.createRouter("external", routingBackend="external")
+
+
+def test_route_server_peering_renders_from_intent_in_routing_layer():
+    emu = Emulator()
+    base = Base()
+    routing = Routing()
+    ebgp = Ebgp()
+
+    base.createInternetExchange(100)
+    as150 = base.createAutonomousSystem(150)
+    as150.createNetwork("net0")
+    as150.createRouter("router0").joinNetwork("net0").joinNetwork("ix100")
+
+    ebgp.addRsPeer(100, 150)
+
+    emu.addLayer(base)
+    emu.addLayer(routing)
+    emu.addLayer(ebgp)
+    emu.render()
+
+    reg = emu.getRegistry()
+    route_server = reg.get("ix", "rs", "ix100")
+    router = reg.get("150", "rnode", "router0")
+
+    rs_conf = _file_content(route_server, "/etc/bird/bird.conf")
+    router_conf = _file_content(router, "/etc/bird/bird.conf")
+
+    assert "protocol bgp p_as150" in rs_conf
+    assert "rs client" in rs_conf
+    assert "neighbor 10.100.0.150 as 150" in rs_conf
+    assert "protocol bgp p_rs100" in router_conf
+    assert "neighbor 10.100.0.100 as 100" in router_conf
+    assert "bgp_large_community.add(PEER_COMM)" in router_conf
+
+
+def test_frr_route_server_backend_is_explicitly_rejected():
+    emu = Emulator()
+    base = Base()
+    routing = Routing()
+    ebgp = Ebgp()
+
+    ix = base.createInternetExchange(100)
+    set_bgp_backend(ix.getRouteServerNode(), "frr")
+    as150 = base.createAutonomousSystem(150)
+    as150.createNetwork("net0")
+    as150.createRouter("router0").joinNetwork("net0").joinNetwork("ix100")
+
+    ebgp.addRsPeer(100, 150)
+
+    emu.addLayer(base)
+    emu.addLayer(routing)
+    emu.addLayer(ebgp)
+
+    with pytest.raises(NotImplementedError, match="FRR route-server nodes are not supported yet"):
+        emu.render()
 
 
 def test_frr_backend_renders_frr_config_for_selected_router():
@@ -356,7 +412,7 @@ def test_bgp_looking_glass_supports_frr_router_route_state():
 
 
 def test_new_bgp_examples_compile_outputs_exist():
-    repo_root = Path(__file__).resolve().parent
+    repo_root = Path(__file__).resolve().parents[2]
     examples = [
         repo_root / "examples" / "basic" / "A12_bgp_mixed_backend" / "bgp_mixed_backend.py",
         repo_root / "examples" / "basic" / "A13_exabgp_control_plane" / "exabgp_control_plane.py",
@@ -389,7 +445,7 @@ def test_new_bgp_examples_compile_outputs_exist():
 
 
 def test_b30_mini_internet_exabgp_ix_compile_assertions():
-    repo_root = Path(__file__).resolve().parent
+    repo_root = Path(__file__).resolve().parents[2]
     script = repo_root / "examples" / "internet" / "B30_mini_internet_exabgp_ix" / "mini_internet_exabgp_ix.py"
     output_dir = script.parent / "output"
 

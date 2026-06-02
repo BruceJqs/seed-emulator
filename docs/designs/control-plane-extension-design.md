@@ -16,8 +16,9 @@
 | --- | --- | --- |
 | Router API | `seedemu/core/AutonomousSystem.py::createRouter` | Adds `routingBackend`, defaulting to `bird`. |
 | Router state | `seedemu/core/Node.py::Router` | Stores backend through `setRoutingBackend()` and exposes labels/attributes for renderers and tools. |
-| Intent metadata | `seedemu/layers/_bgp_metadata.py` | Stores BGP session intent, export policy, communities, connected export, and OSPF interface intent. |
+| Intent metadata | `seedemu/layers/_bgp_metadata.py` | Stores BGP session intent, export policy, communities, connected export, and OSPF interface intent. It must stay backend-neutral and must not contain daemon templates. |
 | Protocol intent | `seedemu/layers/Ebgp.py`, `Ibgp.py`, `Ospf.py` | Records routing relationships without choosing BIRD or FRR syntax. |
+| Daemon templates | `seedemu/layers/routing_templates.py` | Stores BIRD and FRR daemon templates under `BirdFileTemplates` and `FrrFileTemplates`. |
 | Daemon rendering | `seedemu/layers/Routing.py` | Renders BIRD/FRR backend configuration from the same intent model. |
 | ExaBGP speaker | `seedemu/services/ExaBgpService.py` | Installs speaker host config, live control FIFO, event log, dashboard, and injects peer-router BGP intent. |
 | Looking Glass | `seedemu/services/BgpLookingGlassService.py` | Installs route-state proxy/frontend and registers observed routers with `.addRouter(asn, name)`. |
@@ -43,6 +44,12 @@ AutonomousSystem.createRouter(...)
 ```
 
 This keeps topology, protocol intent, and runtime daemon syntax separate. A mixed topology can use BIRD and FRR routers at the same time without changing the `Ebgp`, `Ibgp`, or `Ospf` APIs.
+
+IX route servers currently remain BIRD-only. `Ebgp.addRsPeer()` records
+route-server and participant-router BGP intent, and `Routing` renders the BIRD
+route-server peer blocks from that intent. Selecting FRR for a route-server
+node is explicitly rejected until FRR route-server behavior has a dedicated
+design and runtime validation.
 
 Runtime evidence for FRR examples should include:
 

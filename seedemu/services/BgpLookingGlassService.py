@@ -316,8 +316,13 @@ class BgpLookingGlassServer(Server):
                 router.appendStartCommand('while [ ! -e "{}" ]; do echo "lg: waiting for bird...";  sleep 1; done'.format(
                     BIRDCTRL
                 ))
-            else:
+            elif backend == "frr":
                 router.appendStartCommand('while ! vtysh -c "show version" >/dev/null 2>&1; do echo "lg: waiting for frr..."; sleep 1; done')
+            else:
+                raise ValueError(
+                    f"BgpLookingGlassService does not support backend={backend} "
+                    f"for as{router.getAsn()}/{router.getName()}"
+                )
             
             router.appendStartCommand('SEED_LG_BACKEND="{}" SEED_LG_BIRD_SOCKET="{}" SEED_LG_PROXY_PORT={} python3 /opt/seed-lg/proxy.py'.format(
                 backend, BIRDCTRL, self.__proxy_port
