@@ -8,7 +8,7 @@ import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-RPC_URL    = "http://{rpc_url}:{rpc_port}"
+RPC_URL    = "{rpc_url}"
 CHAIN_ID   = {chain_id}
 DIR_PREFIX = "{dir_prefix}"
 

@@ -10,6 +10,51 @@ Before proceeding with this guide, please go over the "creating a new layer" gui
 
 - Implementing the `Server` interface.
 - Implementing and working with the `Service` interface.
+- Selecting IPv4/IPv6 addresses and formatting endpoints safely.
+
+## IPv4/IPv6 address and endpoint rules
+
+SEED remains IPv4-first by default. Existing calls to `Interface.getAddress()`
+and `Network.getPrefix()` are IPv4 APIs and should keep that meaning in new
+services. A service that needs IPv6 should use the explicit IPv6 accessors or
+the shared helpers from `seedemu.core`.
+
+Use the helper APIs instead of manually concatenating endpoint strings:
+
+```python
+from seedemu.core import (
+    AddressFamily,
+    formatHostPort,
+    formatMultiaddr,
+    formatUrl,
+    getNodeAddress,
+    getNodeAddresses,
+    getNodePreferredAddress,
+    normalizeAddressFamily,
+)
+```
+
+Recommended patterns:
+
+- Default service endpoint selection to `AddressFamily.IPv4` unless the service
+  API explicitly asks for IPv6 or dual stack.
+- Use `getNodeAddress(node, family, preferLocal=True)` or
+  `getNodeAddresses(node)` when resolving a physical node to an address.
+  These helpers prefer Local-network interfaces and can fall back to the first
+  available service-network or other interface.
+- Use `formatHostPort(host, port)` and `formatUrl(scheme, host, port, path)`
+  for host/port or URL text. IPv6 literals require brackets in these forms.
+  Prefer separate host and port arguments for new APIs; if a legacy value
+  already carries a bracketed IPv6 authority such as `[2000::1]:8443`,
+  `formatUrl()` preserves the authority and canonicalizes the literal. When a
+  caller also supplies a separate port, the separate port is authoritative
+  for legacy IPv4, DNS-name, and bracketed IPv6 authorities.
+- Use `formatMultiaddr(host, port)` for IPFS/libp2p multiaddrs.
+- Normalize public address-family inputs with `normalizeAddressFamily()` so
+  aliases such as `ipv4`, `ip6`, `inet`, and `AF_INET6` behave consistently.
+- Do not claim full service-level IPv6 support until the service has code,
+  documentation, and a regression check showing that old IPv4 behavior is
+  unchanged.
 
 ## Implementing the `Server` interface
 

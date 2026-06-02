@@ -128,6 +128,10 @@ caServer.installCACert(Filter(asn=160))
 caServer.installCACert(Filter(asn=160, ip='10.160.1.3'))
 ```
 
+The `ip` and `prefix` selectors accept IPv4 and IPv6 literals. Use `ipv4`,
+`ipv6`, `ipv4Prefix`, or `ipv6Prefix` when the address family should be
+explicit.
+
 In the following example, the root CA certificate will be installed to all the nodes (i.e., the one with `asn` restriction will be overriden). 
 
 

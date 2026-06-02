@@ -1,13 +1,6 @@
 from __future__ import annotations
 from contextlib import contextmanager
-from ipaddress import (
-    IPv4Address,
-    IPv4Network,
-    IPv6Address,
-    IPv6Network,
-    ip_address,
-    ip_network,
-)
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_address, ip_network
 import os
 import re
 import secrets
@@ -23,7 +16,15 @@ from seedemu.utilities import BuildtimeDockerImage
 if TYPE_CHECKING:
     from seedemu.services.WebService import WebServer
     from seedemu.core import Node, Filter
-from seedemu.core import Service, Server
+from seedemu.core import (
+    Service,
+    Server,
+    formatUrl,
+    nodeHasAddress,
+    nodeHasAddressInPrefix,
+    normalizeAddressList,
+    normalizePrefix,
+)
 
 CaFileTemplates: Dict[str, str] = {}
 
@@ -44,8 +45,24 @@ CaFileTemplates["certbot_renew_cron"] = """\
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-* */1 * * * root test -x /usr/bin/certbot -a \! -d /run/systemd/system && perl -e 'sleep int(rand(3600))' && REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt certbot -q renew
+* */1 * * * root test -x /usr/bin/certbot -a \\! -d /run/systemd/system && perl -e 'sleep int(rand(3600))' && REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt certbot -q renew
 """
+
+
+def _caBaseUrl(ca_domain: str) -> str:
+    return formatUrl("https", ca_domain)
+
+
+def _acmeDirectoryUrl(ca_domain: str) -> str:
+    return formatUrl("https", ca_domain, path="/acme/acme/directory")
+
+
+def _normalizeCaDomain(ca_domain: str) -> str:
+    value = str(ca_domain).strip()
+    try:
+        return normalizeAddressList([value])[0]
+    except ValueError:
+        return value
 
 
 def ipsInNetwork(ips: Iterable, network: str) -> bool:
@@ -59,7 +76,7 @@ def ipsInNetwork(ips: Iterable, network: str) -> bool:
 
     @returns True if any of the IPs is in the network, False otherwise.
     """
-    net = ip_network(network)
+    net = ip_network(normalizePrefix(network))
     map6to4 = int(IPv6Address("::ffff:0:0"))
     if isinstance(net, IPv4Network):
         net = IPv6Network(
@@ -70,12 +87,41 @@ def ipsInNetwork(ips: Iterable, network: str) -> bool:
             f"{IPv6Address(map6to4 | int(net.network_address))}/{96 + net.prefixlen}"
         )
     for ip in ips:
-        ip = ip_address(ip)
+        ip = ip_address(normalizeAddressList([ip])[0])
         if isinstance(ip, IPv4Address):
             ip = IPv6Address(map6to4 | int(ip))
         if ip in net:
             return True
     return False
+
+
+def _nodeMatchesFilter(node: Node, filter: Filter) -> bool:
+    if filter.asn is not None and filter.asn != node.getAsn():
+        return False
+    if filter.nodeName is not None and not re.compile(filter.nodeName).match(
+        node.getName()
+    ):
+        return False
+
+    requested_ips = [
+        (filter.ip, None),
+        (filter.ipv4, "ipv4"),
+        (filter.ipv6, "ipv6"),
+    ]
+    for requested_ip, family in requested_ips:
+        if requested_ip is not None and not nodeHasAddress(node, requested_ip, family):
+            return False
+
+    requested_prefixes = [
+        (filter.prefix, None),
+        (filter.ipv4Prefix, "ipv4"),
+        (filter.ipv6Prefix, "ipv6"),
+    ]
+    for requested_prefix, family in requested_prefixes:
+        if requested_prefix is not None and not nodeHasAddressInPrefix(node, requested_prefix, family):
+            return False
+
+    return filter.custom is None or filter.custom(node.getName(), node)
 
 
 class CAServer(Server):
@@ -111,7 +157,7 @@ class CAServer(Server):
     def setCAStore(self, caStore: RootCAStore) -> CAServer:
         self.__ca_store = caStore
         self.__ca_store.initialize()
-        self.__ca_domain = self.__ca_store._caDomain
+        self.__ca_domain = _normalizeCaDomain(self.__ca_store._caDomain)
         return self
 
     def setCertDuration(self, duration: str) -> CAServer:
@@ -144,20 +190,22 @@ class CAServer(Server):
         )
         # wait for the name server
         node.setFile("/etc/cron.d/certbot", CaFileTemplates["certbot_renew_cron"])
+        acme_directory_url = _acmeDirectoryUrl(self.__ca_domain)
         node.appendStartCommand(
-            'until curl --silent https://{}/acme/acme/directory > /dev/null ; do echo "Network retry in 2 s" && sleep 2; done'.format(
-                self.__ca_domain
+            'until curl --silent {} > /dev/null ; do echo "Network retry in 2 s" && sleep 2; done'.format(
+                acme_directory_url
             )
         )
         node.appendStartCommand(
             'REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
-certbot --server https://{ca_domain}/acme/acme/directory --non-interactive --nginx --no-redirect --agree-tos --email example@example.com \
+certbot --server {acme_directory_url} --non-interactive --nginx --no-redirect --agree-tos --email example@example.com \
 -d {server_name} > /dev/null && echo "ACME: cert issued"'.format(
-                server_name=" -d ".join(web._server_name), ca_domain=self.__ca_domain
+                server_name=" -d ".join(web._server_name),
+                acme_directory_url=acme_directory_url,
             )
         )
         node.appendStartCommand(
-            "sed 's/^#\? \?renew_before_expiry = .*$/renew_before_expiry = 8hours/' -i /etc/letsencrypt/renewal/*.conf"
+            "sed 's/^#\\? \\?renew_before_expiry = .*$/renew_before_expiry = 8hours/' -i /etc/letsencrypt/renewal/*.conf"
         )
         node.appendStartCommand("crontab /etc/cron.d/certbot && service cron start")
 
@@ -171,28 +219,8 @@ certbot --server https://{ca_domain}/acme/acme/directory --non-interactive --ngi
             for node in all_nodes:
                 if all_nodes_dict[node]:
                     continue
-                if filter:
-                    if filter.asn and filter.asn != node.getAsn():
-                        continue
-                    if filter.nodeName and not re.compile(filter.nodeName).match(
-                        node.getName()
-                    ):
-                        continue
-                    if filter.ip and filter.ip not in map(
-                        lambda x: x.getAddress(), node.getInterfaces()
-                    ):
-                        continue
-                    if filter.prefix:
-                        ips = {
-                            host
-                            for host in map(
-                                lambda x: x.getAddress(), node.getInterfaces()
-                            )
-                        }
-                        if not ipsInNetwork(ips, filter.prefix):
-                            continue
-                    if filter.custom and not filter.custom(node.getName(), node):
-                        continue
+                if filter and not _nodeMatchesFilter(node, filter):
+                    continue
                 node.addSoftware("ca-certificates")
                 node.importFile(
                     os.path.join(
@@ -332,7 +360,7 @@ class RootCAStore:
 
         @param caDomain The domain name of the CA.
         """
-        self._caDomain = caDomain
+        self._caDomain = _normalizeCaDomain(caDomain)
         self.__caDir = tempfile.mkdtemp(prefix="seedemu-ca-")
         self.__password = "".join(
             secrets.choice(string.ascii_letters + string.digits) for _ in range(64)
@@ -407,7 +435,7 @@ class RootCAStore:
                     " --root /root/root_ca.crt --key /root/root_ca_key"
                 )
             initialize_command += f' --deployment-type "standalone" --name "SEEDEMU Internal" \
---dns "{self._caDomain}" --address ":443" --provisioner "admin" --with-ca-url "https://{self._caDomain}" \
+--dns "{self._caDomain}" --address ":443" --provisioner "admin" --with-ca-url "{_caBaseUrl(self._caDomain)}" \
 --password-file /root/password.txt --provisioner-password-file /root/password.txt --acme'
             self.__container.run(initialize_command)
 

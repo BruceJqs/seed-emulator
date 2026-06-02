@@ -1,7 +1,7 @@
 from seedemu import *
+from seedemu.core import AddressFamily, getNodeAddress, normalizeAddressFamily
 from seedemu.core.Node import Node
 from seedemu.core.Service import Server
-from seedemu.core.enums import NetworkType
 #from seedemu.services.ChainlinkService.ChainlinkTemplates import *
 from .ChainlinkTemplates import *
 from .ChainlinkBaseServer import *
@@ -81,25 +81,30 @@ class ChainlinkServer(ChainlinkBaseServer):
 
         node.setFile(f'{self.__DIR}/fund_auth_sender.py', 
                      ChainlinkFileTemplate['fund_auth_sender'].format(
-                         faucet_server=self._faucet_server_ip, 
-                         faucet_server_port=self._faucet_server_port)) 
+                         faucet_server=self._faucet_server_ip,
+                         faucet_server_port=self._faucet_server_port,
+                         faucet_url=self._faucet_server_url))
 
         node.setFile(f'{self.__DIR}/deploy_oracle_contract.py', 
                      OracleContractDeploymentTemplate['deploy_oracle_contract'].format(
                         chain_id=self._chain_id, 
                         eth_server=self._eth_server_ip,
                         eth_server_http_port=self._eth_server_http_port,
+                        eth_server_http_url=self._eth_server_http_url,
                         util_server=self._util_server_ip,
                         util_server_port=self._util_server_port,
+                        util_server_url=self._util_server_url,
                         link_contract_name=LinkTokenFileTemplate['link_contract_name'],
                         faucet_server=self._faucet_server_ip, 
-                        faucet_server_port=self._faucet_server_port))
+                        faucet_server_port=self._faucet_server_port,
+                        faucet_url=self._faucet_server_url))
 
 
         node.setFile(f'{self.__DIR}/register_contract.py', 
                      ChainlinkFileTemplate['register_contract'].format(
                            util_server=self._util_server_ip,
                            util_server_port=self._util_server_port,
+                           util_server_url=self._util_server_url,
                            node_name=self.__name))
 
         node.setFile(f'{self.__DIR}/create_jobs.sh', 
@@ -125,7 +130,9 @@ class ChainlinkServer(ChainlinkBaseServer):
                              chain_id=self._chain_id, 
                              eth_server_ip=self._eth_server_ip, 
                              eth_server_ws_port=self._eth_server_ws_port, 
-                             eth_server_http_port=self._eth_server_http_port)
+                             eth_server_http_port=self._eth_server_http_port,
+                             eth_server_ws_url=self._eth_server_ws_url,
+                             eth_server_http_url=self._eth_server_http_url)
         node.setFile(f'{self.__DIR}/config.toml', config_content)
         node.setFile(f'{self.__DIR}/db_secrets.toml', ChainlinkFileTemplate['secrets'])
         node.setFile(f'{self.__DIR}/password.txt', 
@@ -191,7 +198,14 @@ class ChainlinkService(Service):
 
     __chain_id:int
 
-    def __init__(self, eth_server:str='', faucet_server:str='', utility_server:str=''):
+    __endpoint_address_family: AddressFamily
+
+    def __init__(
+            self,
+            eth_server:str='',
+            faucet_server:str='',
+            utility_server:str='',
+            endpointAddressFamily=AddressFamily.IPv4):
         """
         @brief ChainlinkService constructor.
         """
@@ -201,6 +215,7 @@ class ChainlinkService(Service):
         self.__eth_server_vnode_name  = eth_server
         self.__faucet_vnode_name      = faucet_server
         self.__util_server_vnode_name = utility_server
+        self.__endpoint_address_family = normalizeAddressFamily(endpointAddressFamily)
 
 
     def _createServer(self) -> ChainlinkServer:
@@ -244,15 +259,12 @@ class ChainlinkService(Service):
         node = emulator.getBindingFor(vnode)
         assert node != None, 'Virtual node {} has not been bound to a physical node yet.'.format(vnode)
 
-        address: str = None
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        for iface in ifaces:
-            net = iface.getNet()
-            if net.getType() == NetworkType.Local:
-                address = iface.getAddress()
-                break
-        return address
+        address = getNodeAddress(node, self.__endpoint_address_family, preferLocal=True)
+        assert address is not None, 'Node {} has no {} address.'.format(
+            node.getName(),
+            self.__endpoint_address_family.value,
+        )
+        return str(address)
 
     def _doConfigure(self, node: Node, server: Server):
         """!
@@ -341,6 +353,10 @@ class ChainlinkService(Service):
 
     def setUtilityServer(self, vnode:str):
         self.__util_server_vnode_name = vnode
+        return self
+
+    def setEndpointAddressFamily(self, family) -> "ChainlinkService":
+        self.__endpoint_address_family = normalizeAddressFamily(family)
         return self
 
     def getName(self) -> str:

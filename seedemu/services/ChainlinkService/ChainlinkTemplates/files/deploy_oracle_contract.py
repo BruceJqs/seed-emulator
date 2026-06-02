@@ -8,9 +8,9 @@ from EthereumHelper import EthereumHelper
 
 ###############################################################
 chain_id   = {chain_id}
-eth_url    = "http://{eth_server}:{eth_server_http_port}"
-faucet_url = "http://{faucet_server}:{faucet_server_port}"
-util_server_url    = "http://{util_server}:{util_server_port}"
+eth_url    = "{eth_server_http_url}"
+faucet_url = "{faucet_url}"
+util_server_url    = "{util_server_url}"
 link_contract_name = "{link_contract_name}"
 ###############################################################
 
@@ -86,5 +86,4 @@ if tx_receipt['status'] == 0:
      logging.error("Failed to authorize user.")
      exit()
 logging.info("Authorizing user successfully.")
-
 

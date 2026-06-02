@@ -69,11 +69,19 @@ The emulator includes the different layers to enable users to built and tune the
 
 The `Base` layer is the base of the emulation; consider it as the OSI layer 1. Users define Autonomous Systems, Internet Exchanges, routers, hosts, networks, and how they are connected in the `Base` layer.
 
+Addressing state also belongs to `Base` and the core topology objects. IPv4 is
+still the default, while optional IPv6 dual-stack support is enabled explicitly
+with `Base(enableIpv6=True)` or `base.enableIpv6(...)`. IPv6 prefixes and
+addresses are stored beside the existing IPv4 state on `Network` and
+`Interface`, rather than changing the old IPv4 return values. The detailed
+addressing plan is in
+[ipv6-control-plane-design.md](ipv6-control-plane-design.md).
+
 #### Routing layers
 
 Routing layers are the layers that will be handling routing protocols, like BGP, OSPF, and LDP.
 
-- `Routing`: The routing layer provides the basic routing functionality to the emulator. It does three things: (1) install BIRD on router nodes and allow dynamic routing protocol layers to work, (2) setup kernel and device and (3) setup defult routes for host nodes. When this layer is rendered, two new methods will be added to the router node and can be used by other layers: (1) `addProtocol`: add new protocol block to BIRD, and (2) `addTable`: add new routing table to BIRD. This layer also assign loopback address for iBGP/LDP, etc., for other protocols to use later and as router id. The `Routing` layer itself also offers an `addDirect` method to mark a network as direct, to load the network into the routing information base. 
+- `Routing`: The routing layer provides the basic routing functionality to the emulator. It assigns loopback addresses, prepares kernel/device routing, sets default routes for host nodes, and renders the selected routing backend for each router. BIRD is the default backend, while FRRouting can be selected on a router with `createRouter(..., routingBackend="frr")`. Protocol layers such as `Ebgp`, `Ibgp`, and `Ospf` record backend-neutral intent; `Routing` translates that intent into daemon-specific configuration. ExaBGP speakers are modeled separately through `ExaBgpService` and normal service `Binding`; ExaBGP is not the same long-term router backend category as BIRD/FRR. When optional IPv6 is present, `Routing` renders address-family specific BIRD/FRR configuration, including IPv6 BGP and OSPFv3, from the same intent model. See [control-plane-extension-design.md](control-plane-extension-design.md) and [ipv6-control-plane-design.md](ipv6-control-plane-design.md) for the current design and validation boundary.
 - `Ebgp`: The EBGP layer offers a convenient way to set up BGP peering between different autonomous systems. Users only need to provide the Internet exchange ID and peer ASNs, and the BGP layer will find the correct routers and setup BGP peering between them.
 - `Ospf`: This layer enable OSPF on all router nodes. By default, this will make all internal network interfaces (interfaces that are connected to a network created by the AS). OSPF interface. Other interfaces, like internet exchange interfaces, will also be added as stub (passive) interface. Users can choose to override the automatic behavior by manually marking networks as stub or remove the network from OSPF entirely. Users can also choose to mask an entire autonomous system if they don't want OSPF in a particular autonomous system.
 - `Ibgp`: This layer automatically setup IBGP full mesh peering between routers within AS using the loopback address configured by the routing layer. This will allow routers from within the AS to exchange routes received from other BGP peers (customers, upstreams, IX peering, etc.) between each other, building a transit network. OSPF will have to be enabled for `Ibgp` to work.
@@ -182,6 +190,11 @@ The emulator includes serval different compilers to fit different use cases.
 #### Docker
 
 The docker compiler compiles the emulation to multiple docker containers. Networks in the emulation will be converted to docker networks, and nodes in the emulation are converted to docker services. It also generates a docker-compose file for spawning the containers.
+
+For optional IPv6 topologies, Docker emits dual-stack compose networks only
+where the corresponding `Network` object has an IPv6 prefix. This includes
+`enable_ipv6`, IPv6 IPAM, service `ipv6_address`, router IPv6 forwarding
+sysctls, and the self-managed-network dummy IPv6 address replacement path.
 
 #### Docker (Distributed)
 

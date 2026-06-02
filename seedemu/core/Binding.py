@@ -4,12 +4,22 @@ from .Emulator import Emulator
 from .Node import Node
 from .Filter import Filter
 from .BaseSystem import BaseSystem
+from .Addressing import nodeHasAddress, nodeHasAddressInPrefix, normalizeAddressList, normalizePrefix
 from enum import Enum
 from typing import List
-from ipaddress import IPv4Network, IPv4Address
+from ipaddress import ip_address, ip_network
 from sys import stderr
 import re, random, string
 from .Scope import Scope, ScopeTier
+
+
+def _parseIpFilter(value):
+    return ip_address(normalizeAddressList([value])[0])
+
+
+def _parsePrefixFilter(value):
+    return ip_network(normalizePrefix(value))
+
 
 class Action(Enum):
     """!
@@ -74,6 +84,8 @@ class Binding(Printable):
         """
         nodeBaseSystem = node.getBaseSystem()
         server = emulator.getServerByVirtualNodeName(vnode)
+        if server is None:
+            return True
         vnodeBaseSystem = server.getBaseSystem()
         if nodeBaseSystem == vnodeBaseSystem:
             return True
@@ -101,16 +113,23 @@ class Binding(Printable):
 
         assert f.custom == None, 'binding: NEW: custom filter function is not supported with NEW action.'
         assert f.asn == None or f.asn in base.getAsns(), 'binding: NEW: AS{} is set in filter but not in emulator.'.format(f.asn)
-        assert f.ip == None or f.prefix == None, 'binding: NEW: both ip and prefix is set. Please set only one of them.'
+        ip_filters = [value for value in [f.ip, f.ipv4, f.ipv6] if value is not None]
+        prefix_filters = [value for value in [f.prefix, f.ipv4Prefix, f.ipv6Prefix] if value is not None]
+        assert len(ip_filters) + len(prefix_filters) <= 1, 'binding: NEW: set only one ip/prefix filter.'
 
         if f.allowBound: self.__log('binding: NEW: WARN: allowBound has not effect when using Action.NEW')
 
         asn = f.asn
         netName = None
+        requested_ip = f.ip or f.ipv4 or f.ipv6
+        requested_prefix = f.prefix or f.ipv4Prefix or f.ipv6Prefix
 
         # ip is set: find net matching the condition.
-        if f.ip != None:
-            self.__log('binding: NEW: IP {} is given to host: finding networks with this IP in range.'.format(f.ip))
+        requested_addr = _parseIpFilter(requested_ip) if requested_ip != None else None
+        requested_net = _parsePrefixFilter(requested_prefix) if requested_prefix != None else None
+
+        if requested_addr != None:
+            self.__log('binding: NEW: IP {} is given to host: finding networks with this IP in range.'.format(requested_ip))
             for _asn in base.getAsns():
                 hit = False
                 if f.asn != None and f.asn != _asn: continue
@@ -119,7 +138,13 @@ class Binding(Printable):
                 for net in asObject.getNetworks():
                     netObject = asObject.getNetwork(net)
 
-                    if IPv4Address(f.ip) in netObject.getPrefix():
+                    if requested_addr.version == 4 and requested_addr in netObject.getPrefix():
+                        self.__log('match found: as{}/{}'.format(_asn, net))
+                        asn = _asn
+                        netName = net
+                        hit = True
+                        break
+                    if requested_addr.version == 6 and netObject.hasIpv6Prefix() and requested_addr in netObject.getIpv6Prefix():
                         self.__log('match found: as{}/{}'.format(_asn, net))
                         asn = _asn
                         netName = net
@@ -129,8 +154,8 @@ class Binding(Printable):
                 if hit: break
         
         # prefix is set: find net matching the condition
-        if f.prefix != None:
-            self.__log('binding: NEW: Prefix {} is given to host: finding networks in range.'.format(f.prefix))
+        if requested_net != None:
+            self.__log('binding: NEW: Prefix {} is given to host: finding networks in range.'.format(requested_prefix))
 
             for _asn in base.getAsns():
                 hit = False
@@ -140,7 +165,13 @@ class Binding(Printable):
                 for net in asObject.getNetworks():
                     netObject = asObject.getNetwork(net)
 
-                    if IPv4Network(f.prefix).overlaps(netObject.getPrefix()):
+                    if requested_net.version == 4 and requested_net.overlaps(netObject.getPrefix()):
+                        self.__log('binding: NEW: match found: as{}/{}'.format(_asn, net))
+                        asn = _asn
+                        netName = net
+                        hit = True
+                        break
+                    if requested_net.version == 6 and netObject.hasIpv6Prefix() and requested_net.overlaps(netObject.getIpv6Prefix()):
                         self.__log('binding: NEW: match found: as{}/{}'.format(_asn, net))
                         asn = _asn
                         netName = net
@@ -149,7 +180,7 @@ class Binding(Printable):
 
                 if hit: break
 
-        if f.prefix != None or f.ip != None:
+        if requested_prefix != None or requested_ip != None:
             assert netName != None, 'binding: NEW: cannot satisfy prefix/ip rule set by filter.'
         
         # no as selected: randomly choose one
@@ -187,7 +218,13 @@ class Binding(Printable):
         host.setNameServers(asObject.getNameServers())
 
         # join net
-        host.joinNetwork(netName, 'auto' if f.ip == None else f.ip)
+        ipv4_address = str(_parseIpFilter(f.ipv4)) if f.ipv4 is not None else (
+            str(requested_addr) if requested_addr is not None and requested_addr.version == 4 else None
+        )
+        ipv6_address = str(_parseIpFilter(f.ipv6)) if f.ipv6 is not None else (
+            str(requested_addr) if requested_addr is not None and requested_addr.version == 6 else "auto"
+        )
+        host.joinNetwork(netName, 'auto' if ipv4_address is None else ipv4_address, ipv6Address=ipv6_address)
 
         # register - usually this is done by AS in configure stage, since we have passed that point, we need to do it ourself.
         reg.register(str(asn), 'hnode', nodeName, host)
@@ -251,26 +288,39 @@ class Binding(Printable):
                 self.__log('node name ({}) cat\'t match filter name ({}), trying next node.'.format(name, filter.nodeName))
                 continue
 
+            requested_ip_filters = []
             if filter.ip != None:
-                has_match = False
-                for iface in node.getInterfaces():
-                    if str(iface.getAddress()) == filter.ip:
-                        has_match = True
-                        break
-                if not has_match:
-                    self.__log('node as{}/{} does not have IP {}, trying next node.'.format(scope, name, filter.ip))
-                    continue
+                requested_ip_filters.append((filter.ip, None))
+            if filter.ipv4 != None:
+                requested_ip_filters.append((filter.ipv4, "ipv4"))
+            if filter.ipv6 != None:
+                requested_ip_filters.append((filter.ipv6, "ipv6"))
 
+            ip_miss = False
+            for requested_ip, family in requested_ip_filters:
+                if not nodeHasAddress(node, requested_ip, family):
+                    self.__log('node as{}/{} does not have IP {}, trying next node.'.format(scope, name, requested_ip))
+                    ip_miss = True
+                    break
+            if ip_miss:
+                continue
+
+            requested_prefix_filters = []
             if filter.prefix != None:
-                has_match = False
-                net = IPv4Network(filter.prefix)
-                for iface in node.getInterfaces():
-                    if iface.getAddress() in net:
-                        has_match = True
-                        break
-                if not has_match:
-                    self.__log('node as{}/{} not in prefix {}, trying next node.'.format(scope, name, filter.prefix))
-                    continue
+                requested_prefix_filters.append((filter.prefix, None))
+            if filter.ipv4Prefix != None:
+                requested_prefix_filters.append((filter.ipv4Prefix, "ipv4"))
+            if filter.ipv6Prefix != None:
+                requested_prefix_filters.append((filter.ipv6Prefix, "ipv6"))
+
+            prefix_miss = False
+            for requested_prefix, family in requested_prefix_filters:
+                if not nodeHasAddressInPrefix(node, requested_prefix, family):
+                    self.__log('node as{}/{} not in prefix {}, trying next node.'.format(scope, name, requested_prefix))
+                    prefix_miss = True
+                    break
+            if prefix_miss:
+                continue
 
             if filter.custom != None and not filter.custom(vnode, node):
                 self.__log('custom function returned false for node as{}/{}, trying next node.'.format(scope, name))

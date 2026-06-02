@@ -1,9 +1,13 @@
 from __future__ import annotations
-from seedemu.core import Node, Service, Server
+from seedemu.core import Node, Service, Server, formatHost, formatUrl
 from seedemu.core.Emulator import Emulator
 from seedemu.core.enums import NetworkType
 from seedemu.services.EthereumService import *
-from .EthTemplates import FaucetServerFileTemplates
+from .EthTemplates import (
+    FaucetServerFileTemplates,
+    format_fund_accounts_script,
+    format_fund_curl,
+)
 from os import path
 
 
@@ -161,14 +165,14 @@ class FaucetServer(Server):
         """
         @brief Install the needed files.
         """
+        eth_server_http_url = formatUrl("http", self.__eth_server_url, self.__eth_server_port)
 
         # Install the faucet server program 
         node.setFile(self.DIR_PREFIX + '/app.py', 
                      FaucetServerFileTemplates['faucet_server'].format(
              max_fund_amount=self.__max_fund_amount,
              chain_id=self.__chain_id,
-             eth_server_url = self.__eth_server_url, 
-             eth_server_http_port = self.__eth_server_port,
+             eth_server_http_url = eth_server_http_url,
              consensus= self.__consensus.value,
              account_address = self.__account.address, 
              account_key=self.__account.privateKey.hex(),
@@ -177,18 +181,17 @@ class FaucetServer(Server):
         # Prepare install the fund command 
         funds_list = []
         for recipient, amount in self.__fundlist:
-            funds_list.append(FaucetServerFileTemplates['fund_curl'].format(
-                    recipient=recipient, 
-                    amount=amount,
-                    address='localhost',
-                    port = self.__port))
+            funds_list.append(format_fund_curl(recipient, amount, "localhost", self.__port))
             
-        node.setFile(self.DIR_PREFIX + '/fund_accounts.sh', 
-            FaucetServerFileTemplates['fund_accounts'].format(
-                    address='localhost', 
-                    max_attempts = self.__max_fund_attempts,
-                    port=self.__port,
-                    fund_command=';'.join(funds_list)))
+        node.setFile(
+            self.DIR_PREFIX + '/fund_accounts.sh',
+            format_fund_accounts_script(
+                formatHost("localhost"),
+                self.__port,
+                self.__max_fund_attempts,
+                ';'.join(funds_list),
+            ),
+        )
 
 
         

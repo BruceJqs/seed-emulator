@@ -159,7 +159,7 @@ if __name__ == '__main__':
     trial = 20
     while trial > 0:
         trial -= 1
-        web3 = connect_to_geth('http://{eth_server_url}:{eth_server_http_port}', '{consensus}')
+        web3 = connect_to_geth('{eth_server_http_url}', '{consensus}')
         if web3 == "":
             time.sleep(10)
         else:
@@ -175,4 +175,3 @@ if __name__ == '__main__':
     app.config['SENDER_KEY'] = "{account_key}"
     app.config['NONCE'] = app.config['WEB3'].eth.getTransactionCount(app.config['SENDER_ADDRESS']) - 1
     app.run(host='0.0.0.0', port={port}, debug=True)
-

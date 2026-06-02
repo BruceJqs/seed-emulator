@@ -3,7 +3,7 @@ while read -r node; do {{
     let count=0
     ok=true
     validator=false
-    until curl --http0.9 -sHf http://$node/testnet > /dev/null; do {{
+    until curl --http0.9 -sHf "$node" > /dev/null; do {{
         echo "eth: beacon-setup node $node not ready, waiting..."
         sleep 10
         let count++
@@ -17,7 +17,7 @@ while read -r node; do {{
         validatorAtGenesis={is_validator_at_genesis}
         validatorAtRunning={is_validator_at_running}
 
-        curl --http0.9 -s http://$node/testnet > /tmp/testnet.tar.gz
+        curl --http0.9 -s "$node" > /tmp/testnet.tar.gz
         mkdir /tmp/bn
         tar -xzvf /tmp/testnet.tar.gz -C /tmp/bn
 
@@ -28,15 +28,15 @@ while read -r node; do {{
 
 
         ($validatorAtGenesis) && {{
-            eth2-val-tools keystores --source-mnemonic "{validator_mnemonic}" --source-max {validator_key_end} --source-min {validator_key_start} --out-loc "/tmp/vc/assigned_data" 
+            eth2-val-tools keystores --source-mnemonic "{validator_mnemonic}" --source-max {validator_key_end} --source-min {validator_key_start} --out-loc "/tmp/vc/assigned_data"
             mkdir /tmp/vc/local-testnet/testnet/validators
             cp -r /tmp/vc/assigned_data/keys/* /tmp/vc/local-testnet/testnet/validators/
             cp -r /tmp/vc/assigned_data/secrets /tmp/vc/local-testnet/testnet/
         }}
 
-        
-        
-    
+
+
+
 
         ($validatorAtRunning) && {{
         echo "creating validator wallet and deposit"
@@ -46,7 +46,7 @@ while read -r node; do {{
         }}
 
         # while loop till bc client is ready
-        while ! curl --http0.9 -sHf http://{ip_address}:8000 > /dev/null; do
+        while ! curl --http0.9 -sHf "{beacon_node_url}" > /dev/null; do
             echo "eth: local beacon node not ready, waiting..."
             sleep 3
         done
@@ -56,8 +56,6 @@ while read -r node; do {{
         echo "[validator client] starting lighthouse validator client"
         {vc_start_command}
         }}
-        
+
     }}
 }}; done < /tmp/beacon-setup-node
-
-

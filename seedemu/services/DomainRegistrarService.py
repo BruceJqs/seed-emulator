@@ -15,7 +15,7 @@ server {{
     location / {{
         try_files $uri $uri/ =404;
     }}
-    location ~ \.php$ {{
+    location ~ \\.php$ {{
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/run/php/php7.4-fpm.sock;
     }}
@@ -119,7 +119,12 @@ DomainRegistrarServerFileTemplates['web_app_file2'] = '''\
                 <tbody>
                   <tr>
                     <th scope="row"><input type="text" class="form-control" name="dname" value="<?php echo $_GET['dname']; ?>" readonly></th>
-                    <td>A</td>
+                    <td>
+                      <select class="form-control" name="rtype">
+                        <option value="A" selected>A</option>
+                        <option value="AAAA">AAAA</option>
+                      </select>
+                    </td>
                     <td><input type="text" class="form-control" name="dvalue" placeholder="IP address"></td>
                     <td>10</td>
                   </tr>
@@ -133,11 +138,23 @@ DomainRegistrarServerFileTemplates['web_app_file2'] = '''\
 </html>
 <?php
 if(!empty($_POST['dname']) && !empty($_POST['dvalue']) ){
-  $domain_name = $_POST['dname'];
-  $ip_address = $_POST['dvalue'];
-  $register_command = 'echo "update add '.$domain_name.'.com 60 A '.$ip_address.'\nsend\n" | nsupdate';
-  $escaped_command = escapeshellcmd($register_command);
-  system($escaped_command);
+  $domain_name = trim($_POST['dname']);
+  $ip_address = trim($_POST['dvalue']);
+  $record_type = $_POST['rtype'] ?? 'A';
+  if (!in_array($record_type, array('A', 'AAAA'), true)) {
+    $record_type = 'A';
+  }
+  if (strlen($ip_address) > 1 && substr($ip_address, 0, 1) === '[' && substr($ip_address, -1) === ']') {
+    $ip_address = trim(substr($ip_address, 1, -1));
+  }
+  $ip_flag = $record_type === 'AAAA' ? FILTER_FLAG_IPV6 : FILTER_FLAG_IPV4;
+  if (filter_var($ip_address, FILTER_VALIDATE_IP, $ip_flag) === false) {
+    echo "<script>alert('record type does not match IP address family');window.history.back();</script>";
+    exit;
+  }
+  $update = "update add ".$domain_name.".com 60 ".$record_type." ".$ip_address."\\nsend\\n";
+  $register_command = 'printf %s ' . escapeshellarg($update) . ' | nsupdate';
+  system($register_command);
 
   echo "<script>alert('success on adding record!');window.history.back();</script>";
 

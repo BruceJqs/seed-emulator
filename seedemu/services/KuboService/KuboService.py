@@ -1,8 +1,16 @@
-from seedemu.core import Node, Service
-from seedemu.core.enums import NetworkType
+from shlex import quote
+from seedemu.core import (
+    AddressFamily,
+    Node,
+    Service,
+    formatMultiaddr,
+    formatUrl,
+    getNodeAddress,
+    normalizeAddressFamily,
+)
 from seedemu.services.KuboService.KuboEnums import Distribution, Architecture
 from seedemu.services.KuboService.KuboServer import KuboServer
-from typing import List
+from typing import List, Tuple, Union
 
 TEMPORARY_DIR = '/tmp/kubo'
 
@@ -13,14 +21,17 @@ class KuboService(Service):
     _distro:Distribution
     _arch:Architecture
     _bootstrap_ips:List[str]
+    _bootstrap_endpoints:List[Tuple[str, str, str]]
     _bootstrap_script:str
+    _bootstrap_address_family:AddressFamily
     _tmp_dir:str
     _first_installed:bool
     _rpc_api_port:int
     _http_gateway_port:int
-    
+
     def __init__(self, apiPort:int=5001, gatewayPort:int=8080,
-                 distro:Distribution=Distribution.LINUX, arch:Architecture=Architecture.X64):
+                 distro:Distribution=Distribution.LINUX, arch:Architecture=Architecture.X64,
+                 bootstrapAddressFamily:Union[AddressFamily, str, int]=AddressFamily.IPv4):
         """Create an instance of the IPFS Kubo Service.
 
         Parameters
@@ -33,32 +44,44 @@ class KuboService(Service):
             OS distribution of Kubo to use, by default Distribution.LINUX
         arch : Architecture, optional
             CPU architecture of Kubo to use, by default Architecture.X64
+        bootstrapAddressFamily : AddressFamily, optional
+            Address family to use for bootstrap node RPC URLs and multiaddrs, by default IPv4
         """
         super().__init__()
-        
+
         self.addDependency('Base', False, False)  # Depends on base layer (need networking info)
-        
+
         self._tmp_dir = TEMPORARY_DIR.rstrip('/')  # Directory without trailing slash.
-        
+
         assert isinstance(distro, Distribution), '"distro" must be an instance of KuboEnums.Distribution'
         self._distro = distro
         assert isinstance(arch, Architecture), '"arch" must be an instance of KuboEnums.Architecture'
         self._arch = arch
+        self._bootstrap_address_family = normalizeAddressFamily(bootstrapAddressFamily)
         self._bootstrap_ips = []
+        self._bootstrap_endpoints = []
         self._rpc_api_port = apiPort
         self._http_gateway_port = gatewayPort
         self._bootstrap_script = None
         self._first_installed = False
-        
+
+    def setBootstrapAddressFamily(self, family:Union[AddressFamily, str, int]) -> "KuboService":
+        """Select which address family Kubo bootstrap endpoints should use."""
+        self._bootstrap_address_family = normalizeAddressFamily(family)
+        self._bootstrap_ips = []
+        self._bootstrap_endpoints = []
+        self._bootstrap_script = None
+        return self
+
     def getName(self) -> str:
         return 'KuboService'
-    
+
     def print(self, indent: int) -> str:
         out = ' ' * indent
         out += 'KuboServiceLayer\n'
 
         return out
-    
+
     def _createServer(self) -> KuboServer:
         """Create and return an instance of KuboServer.
 
@@ -84,26 +107,27 @@ class KuboService(Service):
         # All nodes will have bootstrap script installed, and then will proceed with individual installation.
         if len(self._bootstrap_ips) == 0: self._getBootstrapIps()
         if self._bootstrap_script is None: self._bootstrap_script = self._generateBootstrapScript()
-        
+
         # Launch the per-node install process:
         server.install(node, self)
-        
+
         # Modify port bindings on all nodes:
-        node.appendStartCommand(f'ipfs config Addresses.API /ip4/0.0.0.0/tcp/{self._rpc_api_port}')
-        node.appendStartCommand(f'ipfs config Addresses.Gateway /ip4/0.0.0.0/tcp/{self._http_gateway_port}')
-        
+        bind_address = "::" if self._bootstrap_address_family == AddressFamily.IPv6 else "0.0.0.0"
+        node.appendStartCommand(f'ipfs config Addresses.API {formatMultiaddr(bind_address, self._rpc_api_port)}')
+        node.appendStartCommand(f'ipfs config Addresses.Gateway {formatMultiaddr(bind_address, self._http_gateway_port)}')
+
         # Add bootstrap script to node and run the script:
         node.appendFile(f'{self._tmp_dir}/bootstrap.sh', self._bootstrap_script)
         node.appendStartCommand(f'chmod +x {self._tmp_dir}/bootstrap.sh')
         node.appendStartCommand(f'bash {self._tmp_dir}/bootstrap.sh', fork=True)
-        
+
         # Forward port for Web UI to host for the first node created:
         # if not self._first_installed:
         #     node.addPortForwarding(self._rpc_api_port, self._rpc_api_port)  # For WebUI access
         #     node.addPortForwarding(self._http_gateway_port, self._http_gateway_port)  # For HTTP Gateway
         #     self._first_installed = True
         # else:
-        #     node.addPortForwarding(0, self._rpc_api_port) 
+        #     node.addPortForwarding(0, self._rpc_api_port)
 
     def getBootstrapList(self) -> list:
         """Get current bootstrap node IP addresses.
@@ -111,7 +135,7 @@ class KuboService(Service):
         Returns
         -------
         list
-            A list of bootstrap node IPv4 addresses as strings.
+            A list of bootstrap node addresses as strings.
         """
         return self._bootstrap_ips
 
@@ -121,13 +145,21 @@ class KuboService(Service):
         # Must be called during render stage only!
         for server, node in self.getTargets():
             if server.isBootNode():
-                ifaces = node.getInterfaces()
-                assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-                for iface in ifaces:
-                    net = iface.getNet()
-                    if net.getType() == NetworkType.Local and server.isBootNode():
-                        self._bootstrap_ips.append(str(iface.getAddress()))
-                        break
+                address = getNodeAddress(node, self._bootstrap_address_family, preferLocal=True)
+                assert address is not None, 'Kubo bootstrap node {} has no {} address.'.format(
+                    node.getName(),
+                    self._bootstrap_address_family.value,
+                )
+                host = str(address)
+                self._bootstrap_ips.append(host)
+                self._bootstrap_endpoints.append((
+                    host,
+                    formatUrl("http", host, self._rpc_api_port, "/api/v0/config?arg=Identity.PeerID"),
+                    formatMultiaddr(host, 4001),
+                ))
+
+    def _shellArray(self, values:List[str]) -> str:
+        return ' '.join(quote(value) for value in values)
 
     def _generateBootstrapScript(self) -> str:
         """Generate bootstrap script that all nodes will use.
@@ -136,13 +168,17 @@ class KuboService(Service):
         -------
         str
             String representing the bootstrap bash script.
-        """        
+        """
+        nc_family_option = "-6" if self._bootstrap_address_family == AddressFamily.IPv6 else "-4"
         script = f"""#!/bin/bash
 
 # logfile=/var/log/kubo_bootstrap_$(date +%s).log
 logfile=/var/log/kubo_bootstrap.log
 timeout=60
-bootips=({' '.join(self._bootstrap_ips)})
+nc_family_option={quote(nc_family_option)}
+bootips=({self._shellArray([host for host, _, _ in self._bootstrap_endpoints])})
+booturls=({self._shellArray([url for _, url, _ in self._bootstrap_endpoints])})
+bootmultiaddrs=({self._shellArray([multiaddr for _, _, multiaddr in self._bootstrap_endpoints])})
 peerids=()
 pidcount=0
 
@@ -152,7 +188,7 @@ pidcount=0
 #    integer : log level (0=INFO, 1=DEBUG, 2=WARNING, 3=ERROR)
 log () {{
     msg=$(date -Iseconds)'\\t'
-    
+
     case $2 in
         0)
             msg=$msg'[INFO]\\t\\t'
@@ -170,7 +206,7 @@ log () {{
             msg=$msg'[INFO]\\t\\t'
             ;;
     esac
-    
+
     msg=$msg$1
     echo -e $msg >>$logfile
 }}
@@ -187,7 +223,7 @@ getid () {{
    waited=0
    while [[ $up -ne 0 && $waited -lt $timeout ]]
    do
-      nc -z -n ${{ip}} {self._rpc_api_port}
+      nc "$nc_family_option" -z -n "${{ip}}" {self._rpc_api_port}
       up=$?
       sleep 1
       ((waited++))
@@ -200,11 +236,11 @@ getid () {{
       peerid=""
       while [[ -z $peerid && $attempts -gt 0 ]]
       do
-         peerid=$(curl -sX POST "http://${{ip}}:{self._rpc_api_port}/api/v0/config?arg=Identity.PeerID" | jq --raw-output '.Value')
+         peerid=$(curl -sX POST "${{apiurl}}" | jq --raw-output '.Value')
          ((attempts--))
          sleep 5
       done
-      
+
       if [[ -n $peerid ]]; then
          peerids+=($peerid)
          ((pidcount++))
@@ -227,9 +263,11 @@ ipfs daemon &
 log "Started daemon to serve API requests from other nodes." 1
 
 # Iterate through IPs to get peer IDs:
-for ip in "${{bootips[@]}}"
+for i in "${{!bootips[@]}}"
 do
-   getid $ip
+   ip=${{bootips[$i]}}
+   apiurl=${{booturls[$i]}}
+   getid
 done
 
 # Make changes to bootstrap list:
@@ -239,9 +277,10 @@ if [[ $pidcount -gt 0 ]]; then
    do
       ip=${{bootips[$i]}}
       id=${{peerids[$i]}}
+      multiaddr=${{bootmultiaddrs[$i]}}
       # echo "${{ip}} --> ${{id}}" >&2
       if [[ -n $id ]]; then
-         ipfs bootstrap add /ip4/${{ip}}/tcp/4001/p2p/${{id}} &>/dev/null
+         ipfs bootstrap add "${{multiaddr}}/p2p/${{id}}" &>/dev/null
       fi
    done
 #    echo "Kubo bootstrapping completed successfully!" >&2

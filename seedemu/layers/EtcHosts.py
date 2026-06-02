@@ -1,6 +1,7 @@
-from seedemu.core import Emulator, Layer, Node
+from seedemu.core import AddressFamily, Emulator, Layer, Node, getInterfaceAddress
 from seedemu.core.enums import NetworkType
 from typing import List
+from ipaddress import ip_address
 
 class EtcHosts(Layer):
     """!
@@ -24,19 +25,27 @@ class EtcHosts(Layer):
 
     def __getAllIpAddress(self, node: Node) -> list:
         """!
-        @brief Get the IP address of the local interface for this node.
+        @brief Get local IPv4 and IPv6 addresses for this node.
         """
         addresses = []
         for iface in node.getInterfaces():
-            address = iface.getAddress()
-            if iface.getNet().getType() == NetworkType.Bridge:
-                pass
             if iface.getNet().getType() == NetworkType.InternetExchange:
-                pass
-            else:
-                addresses.append(address)
+                continue
+
+            # Keep Bridge/service-network addresses for service-only nodes.
+            ipv4_address = getInterfaceAddress(iface, AddressFamily.IPv4)
+            if ipv4_address is not None:
+                addresses.append(str(ipv4_address))
+            ipv6_address = getInterfaceAddress(iface, AddressFamily.IPv6)
+            if ipv6_address is not None:
+                addresses.append(str(ipv6_address))
 
         return addresses
+
+    def __addressSortKey(self, entry: str):
+        address = entry.split()[0]
+        parsed = ip_address(address)
+        return (parsed.version, int(parsed))
 
     def _getSupportedNodeTypes(self) -> List[str]:
         if self._only_hosts:
@@ -55,7 +64,7 @@ class EtcHosts(Layer):
                     hosts_file_content.append(f"{address} {' '.join(node.getHostNames())}")
                 nodes.append(node)
 
-        sorted_hosts_file_content = sorted(hosts_file_content, key=lambda x: tuple(map(int, x.split()[0].split('.'))))
+        sorted_hosts_file_content = sorted(hosts_file_content, key=self.__addressSortKey)
 
         for node in nodes:
             node.setFile("/tmp/etc-hosts", '\n'.join(sorted_hosts_file_content))

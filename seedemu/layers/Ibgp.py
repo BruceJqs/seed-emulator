@@ -4,6 +4,8 @@ from .Base import Base
 from seedemu.core import ScopedRegistry, Node, Graphable, Emulator, Layer
 from typing import List, Set, Dict
 
+from ._bgp_metadata import install_router_bgp_session
+
 IbgpFileTemplates: Dict[str, str] = {}
 
 IbgpFileTemplates['ibgp_peer'] = '''
@@ -89,7 +91,8 @@ class Ibgp(Layer, Graphable):
         """
         return self.__masked
 
-    def render(self, emulator: Emulator):
+    def configure(self, emulator: Emulator):
+        super().configure(emulator)
         reg = emulator.getRegistry()
         base: Base = reg.get('seedemu', 'layer', 'Base')
         for asn in base.getAsns():
@@ -110,18 +113,39 @@ class Ibgp(Layer, Graphable):
 
                     laddr = local.getLoopbackAddress()
                     raddr = remote.getLoopbackAddress()
-                    local.addTable('t_bgp')
-                    local.addTablePipe('t_bgp')
-                    local.addTablePipe('t_direct', 't_bgp')
-                    local.addProtocol('bgp', 'ibgp{}'.format(n), IbgpFileTemplates['ibgp_peer'].format(
-                        localAddress = laddr,
-                        peerAddress = raddr,
-                        asn = asn
-                    ))
+                    laddr_v6 = local.getLoopbackIpv6Address()
+                    raddr_v6 = remote.getLoopbackIpv6Address()
+                    families = ["ipv4"]
+                    if laddr_v6 is not None and raddr_v6 is not None:
+                        families.append("ipv6")
+                    install_router_bgp_session(
+                        local,
+                        {
+                            "name": 'ibgp{}'.format(n),
+                            "kind": "ibgp",
+                            "local_address": laddr,
+                            "local_ipv6_address": laddr_v6 or "",
+                            "local_asn": asn,
+                            "peer_address": raddr,
+                            "peer_ipv6_address": raddr_v6 or "",
+                            "peer_asn": asn,
+                            "families": families,
+                            "import_community": None,
+                            "local_pref": None,
+                            "export_policy": "all",
+                            "next_hop_self": False,
+                            "route_server_client": False,
+                            "igp_table": "t_ospf",
+                            "igp_table_v6": "t_ospf6",
+                        },
+                    )
 
                     n += 1
 
                     self._log('adding peering: {} <-> {} (ibgp, as{})'.format(laddr, raddr, asn))
+
+    def render(self, emulator: Emulator):
+        pass
 
     def _doCreateGraphs(self, emulator: Emulator):
         base: Base = emulator.getRegistry().get('seedemu', 'layer', 'Base')
@@ -157,4 +181,3 @@ class Ibgp(Layer, Graphable):
             out += '{}\n'.format(asn)
 
         return out
-

@@ -1,9 +1,8 @@
 from __future__ import annotations
-from seedemu.core import Configurable, Service, Server
+from seedemu.core import AddressFamily, Configurable, Service, Server, getNodeAddresses, getNodePreferredAddress, normalizeAddressList, normalizeAddressRecord
 from seedemu.core import Node, ScopedRegistry, Emulator
 from .DomainNameService import DomainNameService
 from typing import List, Dict
-from seedemu.core.enums import NetworkType
 
 DomainNameCachingServiceFileTemplates: Dict[str, str] = {}
 
@@ -66,7 +65,7 @@ class DomainNameCachingServer(Server, Configurable):
 
         @returns self, for chaining API calls.
         """
-        self.__root_servers = servers
+        self.__root_servers = [self.__normalizeRootServerRecord(server) for server in servers]
 
         return self
 
@@ -82,6 +81,31 @@ class DomainNameCachingServer(Server, Configurable):
         """
         return self.__root_servers
 
+    def __getPreferredLocalAddress(self, node: Node) -> str:
+        return getNodePreferredAddress(node, (AddressFamily.IPv4, AddressFamily.IPv6))
+
+    def __getFirstNodeAddress(self, node: Node) -> str:
+        return getNodePreferredAddress(node, (AddressFamily.IPv4, AddressFamily.IPv6), preferLocal=False)
+
+    def __getFirstNodeAddresses(self, node: Node) -> List[str]:
+        return [
+            str(addr)
+            for addr in getNodeAddresses(node, preferLocal=False)
+            if addr is not None
+        ]
+
+    def __formatBindAddressList(self, addrs: List[str]) -> str:
+        return '; '.join(normalizeAddressList(addrs))
+
+    def __normalizeRootServerRecord(self, record: str) -> str:
+        return normalizeAddressRecord(record, trimNonAddressRecord=True)
+
+    def __normalizeForwardZoneName(self, zone: str) -> str:
+        value = str(zone).strip()
+        if value == '' or value == '.':
+            return '.'
+        return value if value[-1] == '.' else '{}.'.format(value)
+
     def addForwardZone(self, zone: str, vnode: str) -> DomainNameCachingServer:
         """!
         @brief Add a new forward zone, forward to the given virtual node name.
@@ -91,7 +115,7 @@ class DomainNameCachingServer(Server, Configurable):
 
         @returns self, for chaining API calls.
         """
-        self.__pending_forward_zones[zone] = vnode
+        self.__pending_forward_zones[self.__normalizeForwardZoneName(zone)] = vnode
 
         return self
     
@@ -106,15 +130,9 @@ class DomainNameCachingServer(Server, Configurable):
 
         reg = emulator.getRegistry()
         address: str = None
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        for iface in ifaces:
-            net = iface.getNet()
-            if net.getType() == NetworkType.Local:
-                address = iface.getAddress()
-                break
+        address = self.__getPreferredLocalAddress(node)
         
-        assert address != "", 'address is not configured.'
+        assert address is not None, 'address is not configured.'
 
         for ((scope, type, name), node) in reg.getAll().items():
             if type in ['hnode', 'rnode']:
@@ -150,7 +168,7 @@ class DomainNameCachingServer(Server, Configurable):
                     pnode = self.__emulator.getBindingFor(vnode_name)
                     ifaces = pnode.getInterfaces()
                     if len(ifaces) > 0:
-                        vnode_addr = ifaces[0].getAddress()
+                        vnode_addr = self.__getFirstNodeAddress(pnode)
                 except Exception:
                     pass
 
@@ -160,24 +178,17 @@ class DomainNameCachingServer(Server, Configurable):
                     for v in server_vnodes:
                         try:
                             pn = self.__emulator.getBindingFor(v)
-                            ifaces = pn.getInterfaces()
-                            if len(ifaces) > 0:
-                                addrs.append(ifaces[0].getAddress())
+                            addrs.extend(self.__getFirstNodeAddresses(pn))
                         except Exception:
                             continue
                 except Exception:
                     pass
 
-            if vnode_addr is None and addrs:
-                vnode_addr = addrs[0]
-
             if vnode_addr is None:
                 # binding should already be resolved by now; use it directly
                 try:
                     pnode = self.__emulator.getBindingFor(vnode_name)
-                    ifaces = pnode.getInterfaces()
-                    assert len(ifaces) > 0, 'resolvePendingRecords(): node as{}/{} has no interfaces'.format(pnode.getAsn(), pnode.getName())
-                    vnode_addr = ifaces[0].getAddress()
+                    vnode_addr = self.__getFirstNodeAddress(pnode)
                 except Exception:
                     pass
 
@@ -196,21 +207,20 @@ class DomainNameCachingServer(Server, Configurable):
                     if typ in ['hnode', 'rnode'] and name == cand:
                         ifaces = obj.getInterfaces()
                         if len(ifaces) > 0:
-                            vnode_addr = ifaces[0].getAddress()
+                            vnode_addr = self.__getFirstNodeAddress(obj)
                             break
 
-            if vnode_addr is not None:
+            if vnode_addr is not None or addrs:
+                forwarders = addrs if addrs else [vnode_addr]
                 node.appendFile('/etc/bind/named.conf.local',
-                            'zone "{}" {{ type forward; forwarders {{ {}; }}; }};\n'.format(zone_name, vnode_addr))
+                            'zone "{}" {{ type forward; forwarders {{ {}; }}; }};\n'.format(zone_name, self.__formatBindAddressList(forwarders)))
 
         if not self.__configure_resolvconf: return
 
         reg = self.__emulator.getRegistry()
         (scope, _, _) = node.getRegistryInfo()
         sr = ScopedRegistry(scope, reg)
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        addr = ifaces[0].getAddress()
+        addr = self.__getFirstNodeAddress(node)
 
         for rnode in sr.getByType('rnode'):
             rnode.appendFile('/etc/resolv.conf.new', 'nameserver {}\n'.format(addr))
@@ -255,15 +265,7 @@ class DomainNameCachingService(Service):
         return ['DomainNameService']
 
     def __getIpAddr(self, node:Node) -> str:
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node {} has no IP address.'.format(node.getName())
-        for iface in ifaces:
-            net = iface.getNet()
-            if net.getType() == NetworkType.Local:
-                address = iface.getAddress()
-                return address
-            
-        return ""
+        return getNodePreferredAddress(node, (AddressFamily.IPv4, AddressFamily.IPv6))
     
     def configure(self, emulator: Emulator):
         super().configure(emulator)
@@ -274,7 +276,7 @@ class DomainNameCachingService(Service):
             server.configure(emulator, node)
 
             address = self.__getIpAddr(node)
-            assert address != "", 'address is not configured.'
+            assert address is not None and address != "", 'address is not configured.'
             ipaddrs.append(address)
 
         # For the nodes that are not covered, all the local DNS servers will be added to them (the default behavior).

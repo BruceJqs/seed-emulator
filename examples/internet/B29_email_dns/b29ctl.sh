@@ -12,6 +12,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 OUTPUT_DIR="$SCRIPT_DIR/output"
 PLATFORM="auto" # default; override with --platform amd|arm; 'auto' uses uname
+ARGS=()
+PYTHON_BIN="${PYTHON:-python3}"
+if [ -x "$ROOT_DIR/.venv/bin/python3" ]; then
+  PYTHON_BIN="$ROOT_DIR/.venv/bin/python3"
+fi
+
+export SEED_B29_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-b29}"
+export COMPOSE_PROJECT_NAME="$SEED_B29_PROJECT_NAME"
+export DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-0}"
+export COMPOSE_DOCKER_CLI_BUILD="${COMPOSE_DOCKER_CLI_BUILD:-0}"
 
 log() { echo -e "[b29ctl] $*"; }
 
@@ -36,8 +46,8 @@ have_compose() {
 
 b29_generate() {
   log "Generating emulation (platform=$PLATFORM) ..."
-  export PYTHONPATH="$ROOT_DIR:$PYTHONPATH"
-  python3 "$SCRIPT_DIR/email_realistic.py" "$PLATFORM"
+  export PYTHONPATH="$ROOT_DIR:${PYTHONPATH:-}"
+  "$PYTHON_BIN" "$SCRIPT_DIR/email_realistic.py" "$PLATFORM"
   log "Generation complete: $OUTPUT_DIR"
 }
 
@@ -46,7 +56,7 @@ b29_up() {
   if [ ! -f "$OUTPUT_DIR/docker-compose.yml" ]; then
     b29_generate
   fi
-  log "Starting network (compose up -d) ..."
+  log "Starting network (project=$COMPOSE_PROJECT_NAME, compose up -d) ..."
   (cd "$OUTPUT_DIR" && compose up -d)
   log "Provisioning Roundcube accounts ..."
   "$SCRIPT_DIR/manage_roundcube.sh" accounts || true
@@ -60,8 +70,8 @@ b29_down() {
   log "Stopping Roundcube ..."
   "$SCRIPT_DIR/manage_roundcube.sh" stop || true
   if [ -f "$OUTPUT_DIR/docker-compose.yml" ]; then
-    log "Stopping network (compose down) ..."
-    (cd "$OUTPUT_DIR" && compose down)
+    log "Stopping network (project=$COMPOSE_PROJECT_NAME, compose down) ..."
+    (cd "$OUTPUT_DIR" && compose down --remove-orphans)
   else
     log "No output/docker-compose.yml; skip network down"
   fi
@@ -105,7 +115,7 @@ case "$CMD" in
     b29_status
     ;;
   test)
-    b29_test "${ARGS[@]:-}"
+    b29_test "${ARGS[@]}"
     ;;
   generate|gen|build)
     b29_generate

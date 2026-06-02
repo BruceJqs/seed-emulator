@@ -3,8 +3,19 @@
 # __author__ = 'Demon'
 
 from __future__ import annotations
-from seedemu.core import Node, Emulator, Service, Server
-from typing import List, Dict, Set
+from seedemu.core import (
+    AddressFamily,
+    Node,
+    Emulator,
+    Service,
+    Server,
+    formatHostPort,
+    formatUrl,
+    getNodeAddress,
+    normalizeAddressList,
+    normalizeAddressFamily,
+)
+from typing import List, Dict, Tuple, Union
 from enum import Enum
 
 TorServerFileTemplates: Dict[str, str] = {}
@@ -143,7 +154,7 @@ if [ ! -e /tor-config-done ]; then
     # Host specific modifications to the torrc file
     echo -e "DataDirectory ${{TOR_DIR}}/${{TOR_NICKNAME}}" >> /etc/tor/torrc
     # Updated to handle docker stack/swarm network overlays
-    TOR_IP={TOR_IP} #$(ip addr show eth1 | grep "inet" | grep -v '\/32'| awk '{{print $2}}' | cut -f1 -d'/')
+    TOR_IP={TOR_IP} #$(ip addr show eth1 | grep "inet" | grep -v '/32'| awk '{{print $2}}' | cut -f1 -d'/')
     NICS=$(ip addr | grep 'state UP' | awk '{{print $2}}' | cut -f1 -d':')
 
     echo "Address ${{TOR_IP}}" >> /etc/tor/torrc
@@ -207,7 +218,14 @@ if [ ! -e /tor-config-done ]; then
 	if [ -z "${{TOR_HS_ADDR}}" ]; then
 	  TOR_HS_ADDR=127.0.0.1
 	fi
-	echo -e "HiddenServicePort ${{TOR_HS_PORT}} ${{TOR_HS_ADDR}}:${{TOR_HS_PORT}}" >> /etc/tor/torrc
+	if [ -z "${{TOR_HS_TARGET}}" ]; then
+	  TOR_HS_TARGET_HOST="${{TOR_HS_ADDR}}"
+	  if [[ "${{TOR_HS_TARGET_HOST}}" == *:* && "${{TOR_HS_TARGET_HOST:0:1}}" != "[" ]]; then
+	    TOR_HS_TARGET_HOST="[${{TOR_HS_TARGET_HOST}}]"
+	  fi
+	  TOR_HS_TARGET="${{TOR_HS_TARGET_HOST}}:${{TOR_HS_PORT}}"
+	fi
+	echo -e "HiddenServicePort ${{TOR_HS_PORT}} ${{TOR_HS_TARGET}}" >> /etc/tor/torrc
 	;;
       *)
         echo "Role variable missing"
@@ -234,12 +252,12 @@ exec "$@"
 
 #Used for download DA fingerprints from DA servers.
 TorServerFileTemplates["downloader"] = """
-    until $(curl --output /dev/null --silent --head --fail http://{da_addr}:8888); do
+    until $(curl --output /dev/null --silent --head --fail {da_url}); do
         echo "DA server not ready"
         sleep 3
     done
     sleep 3
-    FINGERPRINT=$(curl -s {da_addr}:8888/torrc.da)
+    FINGERPRINT=$(curl -s {da_torrc_url})
 
     while ! echo $FINGERPRINT | grep DirAuthority
     do
@@ -272,6 +290,14 @@ BUILD_COMMANDS = """build_temps="build-essential automake" && \
 """
 
 
+def _normalizeTorHost(host) -> str:
+    value = str(host).strip()
+    try:
+        return normalizeAddressList([value])[0]
+    except ValueError:
+        return value
+
+
 class TorNodeType(Enum):
     """!
     @brief Tor node types.
@@ -299,7 +325,9 @@ class TorServer(Server):
     """
 
     __role: TorNodeType
-    __hs_link: Set
+    __hs_link: Tuple
+    __hs_link_address_family: AddressFamily
+    __hs_link_is_vnode: bool
 
     def __init__(self):
         """!
@@ -309,6 +337,8 @@ class TorServer(Server):
 
         self.__role = TorNodeType.RELAY.value
         self.__hs_link = ()
+        self.__hs_link_address_family = AddressFamily.IPv4
+        self.__hs_link_is_vnode = False
 
     def setRole(self, role: TorNodeType) -> TorServer:
         """!
@@ -330,13 +360,23 @@ class TorServer(Server):
         """
         return self.__role
 
-    def getLink(self) -> str:
+    def getLink(self) -> Tuple:
         """!
         @brief Get the link of HS server, only HS role node has this feature.
 
         @returns hidden service dest.
         """
         return self.__hs_link
+
+    def getLinkAddressFamily(self) -> AddressFamily:
+        """Return the address family used when resolving vnode HS links."""
+
+        return self.__hs_link_address_family
+
+    def isLinkByVnode(self) -> bool:
+        """Return whether the hidden-service link still references a vnode."""
+
+        return self.__hs_link_is_vnode
 
     def setLink(self, addr: str, port: int) -> TorServer:
         """!
@@ -347,11 +387,17 @@ class TorServer(Server):
 
         @returns self, for chaining API calls.
         """
-        self.__hs_link = (addr, port)
+        self.__hs_link = (_normalizeTorHost(addr), port)
+        self.__hs_link_is_vnode = False
 
         return self
 
-    def linkByVnode(self, vname: str, port: int) -> TorServer:
+    def linkByVnode(
+        self,
+        vname: str,
+        port: int,
+        family: Union[AddressFamily, str, int] = AddressFamily.IPv4,
+    ) -> TorServer:
         """!
         @brief set Vnode link of HS server.
         
@@ -361,12 +407,15 @@ class TorServer(Server):
 
         @param vname virtual node name.
         @param port port.
+        @param family address family used when resolving the vnode.
 
         @returns self, for chaining API calls.
         """
         assert self.getRole() == "HS", "linkByVnode(): only HS type node can bind a host."
         assert len(self.__hs_link) == 0, "linkByVnode(): TorServer already has linked a host."
         self.__hs_link = (vname, port)
+        self.__hs_link_address_family = normalizeAddressFamily(family)
+        self.__hs_link_is_vnode = True
 
         return self
 
@@ -390,6 +439,7 @@ class TorServer(Server):
             addr, port = self.getLink()
             node.appendStartCommand("export TOR_HS_ADDR={}".format(addr))
             node.appendStartCommand("export TOR_HS_PORT={}".format(port))
+            node.appendStartCommand("export TOR_HS_TARGET={}".format(formatHostPort(addr, port)))
 
     def install(self, node: Node, tor: 'TorService'):
         """!
@@ -403,7 +453,10 @@ class TorServer(Server):
         addr = ifaces[0].getAddress()
         download_commands = ""
         for dir in tor.getDirAuthority():
-            download_commands += TorServerFileTemplates["downloader"].format(da_addr=dir)
+            download_commands += TorServerFileTemplates["downloader"].format(
+                da_url=formatUrl("http", dir, 8888),
+                da_torrc_url=formatUrl("http", dir, 8888, "/torrc.da"),
+            )
 
         node.addSoftware("git python3")
         node.addBuildCommand(BUILD_COMMANDS)
@@ -456,7 +509,7 @@ class TorService(Service):
 
         @returns self, for chaining API calls.
         """
-        self.__da_nodes.append(addr)
+        self.__da_nodes.append(_normalizeTorHost(addr))
 
         return self
 
@@ -475,13 +528,19 @@ class TorService(Service):
 
         """
         for server in self.getPendingTargets().values():
-            if server.getRole() == "HS" and len(server.getLink()) != 0:
+            if server.getRole() == "HS" and server.isLinkByVnode() and len(server.getLink()) != 0:
                 vname, port = server.getLink()
                 pnode = emulator.resolvVnode(vname)
-                ifaces = pnode.getInterfaces()
-                assert len(ifaces) > 0, '__resolveHSLink(): node as{}/{} has no interfaces'.format(pnode.getAsn(), pnode.getName())
-                addr = ifaces[0].getAddress()
-                server.setLink(addr, port)
+                family = server.getLinkAddressFamily()
+                addr = getNodeAddress(pnode, family, preferLocal=True)
+                assert addr is not None, (
+                    '__resolveHSLink(): node as{}/{} has no {} address'.format(
+                        pnode.getAsn(),
+                        pnode.getName(),
+                        family.value,
+                    )
+                )
+                server.setLink(str(addr), port)
 
     def configure(self, emulator: Emulator):
         self.__resolveHSLink(emulator)

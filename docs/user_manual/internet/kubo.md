@@ -21,6 +21,11 @@ Kubo is packaged with a default bootstrap list of peers that are maintained by t
 
 However, in the Emulator we typically do not want Kubo nodes to interact with the outside world by default. In order to prevent this, we automatically delete all default nodes from this bootstrap list upon initialization. We then replace these default bootstrap nodes with a list of bootstrap nodes as configured in the Emulator. This allows us to inform new nodes of other Kubo nodes that are not local to this new instance, for example, new peers in completely different stub AS's.
 
+Kubo bootstrap endpoints use IPv4 by default. In a dual-stack emulation, pass
+`bootstrapAddressFamily=AddressFamily.IPv6` to `KuboService` or call
+`setBootstrapAddressFamily(AddressFamily.IPv6)` to generate IPv6 RPC URLs and
+`/ip6/...` peer multiaddrs for bootstrap nodes.
+
 **We therefore recommend that you configure at least one Kubo node as a bootstrap node.**
 
 ## Getting Started

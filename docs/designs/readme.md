@@ -35,6 +35,11 @@ Users can join the simulated Internet with VPN client software. This emulation i
 
 See [design.md](design.md)
 
+Control-plane extension design: [control-plane-extension-design.md](control-plane-extension-design.md)
+
+IPv6 addressing and control-plane design:
+[ipv6-control-plane-design.md](ipv6-control-plane-design.md)
+
 ## Case study
 
 ### BGP peering
@@ -72,4 +77,3 @@ See [design.md](design.md)
 ### Buliding new layer
 
 ### Creating new graphs
-

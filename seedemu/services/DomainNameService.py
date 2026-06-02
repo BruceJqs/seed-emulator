@@ -1,6 +1,5 @@
 from __future__ import annotations
-from seedemu.core import Node, Printable, Emulator, Service, Server
-from seedemu.core.enums import NetworkType
+from seedemu.core import Node, Printable, Emulator, Service, Server, getNodeAddresses, normalizeAddressList, normalizeAddressRecord
 from typing import List, Dict, Tuple, Set, Optional
 from re import sub
 from random import randint
@@ -8,6 +7,14 @@ import requests
 
 DomainNameServiceFileTemplates: Dict[str, str] = {}
 ROOT_ZONE_URL = 'https://www.internic.net/domain/root.zone'
+
+
+def _normalizeZoneName(domain: str) -> str:
+    domain = str(domain).strip()
+    if domain == '' or domain == '.':
+        return '.'
+    return domain if domain[-1] == '.' else '{}.'.format(domain)
+
 
 DomainNameServiceFileTemplates['named_options'] = '''\
 options {
@@ -85,9 +92,12 @@ class Zone(Printable):
         
         @returns self, for chaining API calls.
         """
-        self.__records.append(record)
+        self.__records.append(self.__normalizeAddressRecord(record))
 
         return self
+
+    def __normalizeAddressRecord(self, record: str) -> str:
+        return normalizeAddressRecord(record)
     
     def deleteRecord(self, record: str) -> Zone:
         """!
@@ -97,7 +107,7 @@ class Zone(Printable):
         
         @returns self, for chaining API calls.
         """
-        self.__records.remove(record)
+        self.__records.remove(self.__normalizeAddressRecord(record))
 
         return self
 
@@ -114,14 +124,23 @@ class Zone(Printable):
         """
         if fqdn[-1] != '.': fqdn += '.'
         zonename = self.__zonename if self.__zonename != '' else '.' 
-        self.__gules.append('{} A {}'.format(fqdn, addr))
-        self.__gules.append('{} NS {}'.format(zonename, fqdn))
+        address = normalizeAddressList([addr])[0]
+        family = 'AAAA' if ':' in address else 'A'
+        address_record = '{} {} {}'.format(fqdn, family, address)
+        ns_record = '{} NS {}'.format(zonename, fqdn)
+        if address_record not in self.__gules:
+            self.__gules.append(address_record)
+        if ns_record not in self.__gules:
+            self.__gules.append(ns_record)
 
         return self
 
+    def __getNodeLocalAddresses(self, node: Node) -> Tuple[str, str]:
+        return getNodeAddresses(node)
+
     def resolveTo(self, name: str, node: Node) -> Zone:
         """!
-        @brief Add a new A record, pointing to the given node.
+        @brief Add A and, when present, AAAA records pointing to the given node.
 
         @param name name.
         @param node node.
@@ -131,17 +150,13 @@ class Zone(Printable):
         @returns self, for chaining API calls.
         """
 
-        address: str = None
-        ifaces = node.getInterfaces()
-        assert len(ifaces) > 0, 'Node has no interfaces.'
-        for iface in ifaces:
-            net = iface.getNet()
-            if net.getType() == NetworkType.Local:
-                address = iface.getAddress()
-                break
+        address, ipv6_address = self.__getNodeLocalAddresses(node)
 
-        assert address != None, 'Node has no valid interfaces.'
-        self.__records.append('{} A {}'.format(name, address))
+        assert address is not None or ipv6_address is not None, 'Node has no valid interfaces.'
+        if address is not None:
+            self.__records.append('{} A {}'.format(name, address))
+        if ipv6_address is not None:
+            self.__records.append('{} AAAA {}'.format(name, ipv6_address))
 
         return self
 
@@ -167,11 +182,13 @@ class Zone(Printable):
         for (domain_name, vnode_name) in self.__pending_records.items():
             pnode = emulator.resolvVnode(vnode_name)
 
-            ifaces = pnode.getInterfaces()
-            assert len(ifaces) > 0, 'resolvePendingRecords(): node as{}/{} has no interfaces'.format(pnode.getAsn(), pnode.getName())
-            addr = ifaces[0].getAddress()
+            address, ipv6_address = self.__getNodeLocalAddresses(pnode)
+            assert address is not None or ipv6_address is not None, 'resolvePendingRecords(): node as{}/{} has no valid interfaces'.format(pnode.getAsn(), pnode.getName())
 
-            self.addRecord('{} A {}'.format(domain_name, addr))
+            if address is not None:
+                self.addRecord('{} A {}'.format(domain_name, address))
+            if ipv6_address is not None:
+                self.addRecord('{} AAAA {}'.format(domain_name, ipv6_address))
 
     def getPendingRecords(self) -> Dict[str, str]:
         """!
@@ -265,7 +282,7 @@ class DomainNameServer(Server):
 
         @returns self, for chaining API calls.
         """
-        self.__zones.add((zonename, createNsAndSoa))
+        self.__zones.add((_normalizeZoneName(zonename), createNsAndSoa))
 
         return self
 
@@ -388,12 +405,15 @@ class DomainNameServer(Server):
             zonename = zone.getName()
 
             if auto_ns_soa:
-                ifaces = node.getInterfaces()
-                assert len(ifaces) > 0, 'node has not interfaces'
-                addr = ifaces[0].getAddress()
+                addr, ipv6_addr = getNodeAddresses(node, preferLocal=False)
+
+                assert addr is not None or ipv6_addr is not None, 'node has no valid DNS service address'
 
                 if self.__is_master:
-                    dns.addMasterIp(zonename, str(addr))
+                    if addr is not None:
+                        dns.addMasterIp(zonename, str(addr))
+                    if ipv6_addr is not None:
+                        dns.addMasterIp(zonename, str(ipv6_addr))
 
                 if zonename[-1] != '.': zonename += '.'
                 if zonename == '.': zonename = ''
@@ -413,13 +433,17 @@ class DomainNameServer(Server):
                 #If there are multiple zone servers, increase the NS number for ns name.
                 ns_number = 1
                 while (True):
-                    if len(zone.findRecords('ns{}.{} A '.format(str(ns_number), zonename))) > 0:
+                    if len(zone.findRecords('ns{}.{} A '.format(str(ns_number), zonename))) > 0 or len(zone.findRecords('ns{}.{} AAAA '.format(str(ns_number), zonename))) > 0:
                         ns_number +=1
                     else:
                         break
 
-                zone.addGuleRecord('ns{}.{}'.format(str(ns_number), zonename), addr)
-                zone.addRecord('ns{}.{} A {}'.format(str(ns_number), zonename, addr))
+                if addr is not None:
+                    zone.addGuleRecord('ns{}.{}'.format(str(ns_number), zonename), addr)
+                    zone.addRecord('ns{}.{} A {}'.format(str(ns_number), zonename, addr))
+                if ipv6_addr is not None:
+                    zone.addGuleRecord('ns{}.{}'.format(str(ns_number), zonename), ipv6_addr)
+                    zone.addRecord('ns{}.{} AAAA {}'.format(str(ns_number), zonename, ipv6_addr))
                 zone.addRecord('@ NS ns{}.{}'.format(str(ns_number), zonename))
                 
             if zone.getName() == "." and self.__is_real_root:
@@ -559,7 +583,8 @@ class DomainNameService(Service):
 
         @returns zone handler.
         """
-        if domain == '.' or domain == '': return self.__rootZone
+        domain = self.__normalizeZoneName(domain)
+        if domain == '.': return self.__rootZone
         path: List[str] = sub(r'\.$', '', domain).split('.')
         path.reverse()
         zoneptr = self.__rootZone
@@ -587,6 +612,7 @@ class DomainNameService(Service):
         """
         info = []
         targets = self.getPendingTargets()
+        target_zone = self.__normalizeZoneName(domain)
 
         for (vnode, sobj) in targets.items():
             server: DomainNameServer = sobj
@@ -594,7 +620,7 @@ class DomainNameService(Service):
             hit = False
 
             for zone in server.getZones():
-                if zone.getName() == domain:
+                if self.__normalizeZoneName(zone) == target_zone:
                     info.append(vnode)
                     hit = True
                     break
@@ -602,6 +628,9 @@ class DomainNameService(Service):
             if hit: continue
         
         return info
+
+    def __normalizeZoneName(self, domain: str) -> str:
+        return _normalizeZoneName(domain)
 
     def addMasterIp(self, zone: str, addr: str) -> DomainNameService:
         """!
@@ -612,21 +641,26 @@ class DomainNameService(Service):
 
         @returns self, for chaining API calls.
         """
+        zone = self.__normalizeZoneName(zone)
+        address = normalizeAddressList([addr])[0]
         if zone in self.__masters.keys():
-            self.__masters[zone].append(addr)
+            self.__masters[zone].append(address)
         else:
-            self.__masters[zone] = [addr]
+            self.__masters[zone] = [address]
 
         return self
 
-    def setAllMasterIp(self, masters: Dict[str: List[str]]):
+    def setAllMasterIp(self, masters: Dict[str, List[str]]):
         """!
         @brief override all master IPs, to be used for merger. Do not use unless
         you know what you are doing.
 
         @param masters master dict.
         """
-        self.__masters = masters
+        self.__masters = {
+            self.__normalizeZoneName(zone): normalizeAddressList(addrs)
+            for zone, addrs in masters.items()
+        }
 
     def getMasterIp(self) -> Dict [str, List[str]]:
         """!

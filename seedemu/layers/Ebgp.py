@@ -5,6 +5,8 @@ from seedemu.core.enums import NodeRole
 from typing import Tuple, List, Dict
 from enum import Enum
 
+from ._bgp_metadata import install_router_bgp_session, record_bgp_session, render_bird_protocol_body, split_bgp_session_families
+
 EbgpFileTemplates: Dict[str, str] = {}
 
 EbgpFileTemplates["bgp_commons"] = """\
@@ -75,124 +77,207 @@ class Ebgp(Layer, Graphable):
         self.__rs_peers = []
         self.addDependency('Routing', False, False)
 
-    def __createPeer(self, nodeA: Router, nodeB: Router, addrA: str, addrB: str, rel: PeerRelationship) -> None:
-
+    def __createPeer(self, nodeA: Router, nodeB: Router, ifaceA: Interface, ifaceB: Interface, rel: PeerRelationship) -> None:
         rsNode: Router = None
         routerA: Router = None
         routerB: Router = None
+        rsIface: Interface = None
+        routerAIface: Interface = None
+        routerBIface: Interface = None
 
-        # for both nodes
-        for node in [nodeA, nodeB]:
+        for node, iface in [(nodeA, ifaceA), (nodeB, ifaceB)]:
             if node.getRegistryInfo()[1] == 'rs':
-                # getRole() would be BorderRouter not RouteServer here
                 rsNode = node
+                rsIface = iface
                 continue
+            if routerA is None:
+                routerA = node
+                routerAIface = iface
+            elif routerB is None:
+                routerB = node
+                routerBIface = iface
 
-            if routerA == None: routerA = node
-            elif routerB == None: routerB = node
-
-            if not node.getAttribute('__bgp_bootstrapped', False):
-                self._log('Bootstrapping as{}/{} for BGP...'.format(node.getAsn(), node.getName()))
-
-                node.setAttribute('__bgp_bootstrapped', True)
-                node.appendFile('/etc/bird/bird.conf', EbgpFileTemplates['bgp_commons'].format(localAsn = node.getAsn()))
-
-            # create table for bgp
-            node.addTable('t_bgp')
-
-            # pipe all routes in bgp table to main table
-            node.addTablePipe('t_bgp')
-
-            # pipe direct routes to bgp, set LOCAL community, set pref 40
-            node.addTablePipe('t_direct', 't_bgp', exportFilter = 'filter { bgp_large_community.add(LOCAL_COMM); bgp_local_pref = 40; accept; }')
-
-
-
-        assert routerA != None, 'both nodes are RS node. cannot setup peering.'
+        assert routerA is not None, 'both nodes are RS node. cannot setup peering.'
         assert routerA != routerB, 'cannot peer with oneself.'
 
-        if rsNode != None:
-            rsNode.addProtocol('bgp', 'p_as{}'.format(routerA.getAsn()), EbgpFileTemplates["rs_bird_peer"].format(
-                localAddress = addrA,
-                localAsn = rsNode.getAsn(),
-                peerAddress = addrB,
-                peerAsn = routerA.getAsn()
-            ))
+        addrA = str(routerAIface.getAddress() if routerAIface is not None else rsIface.getAddress())
+        addrB = str(routerBIface.getAddress() if routerBIface is not None else rsIface.getAddress())
+        ipv6A = routerAIface.getIpv6Address() if routerAIface is not None else rsIface.getIpv6Address()
+        ipv6B = routerBIface.getIpv6Address() if routerBIface is not None else rsIface.getIpv6Address()
+        families = ["ipv4"]
+        if ipv6A is not None and ipv6B is not None:
+            families.append("ipv6")
 
-            routerA.addProtocol('bgp', 'p_rs{}'.format(rsNode.getAsn()), EbgpFileTemplates["rnode_bird_peer"].format(
-                localAddress = addrB,
-                localAsn = routerA.getAsn(),
-                peerAddress = addrA,
-                peerAsn = rsNode.getAsn(),
-                exportFilter = "where bgp_large_community ~ [LOCAL_COMM, CUSTOMER_COMM]",
-                importCommunity = "PEER_COMM",
-                bgpPref = 20
-            ))
-
+        if rsNode is not None:
+            assert rsIface is not None and routerAIface is not None, 'route-server peering is missing interface state'
+            rs_addr = str(rsIface.getAddress())
+            router_addr = str(routerAIface.getAddress())
+            rs_ipv6 = rsIface.getIpv6Address()
+            router_ipv6 = routerAIface.getIpv6Address()
+            rs_families = ["ipv4"]
+            if rs_ipv6 is not None and router_ipv6 is not None:
+                rs_families.append("ipv6")
+            rs_session = record_bgp_session(
+                rsNode,
+                {
+                    "name": 'p_as{}'.format(routerA.getAsn()),
+                    "kind": "ebgp",
+                    "local_address": rs_addr,
+                    "local_ipv6_address": str(rs_ipv6) if rs_ipv6 is not None else "",
+                    "local_asn": rsNode.getAsn(),
+                    "peer_address": router_addr,
+                    "peer_ipv6_address": str(router_ipv6) if router_ipv6 is not None else "",
+                    "peer_asn": routerA.getAsn(),
+                    "families": rs_families,
+                    "import_community": None,
+                    "local_pref": None,
+                    "export_policy": "all",
+                    "next_hop_self": False,
+                    "route_server_client": True,
+                },
+            )
+            for rs_family_session in split_bgp_session_families(rs_session):
+                rsNode.addProtocol('bgp', rs_family_session["name"], render_bird_protocol_body(rs_family_session))
+            install_router_bgp_session(
+                routerA,
+                {
+                    "name": 'p_rs{}'.format(rsNode.getAsn()),
+                    "kind": "ebgp",
+                    "local_address": router_addr,
+                    "local_ipv6_address": str(router_ipv6) if router_ipv6 is not None else "",
+                    "local_asn": routerA.getAsn(),
+                    "peer_address": rs_addr,
+                    "peer_ipv6_address": str(rs_ipv6) if rs_ipv6 is not None else "",
+                    "peer_asn": rsNode.getAsn(),
+                    "families": rs_families,
+                    "import_community": "PEER_COMM",
+                    "local_pref": 20,
+                    "export_policy": "local_and_customer",
+                    "next_hop_self": True,
+                    "route_server_client": False,
+                },
+            )
             return
 
         if rel == PeerRelationship.Peer:
-            routerA.addProtocol('bgp', 'p_as{}'.format(routerB.getAsn()), EbgpFileTemplates["rnode_bird_peer"].format(
-                localAddress = addrA,
-                localAsn = routerA.getAsn(),
-                peerAddress = addrB,
-                peerAsn = routerB.getAsn(),
-                exportFilter = "where bgp_large_community ~ [LOCAL_COMM, CUSTOMER_COMM]",
-                importCommunity = "PEER_COMM",
-                bgpPref = 20
-            ))
-
-            routerB.addProtocol('bgp', 'p_as{}'.format(routerA.getAsn()), EbgpFileTemplates["rnode_bird_peer"].format(
-                localAddress = addrB,
-                localAsn = routerB.getAsn(),
-                peerAddress = addrA,
-                peerAsn = routerA.getAsn(),
-                exportFilter = "where bgp_large_community ~ [LOCAL_COMM, CUSTOMER_COMM]",
-                importCommunity = "PEER_COMM",
-                bgpPref = 20
-            ))
+            install_router_bgp_session(
+                routerA,
+                {
+                    "name": 'p_as{}'.format(routerB.getAsn()),
+                    "kind": "ebgp",
+                    "local_address": addrA,
+                    "local_ipv6_address": str(ipv6A) if ipv6A is not None else "",
+                    "local_asn": routerA.getAsn(),
+                    "peer_address": addrB,
+                    "peer_ipv6_address": str(ipv6B) if ipv6B is not None else "",
+                    "peer_asn": routerB.getAsn(),
+                    "families": families,
+                    "import_community": "PEER_COMM",
+                    "local_pref": 20,
+                    "export_policy": "local_and_customer",
+                    "next_hop_self": True,
+                    "route_server_client": False,
+                },
+            )
+            install_router_bgp_session(
+                routerB,
+                {
+                    "name": 'p_as{}'.format(routerA.getAsn()),
+                    "kind": "ebgp",
+                    "local_address": addrB,
+                    "local_ipv6_address": str(ipv6B) if ipv6B is not None else "",
+                    "local_asn": routerB.getAsn(),
+                    "peer_address": addrA,
+                    "peer_ipv6_address": str(ipv6A) if ipv6A is not None else "",
+                    "peer_asn": routerA.getAsn(),
+                    "families": families,
+                    "import_community": "PEER_COMM",
+                    "local_pref": 20,
+                    "export_policy": "local_and_customer",
+                    "next_hop_self": True,
+                    "route_server_client": False,
+                },
+            )
 
         if rel == PeerRelationship.Provider:
-            routerA.addProtocol('bgp', 'c_as{}'.format(routerB.getAsn()), EbgpFileTemplates["rnode_bird_peer"].format(
-                localAddress = addrA,
-                localAsn = routerA.getAsn(),
-                peerAddress = addrB,
-                peerAsn = routerB.getAsn(),
-                exportFilter = "all",
-                importCommunity = "CUSTOMER_COMM",
-                bgpPref = 30
-            ))
-
-            routerB.addProtocol('bgp', 'u_as{}'.format(routerA.getAsn()), EbgpFileTemplates["rnode_bird_peer"].format(
-                localAddress = addrB,
-                localAsn = routerB.getAsn(),
-                peerAddress = addrA,
-                peerAsn = routerA.getAsn(),
-                exportFilter = "where bgp_large_community ~ [LOCAL_COMM, CUSTOMER_COMM]",
-                importCommunity = "PROVIDER_COMM",
-                bgpPref = 10
-            ))
+            install_router_bgp_session(
+                routerA,
+                {
+                    "name": 'c_as{}'.format(routerB.getAsn()),
+                    "kind": "ebgp",
+                    "local_address": addrA,
+                    "local_ipv6_address": str(ipv6A) if ipv6A is not None else "",
+                    "local_asn": routerA.getAsn(),
+                    "peer_address": addrB,
+                    "peer_ipv6_address": str(ipv6B) if ipv6B is not None else "",
+                    "peer_asn": routerB.getAsn(),
+                    "families": families,
+                    "import_community": "CUSTOMER_COMM",
+                    "local_pref": 30,
+                    "export_policy": "all",
+                    "next_hop_self": True,
+                    "route_server_client": False,
+                },
+            )
+            install_router_bgp_session(
+                routerB,
+                {
+                    "name": 'u_as{}'.format(routerA.getAsn()),
+                    "kind": "ebgp",
+                    "local_address": addrB,
+                    "local_ipv6_address": str(ipv6B) if ipv6B is not None else "",
+                    "local_asn": routerB.getAsn(),
+                    "peer_address": addrA,
+                    "peer_ipv6_address": str(ipv6A) if ipv6A is not None else "",
+                    "peer_asn": routerA.getAsn(),
+                    "families": families,
+                    "import_community": "PROVIDER_COMM",
+                    "local_pref": 10,
+                    "export_policy": "local_and_customer",
+                    "next_hop_self": True,
+                    "route_server_client": False,
+                },
+            )
 
         if rel == PeerRelationship.Unfiltered:
-            routerA.addProtocol('bgp', 'x_as{}'.format(routerB.getAsn()), EbgpFileTemplates["rnode_bird_peer"].format(
-                localAddress = addrA,
-                localAsn = routerA.getAsn(),
-                peerAddress = addrB,
-                peerAsn = routerB.getAsn(),
-                exportFilter = "all",
-                importCommunity = "CUSTOMER_COMM",
-                bgpPref = 30
-            ))
-
-            routerB.addProtocol('bgp', 'x_as{}'.format(routerA.getAsn()), EbgpFileTemplates["rnode_bird_peer"].format(
-                localAddress = addrB,
-                localAsn = routerB.getAsn(),
-                peerAddress = addrA,
-                peerAsn = routerA.getAsn(),
-                exportFilter = "all",
-                importCommunity = "PROVIDER_COMM",
-                bgpPref = 10
-            ))
+            install_router_bgp_session(
+                routerA,
+                {
+                    "name": 'x_as{}'.format(routerB.getAsn()),
+                    "kind": "ebgp",
+                    "local_address": addrA,
+                    "local_ipv6_address": str(ipv6A) if ipv6A is not None else "",
+                    "local_asn": routerA.getAsn(),
+                    "peer_address": addrB,
+                    "peer_ipv6_address": str(ipv6B) if ipv6B is not None else "",
+                    "peer_asn": routerB.getAsn(),
+                    "families": families,
+                    "import_community": "CUSTOMER_COMM",
+                    "local_pref": 30,
+                    "export_policy": "all",
+                    "next_hop_self": True,
+                    "route_server_client": False,
+                },
+            )
+            install_router_bgp_session(
+                routerB,
+                {
+                    "name": 'x_as{}'.format(routerA.getAsn()),
+                    "kind": "ebgp",
+                    "local_address": addrB,
+                    "local_ipv6_address": str(ipv6B) if ipv6B is not None else "",
+                    "local_asn": routerB.getAsn(),
+                    "peer_address": addrA,
+                    "peer_ipv6_address": str(ipv6A) if ipv6A is not None else "",
+                    "peer_asn": routerA.getAsn(),
+                    "families": families,
+                    "import_community": "PROVIDER_COMM",
+                    "local_pref": 10,
+                    "export_policy": "all",
+                    "next_hop_self": True,
+                    "route_server_client": False,
+                },
+            )
 
     def getName(self) -> str:
         return "Ebgp"
@@ -350,7 +435,7 @@ class Ebgp(Layer, Graphable):
             assert p_ixnode != None, 'cannot resolve peering: as{} not in ix{}'.format(peer, ix)
             self._log("adding peering: {} as {} (RS) <-> {} as {}".format(rs_if.getAddress(), ix, p_ixif.getAddress(), peer))
 
-            self.__createPeer(ix_rs, p_ixnode, rs_if.getAddress(), p_ixif.getAddress(), PeerRelationship.Peer)
+            self.__createPeer(ix_rs, p_ixnode, rs_if, p_ixif, PeerRelationship.Peer)
 
         for (a, b), rel in self.__xc_peerings.items():
             a_reg = ScopedRegistry(str(a), reg)
@@ -385,7 +470,36 @@ class Ebgp(Layer, Graphable):
 
             self._log("adding XC peering: {} as {} <-({})-> {} as {}".format(a_addr, a, rel, b_addr, b))
 
-            self.__createPeer(a_router, b_router, a_addr, b_addr, rel)
+            def install_xc_session(router: Router, name: str, local_addr: str, peer_router: Router, peer_addr: str, import_community: str, local_pref: int, export_policy: str) -> None:
+                install_router_bgp_session(
+                    router,
+                    {
+                        "name": name,
+                        "kind": "ebgp",
+                        "local_address": local_addr,
+                        "local_asn": router.getAsn(),
+                        "peer_address": peer_addr,
+                        "peer_asn": peer_router.getAsn(),
+                        "families": ["ipv4"],
+                        "import_community": import_community,
+                        "local_pref": local_pref,
+                        "export_policy": export_policy,
+                        "next_hop_self": True,
+                        "route_server_client": False,
+                    },
+                )
+
+            if rel == PeerRelationship.Peer:
+                install_xc_session(a_router, 'p_as{}'.format(b_router.getAsn()), a_addr, b_router, b_addr, "PEER_COMM", 20, "local_and_customer")
+                install_xc_session(b_router, 'p_as{}'.format(a_router.getAsn()), b_addr, a_router, a_addr, "PEER_COMM", 20, "local_and_customer")
+
+            if rel == PeerRelationship.Provider:
+                install_xc_session(a_router, 'c_as{}'.format(b_router.getAsn()), a_addr, b_router, b_addr, "CUSTOMER_COMM", 30, "all")
+                install_xc_session(b_router, 'u_as{}'.format(a_router.getAsn()), b_addr, a_router, a_addr, "PROVIDER_COMM", 10, "local_and_customer")
+
+            if rel == PeerRelationship.Unfiltered:
+                install_xc_session(a_router, 'x_as{}'.format(b_router.getAsn()), a_addr, b_router, b_addr, "CUSTOMER_COMM", 30, "all")
+                install_xc_session(b_router, 'x_as{}'.format(a_router.getAsn()), b_addr, a_router, a_addr, "PROVIDER_COMM", 10, "all")
 
         for (ix, a, b), rel in self.__peerings.items():
             ix_reg = ScopedRegistry('ix', reg)
@@ -422,7 +536,7 @@ class Ebgp(Layer, Graphable):
 
             self._log("adding IX peering: {} as {} <-({})-> {} as {}".format(a_ixif.getAddress(), a, rel, b_ixif.getAddress(), b))
 
-            self.__createPeer(a_ixnode, b_ixnode, a_ixif.getAddress(), b_ixif.getAddress(), rel)
+            self.__createPeer(a_ixnode, b_ixnode, a_ixif, b_ixif, rel)
 
     def render(self, emulator: Emulator) -> None:
         pass

@@ -9,10 +9,13 @@ including cybersecurity, networking, etc.
 The project provides essential elements of the Internet (as Python classes), including 
 Internet exchanges, autonomous systems, BGP routers, DNS infrastructure, 
 a variety of services. Users can use these elements as the building blocks
-to build their emulation programmatically. The output of the program 
-is a set of docker container folders/files. When these containers are built and 
-started, they form a small-size Internet. New building blocks are being added,
-including Blockchain, Botnet, and many other useful elements of the Internet. 
+to build their emulation programmatically. IPv4 remains the default addressing
+mode; optional IPv6 dual-stack emulation can be enabled from the `Base` layer
+when a scenario needs IPv6-capable networks, routers, and control-plane state.
+The output of the program is a set of docker container folders/files. When
+these containers are built and started, they form a small-size Internet. New
+building blocks are being added, including Blockchain, Botnet, and many other
+useful elements of the Internet.
 
 ![The Web UI](./docs/assets/web-ui.png)
 
@@ -82,6 +85,12 @@ To run an example, do the following:
 ## User Manuals
 
 User manuals are provided inside the [docs/user_manual/](./docs/user_manual) folder.
+For optional IPv6 addressing and dual-stack routing, start with
+[IPv6 dual-stack emulation](./docs/user_manual/ipv6.md). The architectural
+design is recorded in
+[IPv6 Addressing and Control Plane Design](./docs/designs/ipv6-control-plane-design.md).
+The repository-wide migration contract is tracked in
+[Repository-Wide IPv6 Readiness Design](./docs/designs/ipv6-repository-readiness-design.md).
 
 ## Contributing
 

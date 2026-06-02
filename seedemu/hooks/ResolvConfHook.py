@@ -1,4 +1,4 @@
-from seedemu.core import Hook, Emulator, Node
+from seedemu.core import Hook, Emulator, Node, normalizeAddressList
 from typing import List
 
 class ResolvConfHook(Hook):
@@ -15,7 +15,7 @@ class ResolvConfHook(Hook):
 
         
         """
-        self.__servers = nameservers
+        self.__servers = normalizeAddressList(nameservers)
 
     def getName(self) -> str:
         return 'ResolvConfHook'

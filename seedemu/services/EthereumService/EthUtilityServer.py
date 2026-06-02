@@ -1,5 +1,5 @@
 from __future__ import annotations
-from seedemu.core import Node, Server
+from seedemu.core import Node, Server, formatUrl
 from seedemu.services.EthereumService import *
 from .EthTemplates import EthServerFileTemplates 
 from seedemu.services.EthereumService import *
@@ -165,17 +165,15 @@ class EthUtilityServer(Server):
 
         node.setFile(self.DIR_PREFIX + '/fund_account.py', 
                      UtilityServerFileTemplates['fund_account'].format(
-            rpc_url     = self.__eth_node_url,
-            rpc_port    = self.__eth_node_port,
-            faucet_url  = self.__faucet_url,
-            faucet_port = self.__faucet_port,
+            rpc_url         = formatUrl("http", self.__eth_node_url, self.__eth_node_port),
+            faucet_url      = formatUrl("http", self.__faucet_url, self.__faucet_port),
+            faucet_fund_url = formatUrl("http", self.__faucet_url, self.__faucet_port, "/fundme"),
             dir_prefix  = self.DIR_PREFIX
         ))
 
         node.setFile(self.DIR_PREFIX + '/deploy_contract.py', 
                      UtilityServerFileTemplates['deploy_contract'].format(
-            rpc_url    = self.__eth_node_url,
-            rpc_port   = self.__eth_node_port,
+            rpc_url    = formatUrl("http", self.__eth_node_url, self.__eth_node_port),
             chain_id   = self.__chain_id,
             dir_prefix = self.DIR_PREFIX
         ))

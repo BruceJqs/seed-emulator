@@ -1,9 +1,8 @@
 from __future__ import annotations
 import socket, re
-from ipaddress import IPv4Address
-from typing import Any, Mapping, Tuple
+from typing import Any, Mapping, Tuple, Union
 from seedemu import *
-from seedemu.core.enums import NetworkType
+from seedemu.core import AddressFamily, getNodeAddress, normalizeAddressFamily
 
 class DottedDict(dict):
     """A specific case of dictionary. Nested dictionaries referenced using JSON dot notation.
@@ -262,26 +261,26 @@ class DottedDict(dict):
                 return [(curKey, self[curKey])]
 
 
-def getIP(node:Node) -> IPv4Address:
-    """Find the first local IPv4 address for a given node.
+def getIP(node:Node, family:Union[AddressFamily, str, int]=AddressFamily.IPv4, preferLocal:bool=True):
+    """Find a preferred node address for the requested family.
 
     Parameters
     ----------
     node : Node
         A physical node in the emulator.
+    family : AddressFamily, optional
+        Address family to select, by default IPv4.
+    preferLocal : bool, optional
+        Prefer Local-network interfaces before falling back to any interface,
+        by default True.
 
     Returns
     -------
-    str
-        A string representing an IPv4 address.
+    object
+        An address object for the selected family, or None when the node has
+        no address for that family.
     """
-    ifaces = node.getInterfaces()
-    assert len(ifaces) > 0, f'Node {node.getName()} has no IP address.'
-    for iface in ifaces:
-        net = iface.getNet()
-        if net.getType() == NetworkType.Local:
-            return iface.getAddress()
-    return None
+    return getNodeAddress(node, normalizeAddressFamily(family), preferLocal=preferLocal)
 
 def isIPv4(ip:str) -> bool:
     """Evaluates whether a string is a valid IPv4 address.
@@ -297,7 +296,7 @@ def isIPv4(ip:str) -> bool:
         True if the given string represents a valid IPv4 address.
     """
     # Preliminary check with RegEx:
-    ipv4_regex = '^((25[0-5]|(2[0-4]|1[0-9]|[1-9]|)[0-9])(\.(?!$)|$)){4}$'
+    ipv4_regex = r'^((25[0-5]|(2[0-4]|1[0-9]|[1-9]|)[0-9])(\.(?!$)|$)){4}$'
     re_match = re.match(ipv4_regex, ip)
     
     # On RegEx match, check with internal library:

@@ -1,4 +1,4 @@
-from seedemu.core import Hook, Emulator, Node
+from seedemu.core import Hook, Emulator, Node, normalizeAddressList
 from typing import List
 
 class ResolvConfHookByAs(Hook):
@@ -15,8 +15,8 @@ class ResolvConfHookByAs(Hook):
 
         
         """
-        self.__servers = nameservers
-        self.__asn = asn
+        self.__servers = normalizeAddressList(nameservers)
+        self.__asn = str(asn)
 
     def getName(self) -> str:
         return 'ResolvConfHook'
@@ -28,7 +28,7 @@ class ResolvConfHookByAs(Hook):
         reg = emulator.getRegistry()
         for ((scope, type, name), object) in reg.getAll().items():
             if type != 'hnode': continue
-            if scope != self.__asn: continue
+            if str(scope) != self.__asn: continue
             self._log('setting resolv.conf for as{}/{}'.format(scope, name))
             host: Node = object
             host.appendStartCommand(': > /etc/resolv.conf')

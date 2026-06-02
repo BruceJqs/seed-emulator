@@ -1,13 +1,27 @@
 from __future__ import annotations
-from seedemu.core import Node, Server
-from typing import List
+from seedemu.core import AddressFamily, Node, Server, getNodeAddress, normalizeAddressFamily
+from typing import TYPE_CHECKING, List, Tuple, Union
+
+if TYPE_CHECKING:
+    from seedemu.core import Emulator
 
 
 class TrafficGenerator(Server):
     startup_script = """
 echo "Check if targets are reachable";
+ping_target () {{
+    target="$1"
+    case "$target" in
+    *:*)
+        ping -6 -c1 "$target" > /dev/null
+        ;;
+    *)
+        ping -c1 "$target" > /dev/null
+        ;;
+    esac
+}}
 while read client; do
-    while true; do ping -c1 $client > /dev/null && break; done;
+    while true; do ping_target "$client" && break; done;
 done < /root/traffic-targets
 echo "Starting traffic generator"
 while read client; do
@@ -44,6 +58,7 @@ done < /root/traffic-targets
         self.extra_options = extra_options
         self.auto_start = auto_start
         self.receiver_hosts = []
+        self.receiver_vnodes: List[Tuple[str, AddressFamily, bool]] = []
         self.start_scripts = []
         self.traffic_generators = []
 
@@ -53,6 +68,37 @@ done < /root/traffic-targets
         @param hosts list of receiver hosts.
         """
         self.receiver_hosts.extend(hosts)
+
+    def addReceiverVnodes(
+        self,
+        vnodes: List[str] = None,
+        family: Union[AddressFamily, str, int] = AddressFamily.IPv4,
+        preferLocal: bool = True,
+    ) -> TrafficGenerator:
+        """!
+        @brief Add receiver virtual nodes and resolve them by address family during render.
+        @param vnodes list of receiver virtual node names.
+        @param family address family to use for receiver targets.
+        @param preferLocal prefer local-network addresses before service-network fallback.
+        """
+        selected = normalizeAddressFamily(family)
+        for vnode in vnodes or []:
+            self.receiver_vnodes.append((vnode, selected, preferLocal))
+        return self
+
+    def resolveReceiverVnodes(self, emulator: "Emulator"):
+        """!
+        @brief Resolve receiver virtual node targets into concrete addresses.
+        """
+        for vnode, family, preferLocal in self.receiver_vnodes:
+            receiver = emulator.getBindingFor(vnode)
+            address = getNodeAddress(receiver, family, preferLocal=preferLocal)
+            assert address is not None, "Traffic receiver vnode {} has no {} address.".format(
+                vnode,
+                family.value,
+            )
+            self.receiver_hosts.append(str(address))
+        self.receiver_vnodes = []
 
     def install_softwares(self, node: Node):
         """!

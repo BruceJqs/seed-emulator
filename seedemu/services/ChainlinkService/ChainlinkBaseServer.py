@@ -1,4 +1,5 @@
 from seedemu import *
+from seedemu.core import formatUrl
 from seedemu.core.Node import Node
 from seedemu.core.Service import Server
 from seedemu.core.enums import NetworkType
@@ -15,12 +16,16 @@ class ChainlinkBaseServer(Server):
     _eth_server_ip: str
     _eth_server_ws_port: int
     _eth_server_http_port: int
+    _eth_server_ws_url: str
+    _eth_server_http_url: str
 
     _util_server_ip: str
     _util_server_port: int
+    _util_server_url: str
 
     _faucet_server_ip:str
     _faucet_server_port: int
+    _faucet_server_url: str
 
     def __init__(self):
         """
@@ -36,6 +41,8 @@ class ChainlinkBaseServer(Server):
         self._eth_server_ip        = eth_server_ip
         self._eth_server_http_port = eth_server_http_port
         self._eth_server_ws_port   = eth_server_ws_port
+        self._eth_server_http_url  = formatUrl("http", eth_server_ip, eth_server_http_port)
+        self._eth_server_ws_url    = formatUrl("ws", eth_server_ip, eth_server_ws_port)
         self._chain_id             = chain_id
         return self
 
@@ -44,6 +51,7 @@ class ChainlinkBaseServer(Server):
                                 util_server_port:int):
         self._util_server_ip   = util_server_ip
         self._util_server_port = util_server_port
+        self._util_server_url  = formatUrl("http", util_server_ip, util_server_port)
         return self
 
 
@@ -51,5 +59,5 @@ class ChainlinkBaseServer(Server):
                                faucet_server_port:int):
         self._faucet_server_ip   = faucet_server_ip
         self._faucet_server_port = faucet_server_port
+        self._faucet_server_url  = formatUrl("http", faucet_server_ip, faucet_server_port)
         return self
-

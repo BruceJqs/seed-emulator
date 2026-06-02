@@ -1,6 +1,8 @@
 from typing import Dict
 import os
 
+from seedemu.core import formatUrl
+
 def get_file_content(filename):
     """!
     @brief Get the content of a file
@@ -23,7 +25,7 @@ UtilityServerFileTemplates: Dict[str, str] = {
         'fund_account':    get_file_content("files_utility/fund_account.py"),
         'deploy_contract': get_file_content("files_utility/deploy_contract.py"),
         'utility_server':  get_file_content("files_utility/utility_server.py"),
-        'server_setup':    get_file_content("files_utility/utility_server_setup.py")
+        'server_setup':    get_file_content("files_utility/utility_server_setup.sh")
 }
 
 FaucetServerFileTemplates: Dict[str, str] = {
@@ -35,3 +37,32 @@ FaucetServerFileTemplates: Dict[str, str] = {
         'fund_curl': "curl -X POST -d 'address={recipient}&amount={amount}' http://{address}:{port}/fundme"
 }
 
+
+def format_faucet_url(address, port):
+    return formatUrl("http", address, port, "/")
+
+
+def format_faucet_fund_url(address, port):
+    return formatUrl("http", address, port, "/fundme")
+
+
+def format_fund_curl(recipient, amount, address, port):
+    return "curl -X POST -d 'address={}&amount={}' {}".format(
+        recipient,
+        amount,
+        format_faucet_fund_url(address, port),
+    )
+
+
+def format_fund_accounts_script(address, port, max_attempts, fund_command):
+    template = FaucetServerFileTemplates["fund_accounts"].replace(
+        'SERVER_URL="http://{address}:{port}"',
+        'SERVER_URL="{server_url}"',
+    )
+    return template.format(
+        address=address,
+        port=port,
+        server_url=formatUrl("http", address, port),
+        max_attempts=max_attempts,
+        fund_command=fund_command,
+    )
