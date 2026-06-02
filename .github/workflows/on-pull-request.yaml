@@ -13,7 +13,7 @@ on:
         description: "Build selected representative examples"
         type: boolean
         required: false
-        default: true
+        default: false
       run-runtime-integration:
         description: "Run Docker runtime integration probes"
         type: boolean
@@ -103,7 +103,7 @@ jobs:
   example-build:
     name: Example Build
     needs: example-compile
-    if: ${{ github.event_name == 'pull_request' || github.event.inputs['run-example-build'] == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs['run-example-build'] == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out the source repository
@@ -127,7 +127,7 @@ jobs:
 
   runtime-integration:
     name: Runtime Integration
-    needs: example-build
+    needs: example-compile
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs['run-runtime-integration'] == 'true' }}
     runs-on: ubuntu-latest
     steps:

@@ -27,9 +27,10 @@ python3 tests/ci/run_ci.py example-compile --artifact-dir ci-artifacts/example-c
 python3 tests/ci/run_ci.py example-build --artifact-dir ci-artifacts/example-build
 ```
 
-Runtime integration is available as an explicit entry point, but it is not a
-default pull-request gate in this PR:
+Docker image builds and runtime integration are available as explicit entry
+points, but they are not default pull-request gates in this PR:
 
 ```bash
+python3 tests/ci/run_ci.py example-build --artifact-dir ci-artifacts/example-build
 python3 tests/ci/run_ci.py runtime-integration --artifact-dir ci-artifacts/runtime-integration
 ```
