@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from typing import Dict, List, Optional, Tuple
 
-from seedemu.core import BaseSystem, Emulator, Node, ScopedRegistry, Server, Service
+from seedemu.core import Emulator, Node, ScopedRegistry, Server, Service
 from seedemu.layers.Routing import Router
-from seedemu.layers._bgp_metadata import claim_external_bgp_backend, install_router_bgp_session
+from seedemu.layers._bgp_metadata import install_router_bgp_session
 
 
 ExaBgpFileTemplates: Dict[str, str] = {}
@@ -194,7 +194,6 @@ class ExaBgpServer(Server):
     __enable_dashboard: bool
     __peers: List[Dict[str, object]]
     __resolved_peers: List[Tuple[Dict[str, object], Router, str, str]]
-    __router_speaker_claimed: bool
 
     def __init__(self):
         super().__init__()
@@ -205,7 +204,6 @@ class ExaBgpServer(Server):
         self.__enable_dashboard = True
         self.__peers = []
         self.__resolved_peers = []
-        self.__router_speaker_claimed = False
         self.setDisplayName("ExaBGP Control Plane Tool")
 
     def bind(self, emulator: Emulator):
@@ -252,15 +250,6 @@ class ExaBgpServer(Server):
     def disableDashboard(self) -> "ExaBgpServer":
         self.__enable_dashboard = False
         return self
-
-    def claimRouterSpeaker(self, router: Router) -> "ExaBgpServer":
-        claim_external_bgp_backend(router)
-        self.__router_speaker_claimed = True
-        self.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
-        return self
-
-    def isRouterSpeakerClaimed(self) -> bool:
-        return self.__router_speaker_claimed
 
     def _resolve_peer(self, node: Node, peer: Dict[str, object]) -> Tuple[Router, str, str]:
         assert self.__emulator is not None, "ExaBgpServer not bound to emulator"
@@ -431,7 +420,6 @@ class ExaBgpService(Service):
         self.__emulator = None
         self.addDependency("Routing", False, False)
         self.addDependency("Ebgp", False, True)
-        self.addDependency("FrrBgp", False, True)
 
     def _createServer(self) -> Server:
         return ExaBgpServer()
@@ -439,8 +427,6 @@ class ExaBgpService(Service):
     def _doConfigure(self, node: Node, server: ExaBgpServer):
         assert self.__emulator is not None
         server.bind(self.__emulator)
-        if server.isRouterSpeakerClaimed():
-            node.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
         server.configureOnNode(node)
         super()._doConfigure(node, server)
 

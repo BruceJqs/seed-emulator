@@ -1181,15 +1181,12 @@ class Router(Node):
         @brief Set routing daemon backend for this router.
 
         @param backend routing backend. Supported values are bird and frr.
-        The exabgp value is kept only for legacy generated examples; new
-        examples should use ExaBgpService.
+        ExaBGP speakers must be installed with ExaBgpService and Binding.
 
         @returns self, for chaining API calls.
         """
         value = str(backend or "bird").strip().lower() or "bird"
-        if value == "external":
-            value = "exabgp"
-        assert value in {"bird", "frr", "exabgp"}, "unsupported routing backend: {}".format(backend)
+        assert value in {"bird", "frr"}, "unsupported routing backend: {}".format(backend)
         self.__routing_backend = value
         self.setLabel("seedemu_routing_backend", value)
         self.setLabel("seedemu_bgp_backend", value)
