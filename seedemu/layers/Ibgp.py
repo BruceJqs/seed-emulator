@@ -6,19 +6,6 @@ from typing import List, Set, Dict
 
 from ._bgp_metadata import install_router_bgp_session
 
-IbgpFileTemplates: Dict[str, str] = {}
-
-IbgpFileTemplates['ibgp_peer'] = '''
-    ipv4 {{
-        table t_bgp;
-        import all;
-        export all;
-        igp table t_ospf;
-    }};
-    local {localAddress} as {asn};
-    neighbor {peerAddress} as {asn};
-'''
-
 class Ibgp(Layer, Graphable):
     """!
     @brief The Ibgp (iBGP) layer.
