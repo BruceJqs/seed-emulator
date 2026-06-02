@@ -19,7 +19,6 @@
 | Intent metadata | `seedemu/layers/_bgp_metadata.py` | Stores BGP session intent, export policy, communities, connected export, and OSPF interface intent. |
 | Protocol intent | `seedemu/layers/Ebgp.py`, `Ibgp.py`, `Ospf.py` | Records routing relationships without choosing BIRD or FRR syntax. |
 | Daemon rendering | `seedemu/layers/Routing.py` | Renders BIRD/FRR backend configuration from the same intent model. |
-| FRR shim | `seedemu/layers/FrrBgp.py` | Compatibility path for older code; new examples should use `createRouter(..., routingBackend="frr")`. |
 | ExaBGP speaker | `seedemu/services/ExaBgpService.py` | Installs speaker host config, live control FIFO, event log, dashboard, and injects peer-router BGP intent. |
 | Looking Glass | `seedemu/services/BgpLookingGlassService.py` | Installs route-state proxy/frontend and registers observed routers with `.addRouter(asn, name)`. |
 
@@ -136,4 +135,5 @@ Looking Glass reads current route state. It should not be described as an ExaBGP
 - Keep daemon-specific config generation in `Routing`.
 - Keep ExaBGP as `Service + Binding`; do not present it as a full transit router backend.
 - Keep route-state and event-stream views separate.
-- Preserve old compatibility paths where needed, but examples and docs should use the new explicit APIs.
+- Do not reintroduce legacy `FrrBgp` layer shims or ExaBGP router backends;
+  `Router` backends are limited to `bird` and `frr`.

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import importlib
 import os
 from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from seedemu.compiler import Docker, Platform
 from seedemu.core import Binding, Emulator, Filter
-from seedemu.layers import Base, Ebgp, FrrBgp, Ibgp, Ospf, PeerRelationship, Routing
+from seedemu.layers import Base, Ebgp, Ibgp, Ospf, PeerRelationship, Routing
 from seedemu.services import BgpLookingGlassService, ExaBgpService
 
 
@@ -39,14 +42,27 @@ def _compiled_output_text(output_dir: Path) -> str:
     return "\n".join(chunks)
 
 
-def test_frr_bgp_layer_renders_frr_config_for_selected_router():
+def test_legacy_frr_bgp_layer_is_removed():
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("seedemu.layers.FrrBgp")
+    assert not hasattr(importlib.import_module("seedemu.layers"), "FrrBgp")
+
+
+def test_router_rejects_legacy_exabgp_backends():
+    as2 = Base().createAutonomousSystem(2)
+    with pytest.raises(AssertionError, match="unsupported routing backend"):
+        as2.createRouter("exabgp", routingBackend="exabgp")
+    with pytest.raises(AssertionError, match="unsupported routing backend"):
+        as2.createRouter("external", routingBackend="external")
+
+
+def test_frr_backend_renders_frr_config_for_selected_router():
     emu = Emulator()
     base = Base()
     routing = Routing()
     ospf = Ospf()
     ibgp = Ibgp()
     ebgp = Ebgp()
-    frr_bgp = FrrBgp()
 
     base.createInternetExchange(100)
     base.createInternetExchange(101)
@@ -54,7 +70,7 @@ def test_frr_bgp_layer_renders_frr_config_for_selected_router():
     as2 = base.createAutonomousSystem(2)
     as2.createNetwork("net0")
     as2.createRouter("r1").joinNetwork("net0").joinNetwork("ix100")
-    as2.createRouter("r2").joinNetwork("net0").joinNetwork("ix101")
+    as2.createRouter("r2", routingBackend="frr").joinNetwork("net0").joinNetwork("ix101")
 
     as151 = base.createAutonomousSystem(151)
     as151.createNetwork("net0")
@@ -66,14 +82,12 @@ def test_frr_bgp_layer_renders_frr_config_for_selected_router():
 
     ebgp.addPrivatePeering(100, 2, 151, abRelationship=PeerRelationship.Provider)
     ebgp.addPrivatePeering(101, 2, 152, abRelationship=PeerRelationship.Provider)
-    frr_bgp.enableOn(2, "r2")
 
     emu.addLayer(base)
     emu.addLayer(routing)
     emu.addLayer(ospf)
     emu.addLayer(ibgp)
     emu.addLayer(ebgp)
-    emu.addLayer(frr_bgp)
     emu.render()
 
     reg = emu.getRegistry()
@@ -148,16 +162,14 @@ def test_exabgp_service_renders_frr_peer_without_bird_config():
     ospf = Ospf()
     ibgp = Ibgp()
     ebgp = Ebgp()
-    frr_bgp = FrrBgp()
     exabgp = ExaBgpService()
 
     base.createInternetExchange(100)
     as2 = base.createAutonomousSystem(2)
     as2.createNetwork("net0")
-    as2.createRouter("router0").joinNetwork("net0").joinNetwork("ix100")
+    as2.createRouter("router0", routingBackend="frr").joinNetwork("net0").joinNetwork("ix100")
     as2.createHost("observer").joinNetwork("net0")
 
-    frr_bgp.enableOn(2, "router0")
     exabgp.install("observer_tool").attachToRouter("router0").setLocalAsn(65010).addAnnouncement("198.51.100.0/24")
     emu.addBinding(Binding("observer_tool", filter=Filter(nodeName="observer", asn=2)))
 
@@ -167,7 +179,6 @@ def test_exabgp_service_renders_frr_peer_without_bird_config():
     emu.addLayer(ibgp)
     emu.addLayer(ebgp)
     emu.addLayer(exabgp)
-    emu.addLayer(frr_bgp)
     emu.render()
 
     reg = emu.getRegistry()
@@ -185,7 +196,7 @@ def test_exabgp_service_renders_frr_peer_without_bird_config():
     assert "peer-as 2" in exabgp_conf
 
 
-def test_exabgp_service_renders_multi_peer_external_router_config():
+def test_exabgp_service_renders_multi_peer_ix_speaker_config():
     emu = Emulator()
     base = Base()
     routing = Routing()
@@ -198,11 +209,10 @@ def test_exabgp_service_renders_multi_peer_external_router_config():
     as3 = base.createAutonomousSystem(3)
     as3.createRouter("r100").joinNetwork("ix100")
     speaker_as = base.createAutonomousSystem(65030)
-    speaker_router = speaker_as.createRouter("route_speaker")
-    speaker_router.joinNetwork("ix100", address="10.100.0.230")
+    speaker_as.createHost("route_speaker").joinNetwork("ix100", address="10.100.0.230")
 
     speaker = exabgp.install("external_route_speaker")
-    speaker.claimRouterSpeaker(speaker_router).setLocalAsn(65030).addAnnouncement("203.0.113.0/24").enableDashboard(5000)
+    speaker.setLocalAsn(65030).addAnnouncement("203.0.113.0/24").enableDashboard(5000)
     _attach_exabgp_peer(speaker, "r100", router_asn=2)
     _attach_exabgp_peer(speaker, "r100", router_asn=3)
     emu.addBinding(Binding("external_route_speaker", filter=Filter(nodeName="route_speaker", asn=65030)))
@@ -214,7 +224,7 @@ def test_exabgp_service_renders_multi_peer_external_router_config():
     emu.render()
 
     reg = emu.getRegistry()
-    route_speaker = reg.get("65030", "rnode", "route_speaker")
+    route_speaker = reg.get("65030", "hnode", "route_speaker")
     as2_router = reg.get("2", "rnode", "r100")
     as3_router = reg.get("3", "rnode", "r100")
 
@@ -239,7 +249,7 @@ def test_exabgp_service_renders_multi_peer_external_router_config():
     assert "bgp_local_pref = 30" in as3_conf
 
 
-def test_exabgp_service_renders_external_router_speaker_peer():
+def test_exabgp_service_renders_ix_speaker_peer():
     emu = Emulator()
     base = Base()
     routing = Routing()
@@ -250,11 +260,10 @@ def test_exabgp_service_renders_external_router_speaker_peer():
     as2 = base.createAutonomousSystem(2)
     as2.createRouter("r100").joinNetwork("ix100")
     speaker_as = base.createAutonomousSystem(65030)
-    speaker_router = speaker_as.createRouter("external_speaker")
-    speaker_router.joinNetwork("ix100", address="10.100.0.230")
+    speaker_as.createHost("external_speaker").joinNetwork("ix100", address="10.100.0.230")
 
     speaker = exabgp.install("external_route_speaker")
-    speaker.claimRouterSpeaker(speaker_router).setLocalAsn(65030).addAnnouncement("203.0.113.0/24")
+    speaker.setLocalAsn(65030).addAnnouncement("203.0.113.0/24")
     _attach_exabgp_peer(speaker, "r100", router_asn=2)
     emu.addBinding(Binding("external_route_speaker", filter=Filter(nodeName="external_speaker", asn=65030)))
 
@@ -265,7 +274,7 @@ def test_exabgp_service_renders_external_router_speaker_peer():
     emu.render()
 
     reg = emu.getRegistry()
-    external_speaker = reg.get("65030", "rnode", "external_speaker")
+    external_speaker = reg.get("65030", "hnode", "external_speaker")
     as2_router = reg.get("2", "rnode", "r100")
 
     exabgp_conf = _file_content(external_speaker, "/etc/exabgp/exabgp.conf")
@@ -285,20 +294,17 @@ def test_frr_bgp_respects_ospf_stub_intent():
     base = Base()
     routing = Routing()
     ospf = Ospf()
-    frr_bgp = FrrBgp()
 
     as2 = base.createAutonomousSystem(2)
     as2.createNetwork("net0")
     as2.createNetwork("net1")
-    as2.createRouter("r1").joinNetwork("net0").joinNetwork("net1")
+    as2.createRouter("r1", routingBackend="frr").joinNetwork("net0").joinNetwork("net1")
 
     ospf.markAsStub(2, "net1")
-    frr_bgp.enableOn(2, "r1")
 
     emu.addLayer(base)
     emu.addLayer(routing)
     emu.addLayer(ospf)
-    emu.addLayer(frr_bgp)
     emu.render()
 
     reg = emu.getRegistry()
@@ -309,21 +315,19 @@ def test_frr_bgp_respects_ospf_stub_intent():
     assert "ip ospf passive" in frr_conf
 
 
-def test_bgp_looking_glass_fails_fast_on_frr_router():
+def test_bgp_looking_glass_supports_frr_router_route_state():
     emu = Emulator()
     base = Base()
     routing = Routing()
     ospf = Ospf()
     ibgp = Ibgp()
-    frr_bgp = FrrBgp()
     looking_glass = BgpLookingGlassService()
 
     as2 = base.createAutonomousSystem(2)
     as2.createNetwork("net0")
-    as2.createRouter("router0").joinNetwork("net0")
+    as2.createRouter("router0", routingBackend="frr").joinNetwork("net0")
     as2.createHost("lg").joinNetwork("net0")
 
-    frr_bgp.enableOn(2, "router0")
     looking_glass.install("bgp_lg").attach("router0")
     emu.addBinding(Binding("bgp_lg", filter=Filter(nodeName="lg", asn=2)))
 
@@ -331,15 +335,24 @@ def test_bgp_looking_glass_fails_fast_on_frr_router():
     emu.addLayer(routing)
     emu.addLayer(ospf)
     emu.addLayer(ibgp)
-    emu.addLayer(frr_bgp)
     emu.addLayer(looking_glass)
 
-    try:
-        emu.render()
-    except AssertionError as exc:
-        assert "Bird routers only" in str(exc)
-    else:
-        raise AssertionError("BgpLookingGlassService should fail fast on FRR routers")
+    emu.render()
+
+    reg = emu.getRegistry()
+    lg = reg.get("2", "hnode", "lg")
+    router = reg.get("2", "rnode", "router0")
+
+    proxy = _file_content(router, "/opt/seed-lg/proxy.py")
+    frontend = _file_content(lg, "/opt/seed-lg/frontend.py")
+    proxy_cmds = [cmd for cmd, _ in router.getStartCommands()]
+
+    assert "show bgp summary" in proxy
+    assert "show ip ospf neighbor" in proxy
+    assert "/api/state" in frontend
+    assert any("SEED_LG_BACKEND=\"frr\"" in cmd for cmd in proxy_cmds)
+    assert any("waiting for frr" in cmd for cmd in proxy_cmds)
+    assert not any("waiting for bird" in cmd for cmd in proxy_cmds)
 
 
 def test_new_bgp_examples_compile_outputs_exist():

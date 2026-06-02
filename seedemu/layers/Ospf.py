@@ -3,7 +3,7 @@ from seedemu.core import Node, Emulator, Layer
 from seedemu.core.enums import NetworkType
 from typing import Set, Dict, List, Tuple
 
-from ._bgp_metadata import classify_ospf_interfaces, get_bgp_backend, set_ospf_interface_intents
+from ._bgp_metadata import classify_ospf_interfaces, set_ospf_interface_intents
 
 OspfFileTemplates: Dict[str, str] = {}
 
@@ -152,8 +152,6 @@ class Ospf(Layer):
             if type != 'rnode': continue
             router: Node = obj
             if router.getAsn() in self.__masked_asn: continue
-            if get_bgp_backend(router) == "exabgp":
-                continue
 
             self._log('setting up OSPF for router as{}/{}...'.format(scope, name))
             masked = [netname for (asn, netname) in self.__masked if asn == int(scope)]

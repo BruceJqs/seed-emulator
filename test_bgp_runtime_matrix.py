@@ -289,7 +289,7 @@ def test_runtime_exabgp_to_frr_peer():
 
     source = """
 from seedemu.core import Binding, Emulator, Filter
-from seedemu.layers import Base, Ebgp, FrrBgp, Routing
+from seedemu.layers import Base, Ebgp, Routing
 from seedemu.services import ExaBgpService
 from seedemu.compiler import Docker, Platform
 
@@ -297,16 +297,14 @@ emu = Emulator()
 base = Base()
 routing = Routing()
 ebgp = Ebgp()
-frr = FrrBgp()
 exabgp = ExaBgpService()
 
 base.createInternetExchange(100)
 as151 = base.createAutonomousSystem(151)
 as151.createNetwork('net0')
-as151.createRouter('router0').joinNetwork('net0').joinNetwork('ix100')
+as151.createRouter('router0', routingBackend='frr').joinNetwork('net0').joinNetwork('ix100')
 as151.createHost('observer').joinNetwork('net0').addPortForwarding(5105, 5000)
 
-frr.enableOn(151, 'router0')
 exabgp.install('observer_tool').attachToRouter('router0').setLocalAsn(65010).addAnnouncement('198.51.100.0/24').enableDashboard(5000)
 emu.addBinding(Binding('observer_tool', filter=Filter(nodeName='observer', asn=151)))
 
@@ -314,7 +312,6 @@ emu.addLayer(base)
 emu.addLayer(routing)
 emu.addLayer(ebgp)
 emu.addLayer(exabgp)
-emu.addLayer(frr)
 emu.render()
 emu.compile(Docker(platform=Platform.AMD64, internetMapEnabled=False), OUTPUT_DIR, override=True)
 """
