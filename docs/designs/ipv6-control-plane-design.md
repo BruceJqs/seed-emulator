@@ -29,11 +29,14 @@ compilers translate the rendered model into runnable artifacts.
 
 ## Current Landing Status
 
-This PR lands the repository contract and shared helper foundation on top of
-`development2`. It does not yet claim that the topology, compiler, routing,
-ExaBGP, Looking Glass, DNS, or example runtime paths have been re-integrated on
-this branch. Those pieces should be ported in follow-up PRs against this design
-without reintroducing removed legacy control-plane shims.
+The first PR landed the repository contract and shared helper foundation on top
+of `development2`. The core-topology PR adds optional IPv6 state to
+`Base`, `AutonomousSystem`, `InternetExchange`, `Network`, `Node`, and
+`Interface`, including late enablement and per-network/per-interface opt-out.
+It still does not claim that compiler output, Routing, ExaBGP, Looking Glass,
+DNS, or example runtime paths have been re-integrated. Those pieces should be
+ported in follow-up PRs against this design without reintroducing removed
+legacy control-plane shims.
 
 ## Design Position
 

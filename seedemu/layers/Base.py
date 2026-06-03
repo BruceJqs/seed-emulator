@@ -1,5 +1,6 @@
 from __future__ import annotations
-from seedemu.core import AutonomousSystem, InternetExchange, AddressAssignmentConstraint, Node, Graphable, Emulator, Layer
+from seedemu.core import AutonomousSystem, InternetExchange, AddressAssignmentConstraint, DEFAULT_IPV6_ROOT_PREFIX, Ipv6Addressing, Node, Graphable, Emulator, Layer, normalizeAddressList, normalizePrefix
+from ipaddress import IPv6Network
 from typing import Dict, List
 from seedemu.options.Sysctl import SysctlOpts
 BaseFileTemplates: Dict[str, str] = {}
@@ -41,6 +42,7 @@ class Base(Layer, Graphable):
 
     __ases: Dict[int, AutonomousSystem]
     __ixes: Dict[int, InternetExchange]
+    __ipv6_addressing: Ipv6Addressing
 
     __name_servers: List[str]
 
@@ -49,13 +51,14 @@ class Base(Layer, Graphable):
         opt_keys = [ o.fullname() for o in SysctlOpts().components_recursive()]
         return [OptionRegistry().getOption(o) for o in opt_keys]
 
-    def __init__(self):
+    def __init__(self, enableIpv6: bool = False, ipv6RootPrefix: str = DEFAULT_IPV6_ROOT_PREFIX):
         """!
         @brief Base layer constructor.
         """
         super().__init__()
         self.__ases = {}
         self.__ixes = {}
+        self.__ipv6_addressing = Ipv6Addressing(ipv6RootPrefix) if enableIpv6 else None
         self.__name_servers = []
 
     def getName(self) -> str:
@@ -126,7 +129,7 @@ class Base(Layer, Graphable):
 
         @returns self, for chaining API calls.
         """
-        self.__name_servers = servers
+        self.__name_servers = normalizeAddressList(servers)
 
         return self
 
@@ -138,6 +141,65 @@ class Base(Layer, Graphable):
         """
         return self.__name_servers
 
+    def enableIpv6(self, rootPrefix: str = DEFAULT_IPV6_ROOT_PREFIX) -> Base:
+        """!
+        @brief Enable optional IPv6 addressing for new ASes and IXes.
+
+        @param rootPrefix root IPv6 prefix. Defaults to 2000::/12.
+
+        @returns self, for chaining API calls.
+        """
+        if self.__ipv6_addressing is not None:
+            assert self.__ipv6_addressing.getRootPrefix() == IPv6Network(normalizePrefix(rootPrefix)), (
+                "IPv6 is already enabled with root prefix {}".format(self.__ipv6_addressing.getRootPrefix())
+            )
+            return self
+
+        self.__ipv6_addressing = Ipv6Addressing(rootPrefix)
+        for ix in self.__ixes.values():
+            net = ix.getPeeringLan()
+            if net.hasIpv6Prefix() and net.getIpv6PrefixIntent() != "auto":
+                self.__ipv6_addressing.claimPrefix(net.getIpv6Prefix())
+        for asobj in self.__ases.values():
+            asobj.setIpv6Addressing(self.__ipv6_addressing)
+        for ixid, ix in self.__ixes.items():
+            net = ix.getPeeringLan()
+            if net.getIpv6PrefixIntent() == "auto" and not net.hasIpv6Prefix():
+                net.setIpv6Prefix(self.__ipv6_addressing.assignIxPrefix(ixid))
+        return self
+
+    def isIpv6Enabled(self) -> bool:
+        """!
+        @brief Check if optional IPv6 addressing is enabled.
+
+        @returns true if IPv6 is enabled.
+        """
+        return self.__ipv6_addressing is not None
+
+    def getIpv6Addressing(self) -> Ipv6Addressing:
+        """!
+        @brief Get the optional IPv6 addressing allocator.
+
+        @returns allocator, or None when IPv6 is disabled.
+        """
+        return self.__ipv6_addressing
+
+    def getIpv6RootPrefix(self):
+        """!
+        @brief Get the IPv6 root prefix, if optional IPv6 is enabled.
+
+        @returns IPv6 root prefix, or None when IPv6 is disabled.
+        """
+        return self.__ipv6_addressing.getRootPrefix() if self.__ipv6_addressing is not None else None
+
+    def getIpv6ReservedPrefixes(self) -> List:
+        """!
+        @brief Get IPv6 prefixes reserved by the automatic allocator.
+
+        @returns list of IPv6 prefixes, or an empty list when IPv6 is disabled.
+        """
+        return self.__ipv6_addressing.getReservedPrefixes() if self.__ipv6_addressing is not None else []
+
     def createAutonomousSystem(self, asn: int) -> AutonomousSystem:
         """!
         @brief Create a new AutonomousSystem.
@@ -147,7 +209,7 @@ class Base(Layer, Graphable):
         @throws AssertionError if asn exists.
         """
         assert asn not in self.__ases, "as{} already exist.".format(asn)
-        self.__ases[asn] = AutonomousSystem(asn)
+        self.__ases[asn] = AutonomousSystem(asn, ipv6Addressing=self.__ipv6_addressing)
         return self.__ases[asn]
 
     def getAutonomousSystem(self, asn: int) -> AutonomousSystem:
@@ -168,9 +230,11 @@ class Base(Layer, Graphable):
         @param asObject AS object.
         """
         asn = asObject.getAsn()
+        if self.__ipv6_addressing is not None:
+            asObject.setIpv6Addressing(self.__ipv6_addressing)
         self.__ases[asn] = asObject
 
-    def createInternetExchange(self, asn: int, prefix: str = "auto", aac: AddressAssignmentConstraint = None, create_rs=True, rsAddress = None) -> InternetExchange:
+    def createInternetExchange(self, asn: int, prefix: str = "auto", aac: AddressAssignmentConstraint = None, create_rs=True, rsAddress = None, ipv6Prefix = "auto", rsIpv6Address = "auto") -> InternetExchange:
         """!
         @brief Create a new InternetExchange.
 
@@ -183,7 +247,19 @@ class Base(Layer, Graphable):
         @throws AssertionError if IX exists.
         """
         assert asn not in self.__ixes, "ix{} already exist.".format(asn)
-        self.__ixes[asn] = InternetExchange(asn, prefix, aac, create_rs, rsAddress)
+        ix_ipv6_prefix = None
+        if ipv6Prefix is not None:
+            if ipv6Prefix == "auto":
+                ix_ipv6_prefix = self.__ipv6_addressing.assignIxPrefix(asn) if self.__ipv6_addressing is not None else None
+                ix_ipv6_intent = "auto"
+            else:
+                ix_ipv6_prefix = normalizePrefix(ipv6Prefix)
+                ix_ipv6_intent = "explicit"
+                if self.__ipv6_addressing is not None:
+                    self.__ipv6_addressing.claimPrefix(ix_ipv6_prefix)
+        else:
+            ix_ipv6_intent = None
+        self.__ixes[asn] = InternetExchange(asn, prefix, aac, create_rs, rsAddress, ix_ipv6_prefix, rsIpv6Address, ix_ipv6_intent)
         return self.__ixes[asn]
 
     def getInternetExchange(self, asn: int) -> InternetExchange:
@@ -204,6 +280,12 @@ class Base(Layer, Graphable):
         @param ixObject IX object.
         """
         asn = ixObject.getId()
+        if self.__ipv6_addressing is not None:
+            net = ixObject.getPeeringLan()
+            if net.hasIpv6Prefix() and net.getIpv6PrefixIntent() != "auto":
+                self.__ipv6_addressing.claimPrefix(net.getIpv6Prefix())
+            if net.getIpv6PrefixIntent() == "auto" and not net.hasIpv6Prefix():
+                net.setIpv6Prefix(self.__ipv6_addressing.assignIxPrefix(asn))
         self.__ixes[asn] = ixObject
 
     def getAsns(self) -> List[int]:

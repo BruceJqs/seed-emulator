@@ -12,11 +12,12 @@ from .Volume import BaseVolume
 from .Configurable import Configurable
 from .enums import NetworkType
 from .Visualization import Vertex
-from ipaddress import IPv4Address, IPv4Interface
+from ipaddress import IPv4Address, IPv4Interface, IPv6Address
 from typing import List, Dict, Set, Tuple, Optional
 from string import ascii_letters
 from random import choice
 from .BaseSystem import BaseSystem
+from .Addressing import normalizeAddressList
 
 DEFAULT_SOFTWARE: List[str] = ['zsh', 'curl', 'nano', 'vim-nox', 'mtr-tiny', 'iproute2', 'iputils-ping', 'tcpdump', 'termshark', 'dnsutils', 'jq', 'ipcalc', 'netcat-openbsd']
 
@@ -107,6 +108,7 @@ class Interface(Printable):
 
     __network: Network
     __address: IPv4Address
+    __ipv6_address: IPv6Address
 
     __latency: int       # in ms
     __bandwidth: int     # in bps
@@ -119,6 +121,7 @@ class Interface(Printable):
         @param net network to connect to.
         """
         self.__address = None
+        self.__ipv6_address = None
         self.__network = net
         (l, b, d) = net.getDefaultLinkProperties()
         self.__latency = l
@@ -182,6 +185,34 @@ class Interface(Printable):
         """
         return self.__address
 
+    def setIpv6Address(self, address: IPv6Address) -> Interface:
+        """!
+        @brief Set IPv6 address of this interface.
+
+        @param address address.
+
+        @returns self, for chaining API calls.
+        """
+        self.__ipv6_address = address
+
+        return self
+
+    def getIpv6Address(self) -> IPv6Address:
+        """!
+        @brief Get IPv6 address of this interface.
+
+        @returns address, or None when IPv6 is disabled.
+        """
+        return self.__ipv6_address
+
+    def hasIpv6Address(self) -> bool:
+        """!
+        @brief Check if this interface has an IPv6 address.
+
+        @returns true if an IPv6 address is configured.
+        """
+        return self.__ipv6_address is not None
+
     def print(self, indent: int) -> str:
         out = ' ' * indent
         out += 'Interface:\n'
@@ -191,6 +222,9 @@ class Interface(Printable):
         out += 'Connected to: {}\n'.format(self.__network.getName())
         out += ' ' * indent
         out += 'Address: {}\n'.format(self.__address)
+        if self.__ipv6_address is not None:
+            out += ' ' * indent
+            out += 'IPv6 Address: {}\n'.format(self.__ipv6_address)
         out += ' ' * indent
         out += 'Link Properties: {}\n'.format(self.__address)
 
@@ -229,7 +263,7 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
     __privileged: bool
 
     __configured: bool
-    __pending_nets: List[Tuple[str, str]]
+    __pending_nets: List[Tuple[str, str, str]]
 
     # Dict of (peername, peerasn) -> (localaddr, netname, netProperties) -- netProperties = (latency, bandwidth, packetDrop, MTU)
     __xcs: Dict[Tuple[str, int], Tuple[IPv4Interface, str, Tuple[int,int,float,int]]]
@@ -316,23 +350,28 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         self.__configured = True
         reg = emulator.getRegistry()
 
-        for (netname, address) in self.__pending_nets:
+        for pending in self.__pending_nets:
+            if len(pending) == 2:
+                netname, address = pending
+                ipv6Address = "auto"
+            else:
+                netname, address, ipv6Address = pending
 
             hit = False
 
             if reg.has(self.__scope, "net", netname):
                 hit = True
-                self.__joinNetwork(reg.get(self.__scope, "net", netname), address)
+                self.__joinNetwork(reg.get(self.__scope, "net", netname), address, ipv6Address)
 
             if not hit and reg.has("ix", "net", netname):
                 hit = True
-                self.__joinNetwork(reg.get("ix", "net", netname), address)
+                self.__joinNetwork(reg.get("ix", "net", netname), address, ipv6Address)
                 if issubclass(self.__class__, Router):
                     self.setBorderRouter(True)
 
             if not hit and reg.has("seedemu", "net", netname):
                 hit = True
-                self.__joinNetwork(reg.get("seedemu", "net", netname), address)
+                self.__joinNetwork(reg.get("seedemu", "net", netname), address, ipv6Address)
 
             assert hit, 'no network matched for name {}'.format(netname)
 
@@ -383,7 +422,7 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         """
         assert not self.__asn == 0, 'This API is only available on a real physical node.'
 
-        self.__name_servers = servers
+        self.__name_servers = normalizeAddressList(servers)
 
         return self
 
@@ -507,7 +546,7 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         """
         return self.__base_system
 
-    def __joinNetwork(self, net: Network, address: str = "auto"):
+    def __joinNetwork(self, net: Network, address: str = "auto", ipv6Address: str = "auto"):
         """!
         @brief Connect the node to a network.
         @param net network to connect.
@@ -537,16 +576,26 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
             '''.format(iface=net.getName()))
             self.appendStartCommand('chmod +x dhclient.sh; ./dhclient.sh')
 
-        else: _addr = IPv4Address(address)
+        else: _addr = IPv4Address(normalizeAddressList([address])[0])
+
+        if ipv6Address == None:
+            _ipv6_addr = None
+        elif ipv6Address == "auto":
+            _ipv6_addr = net.assignIpv6(self.__role, self.__asn) if net.hasIpv6Prefix() else None
+        else:
+            assert net.hasIpv6Prefix(), "can't assign IPv6 address on network {} without an IPv6 prefix".format(net.getName())
+            _ipv6_addr = IPv6Address(normalizeAddressList([ipv6Address])[0])
+            assert _ipv6_addr in net.getIpv6Prefix(), "IPv6 address {} is not in network {}".format(_ipv6_addr, net.getIpv6Prefix())
 
         _iface = Interface(net)
         _iface.setAddress(_addr)
+        _iface.setIpv6Address(_ipv6_addr)
 
         self.__interfaces.append(_iface)
 
         net.associate(self)
 
-    def joinNetwork(self, netname: str, address: str = "auto") -> Node:
+    def joinNetwork(self, netname: str, address: str = "auto", ipv6Address: str = "auto") -> Node:
         """!
         @brief Connect the node to a network.
         @param netname name of the network.
@@ -559,11 +608,11 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         assert not self.__asn == 0, 'This API is only available on a real physical node.'
         assert not self.__configured, 'Node already configured.'
 
-        self.__pending_nets.append((netname, address))
+        self.__pending_nets.append((netname, address, ipv6Address))
 
         return self
 
-    def updateNetwork(self, netname:str, address: str= "auto") -> Node:
+    def updateNetwork(self, netname:str, address: str= "auto", ipv6Address: str = "auto") -> Node:
         """!
         @brief Update connection of the node to a network.
         @param netname name of the network.
@@ -575,11 +624,12 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         """
         assert not self.__asn == 0, 'This API is only available on a real physical node.'
 
-        for pending_netname, pending_address in self.__pending_nets:
+        for pending in list(self.__pending_nets):
+            pending_netname = pending[0]
             if pending_netname == netname:
-                self.__pending_nets.remove((pending_netname, pending_address))
+                self.__pending_nets.remove(pending)
 
-        self.__pending_nets.append((netname, address))
+        self.__pending_nets.append((netname, address, ipv6Address))
 
         return self
 
@@ -1134,6 +1184,7 @@ class Router(Node):
     """
 
     __loopback_address: str
+    __loopback_ipv6_address: str
     __is_border_router: bool
     __routing_backend: str
     __bgp_announcements: List[str]
@@ -1143,6 +1194,7 @@ class Router(Node):
     def __init__(self, name: str, role: NodeRole, asn: int, scope: str = None, routingBackend: str = "bird"):
         self.__is_border_router = False
         self.__loopback_address = None
+        self.__loopback_ipv6_address = None
         self.__routing_backend = "bird"
         self.__bgp_announcements = []
         self.__extensions = {}
@@ -1245,6 +1297,22 @@ class Router(Node):
         @returns address.
         """
         return self.__loopback_address
+
+    def setLoopbackIpv6Address(self, address: str):
+        """!
+        @brief Set IPv6 loopback address.
+
+        @param address address.
+        """
+        self.__loopback_ipv6_address = address
+
+    def getLoopbackIpv6Address(self) -> str:
+        """!
+        @brief Get IPv6 loopback address.
+
+        @returns address.
+        """
+        return self.__loopback_ipv6_address
 
     def addProtocol(self, protocol: str, name: str, body: str) -> Router:
         """!
