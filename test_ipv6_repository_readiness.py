@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import socket
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent
 CORE = ROOT / "seedemu" / "core"
+LAYERS = ROOT / "seedemu" / "layers"
 
 
 def _load_core_module(name: str, filename: str):
@@ -36,6 +38,65 @@ def _load_core_module(name: str, filename: str):
     spec = importlib.util.spec_from_file_location(module_name, CORE / filename)
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    return module
+
+
+def _ensure_core_exports_for_layer_imports():
+    """Expose core symbols needed by direct layer module loading."""
+
+    core = sys.modules["seedemu.core"]
+    exports = {
+        "AddressAssignmentConstraint": ("AddressAssignmentConstraint", "AddressAssignmentConstraint"),
+        "AutonomousSystem": ("AutonomousSystem", "AutonomousSystem"),
+        "DEFAULT_IPV6_ROOT_PREFIX": ("Ipv6Addressing", "DEFAULT_IPV6_ROOT_PREFIX"),
+        "Emulator": ("Emulator", "Emulator"),
+        "Graphable": ("Graphable", "Graphable"),
+        "InternetExchange": ("InternetExchange", "InternetExchange"),
+        "Ipv6Addressing": ("Ipv6Addressing", "Ipv6Addressing"),
+        "Layer": ("Layer", "Layer"),
+        "Node": ("Node", "Node"),
+        "normalizeAddressList": ("Addressing", "normalizeAddressList"),
+        "normalizePrefix": ("Addressing", "normalizePrefix"),
+    }
+    for export_name, (module_name, attr_name) in exports.items():
+        module = _load_core_module(module_name, "{}.py".format(module_name))
+        setattr(core, export_name, getattr(module, attr_name))
+
+
+def _load_layer_module(name: str, filename: str):
+    _ensure_core_exports_for_layer_imports()
+    if "seedemu.options.Sysctl" not in sys.modules:
+        options = types.ModuleType("seedemu.options")
+        options.__path__ = [str(ROOT / "seedemu" / "options")]
+        sys.modules.setdefault("seedemu.options", options)
+        sysctl = types.ModuleType("seedemu.options.Sysctl")
+
+        class SysctlOpts:
+            def components_recursive(self):
+                return []
+
+        sysctl.SysctlOpts = SysctlOpts
+        sys.modules["seedemu.options.Sysctl"] = sysctl
+
+    layers_name = "seedemu.layers"
+    if layers_name not in sys.modules:
+        layers_spec = importlib.util.spec_from_loader(layers_name, loader=None, is_package=True)
+        layers = importlib.util.module_from_spec(layers_spec)
+        layers.__path__ = [str(LAYERS)]
+        sys.modules[layers_name] = layers
+
+    module_name = "{}.{}".format(layers_name, name)
+    if module_name in sys.modules:
+        return sys.modules[module_name]
+
+    spec = importlib.util.spec_from_file_location(module_name, LAYERS / filename)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -45,6 +106,14 @@ Ipv6AddressingModule = _load_core_module("Ipv6Addressing", "Ipv6Addressing.py")
 
 AddressFamily = Addressing.AddressFamily
 Ipv6Addressing = Ipv6AddressingModule.Ipv6Addressing
+
+
+def _load_seedemu_class(module_name: str, class_name: str):
+    if module_name == "Base":
+        module = _load_layer_module(module_name, "{}.py".format(module_name))
+        return getattr(module, class_name)
+    module = _load_core_module(module_name, "{}.py".format(module_name))
+    return getattr(module, class_name)
 
 
 def test_endpoint_helpers_preserve_ipv4_and_bracket_ipv6():
@@ -122,3 +191,156 @@ def test_ipv6_allocator_rejects_root_overlap_but_allows_disjoint_user_prefixes()
 
     with pytest.raises(AssertionError):
         allocator.claimPrefix("2000:ffff::/64")
+
+
+def test_topology_ipv6_is_opt_in_and_preserves_ipv4_accessors():
+    Base = _load_seedemu_class("Base", "Base")
+
+    base = Base()
+    as150 = base.createAutonomousSystem(150)
+    net = as150.createNetwork("net0")
+    host = as150.createHost("host").joinNetwork("net0", address="10.150.0.71")
+
+    assert not base.isIpv6Enabled()
+    assert str(net.getPrefix()) == "10.150.0.0/24"
+    assert not net.hasIpv6Prefix()
+
+    class _Registry:
+        def has(self, scope, type, name):
+            return scope == "150" and type == "net" and name == "net0"
+
+        def get(self, scope, type, name):
+            return net
+
+    class _Emulator:
+        def getRegistry(self):
+            return _Registry()
+
+    host.configure(_Emulator())
+    iface = host.getInterfaces()[0]
+
+    assert str(iface.getAddress()) == "10.150.0.71"
+    assert not iface.hasIpv6Address()
+    assert iface.getIpv6Address() is None
+
+
+def test_base_enable_ipv6_backfills_networks_and_interfaces():
+    Base = _load_seedemu_class("Base", "Base")
+
+    base = Base()
+    as150 = base.createAutonomousSystem(150)
+    net = as150.createNetwork("net0")
+    host = as150.createHost("host").joinNetwork("net0")
+
+    base.enableIpv6()
+
+    assert base.isIpv6Enabled()
+    assert str(base.getIpv6RootPrefix()) == "2000::/12"
+    assert str(net.getIpv6Prefix()) == "2000:0:96::/64"
+
+    class _Registry:
+        def has(self, scope, type, name):
+            return scope == "150" and type == "net" and name == "net0"
+
+        def get(self, scope, type, name):
+            return net
+
+    class _Emulator:
+        def getRegistry(self):
+            return _Registry()
+
+    host.configure(_Emulator())
+    iface = host.getInterfaces()[0]
+
+    assert str(iface.getAddress()) == "10.150.0.71"
+    assert str(iface.getIpv6Address()) == "2000:0:96::47"
+
+
+def test_explicit_ipv6_prefix_address_and_opt_out():
+    Base = _load_seedemu_class("Base", "Base")
+
+    base = Base(enableIpv6=True)
+    as151 = base.createAutonomousSystem(151)
+    net = as151.createNetwork("net0", ipv6Prefix=" [2000:0:151::] / 64 ")
+    fixed = as151.createHost("fixed").joinNetwork(
+        "net0",
+        address="10.151.0.10",
+        ipv6Address=" [2000:0:151::10] ",
+    )
+    v4_only = as151.createHost("v4only").joinNetwork(
+        "net0",
+        address="10.151.0.11",
+        ipv6Address=None,
+    )
+
+    assert str(net.getIpv6Prefix()) == "2000:0:151::/64"
+
+    class _Registry:
+        def has(self, scope, type, name):
+            return scope == "151" and type == "net" and name == "net0"
+
+        def get(self, scope, type, name):
+            return net
+
+    class _Emulator:
+        def getRegistry(self):
+            return _Registry()
+
+    fixed.configure(_Emulator())
+    v4_only.configure(_Emulator())
+
+    assert str(fixed.getInterfaces()[0].getAddress()) == "10.151.0.10"
+    assert str(fixed.getInterfaces()[0].getIpv6Address()) == "2000:0:151::10"
+    assert str(v4_only.getInterfaces()[0].getAddress()) == "10.151.0.11"
+    assert not v4_only.getInterfaces()[0].hasIpv6Address()
+
+    with pytest.raises(AssertionError):
+        as151.createHost("bad").joinNetwork("net0", ipv6Address="2000:0:152::1").configure(_Emulator())
+
+
+def test_ix_ipv6_prefix_and_route_server_address_are_explicit():
+    Base = _load_seedemu_class("Base", "Base")
+
+    base = Base(enableIpv6=True)
+    ix = base.createInternetExchange(
+        100,
+        ipv6Prefix="2000:8:0:100::/64",
+        rsIpv6Address="2000:8:0:100::100",
+    )
+    net = ix.getPeeringLan()
+
+    assert str(net.getIpv6Prefix()) == "2000:8:0:100::/64"
+
+    rs = ix.getRouteServerNode()
+
+    class _Registry:
+        def has(self, scope, type, name):
+            return scope == "ix" and type == "net" and name == "ix100"
+
+        def get(self, scope, type, name):
+            return net
+
+    class _Emulator:
+        def getRegistry(self):
+            return _Registry()
+
+    rs.configure(_Emulator())
+    iface = rs.getInterfaces()[0]
+
+    assert str(iface.getAddress()) == "10.100.0.100"
+    assert str(iface.getIpv6Address()) == "2000:8:0:100::100"
+
+
+def test_router_backend_legacy_values_stay_rejected():
+    Router = _load_seedemu_class("Node", "Router")
+    NodeRole = _load_core_module("enums", "enums.py").NodeRole
+
+    router = Router("r1", NodeRole.Router, 150)
+    assert router.getRoutingBackend() == "bird"
+    router.setRoutingBackend("frr")
+    assert router.getRoutingBackend() == "frr"
+
+    with pytest.raises(AssertionError):
+        router.setRoutingBackend("exabgp")
+    with pytest.raises(AssertionError):
+        router.setRoutingBackend("external")

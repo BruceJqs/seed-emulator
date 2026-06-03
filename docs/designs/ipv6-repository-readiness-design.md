@@ -21,16 +21,18 @@ IPv6 不应该被理解成几个示例的局部能力，而是仿真器级别的
 
 ## Current Landing Status
 
-This PR lands the contract and shared helper foundation only:
+The first PR landed the contract and shared helper foundation:
 
 - shared address-family and endpoint formatting helpers in `seedemu.core`;
 - deterministic IPv6 prefix allocation helper;
 - design, user, and agent-facing migration documents.
 
-It intentionally does not claim that Docker, Routing, ExaBGP, Looking Glass,
-DNS, `/etc/hosts`, or repository services are already dual-stack on
-`development2`. Their rows below describe the target migration contract and
-must be treated as implemented only after follow-up PRs add code and tests.
+The core-topology PR adds optional IPv6 model state to `Base`, AS networks, IX
+LANs, node interfaces, and route-server attachments. It intentionally does not
+claim that Docker, Routing, ExaBGP, Looking Glass, DNS, `/etc/hosts`, or
+repository services are already dual-stack on `development2`. Their rows below
+describe the target migration contract and must be treated as implemented only
+after follow-up PRs add code and tests.
 
 ## Address-Family Contract
 
@@ -73,10 +75,13 @@ as path segments.
 
 ## Core Readiness
 
-Target foundation:
+Landing foundation:
 
 - Optional IPv6 root prefix and deterministic AS/IX `/64` allocation.
 - IPv6 state on `Network` and `Interface`.
+
+Target follow-up foundation:
+
 - IPv6-aware BGP/OSPF intent rendering for BIRD and FRR.
 - IPv6-aware ExaBGP speaker service and Looking Glass route-state queries.
 - Docker Compose dual-stack network/IPAM and service `ipv6_address` output.

@@ -1,11 +1,11 @@
 # IPv6 Readiness
 
 IPv6 support is being added as an optional repository-level capability. The
-current `development2` landing provides the shared address-family helpers,
-deterministic IPv6 prefix allocation helper, and migration contract. Topology,
-Docker compiler, routing, ExaBGP, Looking Glass, DNS, and service runtime
-support are staged for follow-up PRs and should not be treated as fully
-available until their code, examples, and tests land.
+current `development2` landing provides shared address-family helpers,
+deterministic IPv6 prefix allocation, optional topology IPv6 state, and the
+migration contract. Docker compiler output, routing, ExaBGP, Looking Glass,
+DNS, and service runtime support are staged for follow-up PRs and should not be
+treated as fully available until their code, examples, and tests land.
 
 Existing emulations remain IPv4-only by default. New IPv6 work must preserve
 the existing IPv4 APIs and add IPv6 state beside them instead of changing old
@@ -15,8 +15,8 @@ return values.
 base = Base(enableIpv6=True)
 ```
 
-The target topology API also allows enabling IPv6 after building the base
-topology, as long as this is done before rendering:
+The topology API also allows enabling IPv6 after building the base topology, as
+long as this is done before rendering:
 
 ```python
 base = Base()
@@ -31,8 +31,7 @@ base.enableIpv6()
 
 The shared IPv6 allocator uses `2000::/12` as the default root prefix. It is a
 public-style emulation prefix; it does not claim that generated routes are
-globally reachable outside the emulator. The target `Base` API can override
-the root prefix:
+globally reachable outside the emulator. `Base` can override the root prefix:
 
 ```python
 base = Base(enableIpv6=True, ipv6RootPrefix="2000::/12")
@@ -68,7 +67,7 @@ network.getPrefix()
 interface.getAddress()
 ```
 
-Follow-up topology PRs will add explicit IPv6 accessors for dual-stack state:
+Use the explicit IPv6 accessors for dual-stack state:
 
 ```python
 network.hasIpv6Prefix()
@@ -78,8 +77,6 @@ interface.getIpv6Address()
 ```
 
 ## Per-Network Control
-
-The following API is the target shape for follow-up topology integration.
 
 With global IPv6 enabled, local AS networks and IX peering LANs use automatic
 IPv6 prefixes by default.
@@ -98,8 +95,6 @@ base.createInternetExchange(200, ipv6Prefix="2000:8:0:200::/64")
 ```
 
 ## Per-Interface Control
-
-The following API is the target shape for follow-up topology integration.
 
 `joinNetwork()` also accepts an IPv6 address intent. The default is `"auto"`.
 Use `None` for an IPv4-only attachment on a dual-stack network, or provide an
