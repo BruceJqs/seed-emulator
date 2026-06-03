@@ -28,11 +28,15 @@ The first PR landed the contract and shared helper foundation:
 - design, user, and agent-facing migration documents.
 
 The core-topology PR adds optional IPv6 model state to `Base`, AS networks, IX
-LANs, node interfaces, and route-server attachments. It intentionally does not
-claim that Docker, Routing, ExaBGP, Looking Glass, DNS, `/etc/hosts`, or
-repository services are already dual-stack on `development2`. Their rows below
-describe the target migration contract and must be treated as implemented only
-after follow-up PRs add code and tests.
+LANs, node interfaces, and route-server attachments.
+
+The Docker-compiler PR adds Compose dual-stack output for networks and
+interfaces that already carry IPv6 state, optional IPv6 service-network
+prefixes, and explicit static IPv6 attachment output for custom containers and
+Internet Map. It intentionally does not claim that Routing, ExaBGP, Looking
+Glass, DNS, `/etc/hosts`, or repository services are already dual-stack on
+`development2`. Their rows below describe the target migration contract and
+must be treated as implemented only after follow-up PRs add code and tests.
 
 ## Address-Family Contract
 
@@ -79,19 +83,20 @@ Landing foundation:
 
 - Optional IPv6 root prefix and deterministic AS/IX `/64` allocation.
 - IPv6 state on `Network` and `Interface`.
-
-Target follow-up foundation:
-
-- IPv6-aware BGP/OSPF intent rendering for BIRD and FRR.
-- IPv6-aware ExaBGP speaker service and Looking Glass route-state queries.
-- Docker Compose dual-stack network/IPAM and service `ipv6_address` output.
-- IPv6-aware `Filter` / `Binding` matching and `Action.NEW` placement.
+- Docker Compose dual-stack network/IPAM and service `ipv6_address` output for
+  explicitly IPv6-enabled model state.
 - Optional IPv6 service network prefix, with per-node `ipv6_address` emitted
   only for service-network attachments that carry IPv6 state.
 - Optional IPv6 address on `attachCustomContainer(...)` and
   `attachInternetMap(...)`; explicit static IPv4/IPv6 attachment addresses are
   normalized before compose fields and metadata labels are emitted, and
   mismatched address-family inputs are rejected.
+
+Target follow-up foundation:
+
+- IPv6-aware BGP/OSPF intent rendering for BIRD and FRR.
+- IPv6-aware ExaBGP speaker service and Looking Glass route-state queries.
+- IPv6-aware `Filter` / `Binding` matching and `Action.NEW` placement.
 
 Deferred core items:
 
@@ -105,14 +110,14 @@ Deferred core items:
 
 | Area | Status | Migration rule |
 | --- | --- | --- |
-| Routing control plane | Supported | Keep protocol intent family-aware; render backend syntax only in `Routing`. |
-| ExaBGP | Supported | Service speaker may use IPv4 or IPv6 shared peer address; static announcement prefixes use shared prefix normalization before rendering. |
-| Looking Glass | Supported | Route-state views separate IPv4/IPv6 output; frontend-to-proxy URLs use shared URL helpers, default to IPv4, and may explicitly select bracketed IPv6 proxy endpoints. |
+| Routing control plane | Pending follow-up | Keep protocol intent family-aware; render backend syntax only in `Routing`. |
+| ExaBGP | Pending follow-up | Service speaker may use IPv4 or IPv6 shared peer address; static announcement prefixes use shared prefix normalization before rendering. |
+| Looking Glass | Pending follow-up | Route-state views separate IPv4/IPv6 output; frontend-to-proxy URLs use shared URL helpers, default to IPv4, and may explicitly select bracketed IPv6 proxy endpoints. |
 | Docker compiler | Supported | Emit IPv6 only for networks/interfaces carrying IPv6 state. |
-| `/etc/hosts` | Baseline dual-stack | Generate IPv4 and IPv6 entries when available; keep service-network Bridge addresses for service-only nodes, and skip IX peering addresses. |
-| DNS authoritative | Baseline dual-stack | Generate A and AAAA for node-backed records; manual A/AAAA and glue record literals use shared normalization, including bracketed IPv6 literals, and reject address-family mismatches such as A-with-IPv6 or AAAA-with-IPv4; authoritative zone inputs and master-IP zone keys are normalized to canonical DNS zone names, and masters may include both address families; reverse DNS keeps IPv4 `in-addr.arpa.` PTR records and adds `ip6.arpa.` PTR records only when interfaces carry IPv6 state. |
-| Domain Registrar | Compatible | Dynamic DNS updates preserve A as the default record type, allow explicit AAAA submissions, and reject submitted IP addresses whose family does not match the selected A/AAAA record type; TLD placement and runtime behavior remain the existing Domain Registrar model. |
-| DNS cache | Compatible | Prefer IPv4 for old resolver behavior; accept IPv6 forwarders/root hints, normalize manual A/AAAA root-hint literals through the shared helper, normalize forward-zone names to canonical DNS zone names, and use shared node-address helpers for forward-zone fallback to authoritative zone servers. |
+| `/etc/hosts` | Pending follow-up | Generate IPv4 and IPv6 entries when available; keep service-network Bridge addresses for service-only nodes, and skip IX peering addresses. |
+| DNS authoritative | Pending follow-up | Generate A and AAAA for node-backed records; manual A/AAAA and glue record literals use shared normalization, including bracketed IPv6 literals, and reject address-family mismatches such as A-with-IPv6 or AAAA-with-IPv4; authoritative zone inputs and master-IP zone keys are normalized to canonical DNS zone names, and masters may include both address families; reverse DNS keeps IPv4 `in-addr.arpa.` PTR records and adds `ip6.arpa.` PTR records only when interfaces carry IPv6 state. |
+| Domain Registrar | Pending follow-up | Dynamic DNS updates preserve A as the default record type, allow explicit AAAA submissions, and reject submitted IP addresses whose family does not match the selected A/AAAA record type; TLD placement and runtime behavior remain the existing Domain Registrar model. |
+| DNS cache | Pending follow-up | Prefer IPv4 for old resolver behavior; accept IPv6 forwarders/root hints, normalize manual A/AAAA root-hint literals through the shared helper, normalize forward-zone names to canonical DNS zone names, and use shared node-address helpers for forward-zone fallback to authoritative zone servers. |
 | Web/CA | Compatible | Existing IPv4 behavior preserved; CA certificate-install filters match IPv4/IPv6 address and prefix selectors through shared node address/prefix helpers; CA IP/network helper parsing uses shared address and prefix normalization; CA domain inputs trim DNS names and normalize padded or bracketed IPv4/IPv6 endpoint literals before ACME directory URLs use shared URL helpers, but Web HTTPS and ACME runtime behavior still need validation before a full support claim. |
 | Cymru IP origin | IPv4-first | Origin ASN TXT mapping remains IPv4-only; accepted IPv4 prefix inputs use shared prefix normalization, and IPv6 prefixes are rejected explicitly rather than partially mapped. |
 | Traffic services | Compatible | Raw receiver targets are unchanged; receiver vnodes can be resolved to IPv4 or IPv6 targets through shared node-address helpers, and generated reachability probes select IPv6 ping for IPv6 literal targets, but each tool still needs runtime validation before a full support claim. |

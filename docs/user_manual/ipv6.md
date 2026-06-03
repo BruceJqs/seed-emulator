@@ -3,9 +3,11 @@
 IPv6 support is being added as an optional repository-level capability. The
 current `development2` landing provides shared address-family helpers,
 deterministic IPv6 prefix allocation, optional topology IPv6 state, and the
-migration contract. Docker compiler output, routing, ExaBGP, Looking Glass,
-DNS, and service runtime support are staged for follow-up PRs and should not be
-treated as fully available until their code, examples, and tests land.
+migration contract. The Docker compiler now emits dual-stack Compose output
+only for explicitly IPv6-enabled networks and attachments. Routing, ExaBGP,
+Looking Glass, DNS, and service runtime support are staged for follow-up PRs
+and should not be treated as fully available until their code, examples, and
+tests land.
 
 Existing emulations remain IPv4-only by default. New IPv6 work must preserve
 the existing IPv4 APIs and add IPv6 state beside them instead of changing old
@@ -142,9 +144,6 @@ for the design boundary.
 
 ## Docker Compiler
 
-The compiler behavior described here is the target migration contract. It is
-not enabled by this helper-foundation PR alone.
-
 The Docker compiler emits IPv6 runtime configuration only for networks that
 have IPv6 prefixes. Dual-stack networks include `enable_ipv6: true`, IPv6 IPAM,
 and service-level `ipv6_address` entries only for interfaces carrying IPv6
@@ -164,14 +163,18 @@ behavior.
 ## Repository Readiness
 
 IPv6 support is being expanded as a repository-level contract. This PR lands
-the helper foundation and documentation boundary. Later PRs must update this
-section as each feature is implemented and verified on `development2`.
+the Docker compiler portion of that contract on top of the helper and topology
+foundation. Later PRs must update this section as each feature is implemented
+and verified on `development2`.
 
 Target categories:
 
-- supported: core addressing, Docker dual-stack networks, BIRD/FRR BGP,
-  OSPFv3, ExaBGP, Looking Glass;
-- baseline dual-stack: DNS authoritative and reverse records, and `/etc/hosts`;
+- landed: core addressing, optional topology IPv6 state, Docker dual-stack
+  networks, optional IPv6 service network, and custom container / Internet Map
+  static IPv6 attachment output;
+- pending control-plane target: BIRD/FRR BGP, OSPFv3, ExaBGP, Looking Glass;
+- pending DNS baseline target: DNS authoritative and reverse records, and
+  `/etc/hosts`;
 - compatible but not fully migrated: DNS cache, Domain Registrar dynamic A/AAAA
   updates, Web/CA, traffic wrappers, Kubo bootstrap endpoints, Botnet
   C2/dropper endpoint formatting, Monero seed/RPC endpoint formatting,
