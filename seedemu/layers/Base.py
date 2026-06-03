@@ -5,33 +5,72 @@ from typing import Dict, List
 from seedemu.options.Sysctl import SysctlOpts
 BaseFileTemplates: Dict[str, str] = {}
 
-BaseFileTemplates["interface_setup_script"] = """\
+BaseFileTemplates["interface_setup_script"] = r"""\
 #!/bin/bash
 cidr_to_net() {
-    ipcalc -n "$1" | sed -E -n 's/^Network: +([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\/[0-9]{1,2}) +.*/\\1/p'
+    case "$1" in
+        *:*) return ;;
+        *) ipcalc -n "$1" | sed -E -n 's/^Network: +([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\/[0-9]{1,2}) +.*/\1/p' ;;
+    esac
 }
 
-ip -j addr | jq -cr '.[]' | while read -r iface; do {
-    ifname="`jq -cr '.ifname' <<< "$iface"`"
-    jq -cr '.addr_info[]' <<< "$iface" | while read -r iaddr; do {
-        addr="`jq -cr '"\(.local)/\(.prefixlen)"' <<< "$iaddr"`"
-        net="`cidr_to_net "$addr"`"
-        [ -z "$net" ] && continue
-        line="`grep "$net" < ifinfo.txt`"
+lookup_ifinfo() {
+    local cidr="$1"
+    local line net
+    line="`awk -F'|' -v cidr="$cidr" '$2 == cidr { print; exit }' /ifinfo.txt`"
+    if [ ! -z "$line" ]; then
+        echo "$line"
+        return
+    fi
+    net="`cidr_to_net "$cidr"`"
+    if [ ! -z "$net" ]; then
+        line="`awk -F'|' -v cidr="$net" '$2 == cidr { print; exit }' /ifinfo.txt`"
+        if [ ! -z "$line" ]; then
+            echo "$line"
+            return
+        fi
+        grep -F "$net" /ifinfo.txt | head -n1
+    fi
+}
+
+parse_ifinfo() {
+    local line="$1"
+    if [[ "$line" == *"|"* ]]; then
+        new_ifname="`cut -d'|' -f1 <<< "$line"`"
+        latency="`cut -d'|' -f3 <<< "$line"`"
+        bw="`cut -d'|' -f4 <<< "$line"`"
+        loss="`cut -d'|' -f5 <<< "$line"`"
+    else
         new_ifname="`cut -d: -f1 <<< "$line"`"
         latency="`cut -d: -f3 <<< "$line"`"
         bw="`cut -d: -f4 <<< "$line"`"
-        [ "$bw" = 0 ] && bw=1000000000000
         loss="`cut -d: -f5 <<< "$line"`"
-        [ ! -z "$new_ifname" ] && {
-            ip li set "$ifname" down
-            ip li set "$ifname" name "$new_ifname"
-            ip li set "$new_ifname" up
-            tc qdisc add dev "$new_ifname" root handle 1:0 tbf rate "${bw}bit" buffer 1000000 limit 1000
-            tc qdisc add dev "$new_ifname" parent 1:0 handle 10: netem delay "${latency}ms" loss "${loss}%"
-        }
-    }; done
-}; done
+    fi
+}
+
+ip -j addr | jq -cr '.[]' | while read -r iface; do
+    ifname="`jq -cr '.ifname' <<< "$iface"`"
+    line=""
+    while read -r iaddr; do
+        addr="`jq -cr '"\(.local)/\(.prefixlen)"' <<< "$iaddr"`"
+        line="`lookup_ifinfo "$addr"`"
+        [ ! -z "$line" ] && break
+    done < <(jq -cr '.addr_info[]?' <<< "$iface")
+    [ -z "$line" ] && continue
+    parse_ifinfo "$line"
+    [ -z "$new_ifname" ] && continue
+    [ "$bw" = 0 ] && bw=1000000000000
+    if [ "$ifname" != "$new_ifname" ]; then
+        sysctl -w net.ipv6.conf.all.keep_addr_on_down=1 > /dev/null 2>&1
+        sysctl -w net.ipv6.conf.default.keep_addr_on_down=1 > /dev/null 2>&1
+        sysctl -w "net.ipv6.conf.${ifname}.keep_addr_on_down=1" > /dev/null 2>&1
+        ip li set "$ifname" down
+        ip li set "$ifname" name "$new_ifname"
+        ip li set "$new_ifname" up
+    fi
+    tc qdisc add dev "$new_ifname" root handle 1:0 tbf rate "${bw}bit" buffer 1000000 limit 1000
+    tc qdisc add dev "$new_ifname" parent 1:0 handle 10: netem delay "${latency}ms" loss "${loss}%"
+done
 """
 
 
@@ -113,7 +152,11 @@ class Base(Layer, Graphable):
             for iface in node.getInterfaces():
                 net = iface.getNet()
                 [l, b, d] = iface.getLinkProperties()
-                ifinfo += '{}:{}:{}:{}:{}\n'.format(net.getName(), net.getPrefix(), l, b, d)
+                if iface.getAddress() is not None:
+                    ifinfo += '{}|{}/{}|{}|{}|{}\n'.format(net.getName(), iface.getAddress(), net.getPrefix().prefixlen, l, b, d)
+                ifinfo += '{}|{}|{}|{}|{}\n'.format(net.getName(), net.getPrefix(), l, b, d)
+                if iface.hasIpv6Address():
+                    ifinfo += '{}|{}/{}|{}|{}|{}\n'.format(net.getName(), iface.getIpv6Address(), net.getIpv6Prefix().prefixlen, l, b, d)
 
             node.setFile('/ifinfo.txt', ifinfo)
             node.setFile('/interface_setup', BaseFileTemplates['interface_setup_script'])

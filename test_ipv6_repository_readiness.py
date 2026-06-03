@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import socket
 import sys
+import textwrap
 import types
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 ROOT = Path(__file__).resolve().parent
@@ -106,6 +109,56 @@ Ipv6AddressingModule = _load_core_module("Ipv6Addressing", "Ipv6Addressing.py")
 
 AddressFamily = Addressing.AddressFamily
 Ipv6Addressing = Ipv6AddressingModule.Ipv6Addressing
+
+
+def _run_real_docker_compile(tmp_path, setup_code: str):
+    """Compile through the real Docker module in a clean Python process."""
+
+    output = tmp_path / "output_{}".format(len(list(tmp_path.glob("output_*"))))
+    setup_code = textwrap.dedent(setup_code).strip()
+    script = textwrap.dedent(
+        """
+        from pathlib import Path
+        import importlib.util
+        import sys
+        import types
+
+        ROOT = Path({root!r})
+        OUTPUT = Path({output!r})
+
+        seedemu = types.ModuleType("seedemu")
+        seedemu.__path__ = [str(ROOT / "seedemu")]
+        sys.modules["seedemu"] = seedemu
+        for name in ["core", "layers", "compiler"]:
+            module = types.ModuleType("seedemu." + name)
+            module.__path__ = [str(ROOT / "seedemu" / name)]
+            sys.modules["seedemu." + name] = module
+
+        spec = importlib.util.spec_from_file_location(
+            "seedemu.core",
+            ROOT / "seedemu" / "core" / "__init__.py",
+            submodule_search_locations=[str(ROOT / "seedemu" / "core")],
+        )
+        core = importlib.util.module_from_spec(spec)
+        sys.modules["seedemu.core"] = core
+        spec.loader.exec_module(core)
+
+        from seedemu.core.Emulator import Emulator
+        from seedemu.layers.Base import Base
+        from seedemu.compiler.Docker import Docker
+
+        {setup_code}
+        """
+    ).format(root=str(ROOT), output=str(output), setup_code=setup_code)
+    subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=str(ROOT),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    compose_text = (output / "docker-compose.yml").read_text()
+    return compose_text, yaml.safe_load(compose_text)
 
 
 def _load_seedemu_class(module_name: str, class_name: str):
@@ -344,3 +397,185 @@ def test_router_backend_legacy_values_stay_rejected():
         router.setRoutingBackend("exabgp")
     with pytest.raises(AssertionError):
         router.setRoutingBackend("external")
+
+
+def test_docker_compiler_keeps_ipv4_default_compose_ipv4_only(tmp_path):
+    compose_text, compose = _run_real_docker_compile(
+        tmp_path,
+        """
+        emu = Emulator()
+        base = Base()
+        as150 = base.createAutonomousSystem(150)
+        as150.createNetwork("net0")
+        as150.createHost("h1").joinNetwork("net0")
+        emu.addLayer(base)
+        emu.render()
+        emu.compile(Docker(internetMapEnabled=False), str(OUTPUT), override=True)
+        """,
+    )
+
+    assert "enable_ipv6" not in compose_text
+    assert "ipv6_address" not in compose_text
+
+    net = compose["networks"]["net_150_net0"]
+    assert "enable_ipv6" not in net
+    assert net["ipam"]["config"] == [{"subnet": "10.150.0.0/24"}]
+
+    service_net = compose["services"]["hnode_150_h1"]["networks"]["net_150_net0"]
+    assert service_net == {"ipv4_address": "10.150.0.71"}
+
+
+def test_docker_compiler_emits_ipv6_only_for_ipv6_interfaces(tmp_path):
+    _, compose = _run_real_docker_compile(
+        tmp_path,
+        """
+        emu = Emulator()
+        base = Base(enableIpv6=True)
+        as150 = base.createAutonomousSystem(150)
+        as150.createNetwork("net0")
+        as150.createHost("h1").joinNetwork("net0")
+        as150.createHost("v4only").joinNetwork("net0", ipv6Address=None)
+        emu.addLayer(base)
+        emu.render()
+        emu.compile(Docker(internetMapEnabled=False), str(OUTPUT), override=True)
+        """,
+    )
+
+    net = compose["networks"]["net_150_net0"]
+    assert net["enable_ipv6"] is True
+    assert net["ipam"]["config"] == [
+        {"subnet": "10.150.0.0/24"},
+        {"subnet": "2000:0:96::/64"},
+    ]
+    assert net["labels"]["org.seedsecuritylabs.seedemu.meta.ipv6_prefix"] == "2000:0:96::/64"
+
+    h1_net = compose["services"]["hnode_150_h1"]["networks"]["net_150_net0"]
+    assert h1_net["ipv4_address"] == "10.150.0.71"
+    assert h1_net["ipv6_address"] == "2000:0:96::47"
+
+    v4only_net = compose["services"]["hnode_150_v4only"]["networks"]["net_150_net0"]
+    assert v4only_net == {"ipv4_address": "10.150.0.72"}
+
+
+def test_service_network_ipv6_is_explicit(tmp_path):
+    _, default_compose = _run_real_docker_compile(
+        tmp_path,
+        """
+        emu = Emulator()
+        base = Base()
+        as150 = base.createAutonomousSystem(150)
+        as150.createNetwork("net0")
+        as150.createHost("h1").joinNetwork("net0")
+        emu.addLayer(base)
+        emu.getServiceNetwork()
+        emu.render()
+        emu.compile(Docker(internetMapEnabled=False), str(OUTPUT), override=True)
+        """,
+    )
+
+    default_service_net = default_compose["networks"]["000_svc"]
+    assert "enable_ipv6" not in default_service_net
+    assert default_service_net["ipam"]["config"] == [{"subnet": "192.168.66.0/24"}]
+
+    _, ipv6_compose = _run_real_docker_compile(
+        tmp_path,
+        """
+        emu = Emulator(serviceNetworkIpv6Prefix=" fd00:66:: / 64 ")
+        base = Base()
+        as150 = base.createAutonomousSystem(150)
+        as150.createNetwork("net0")
+        as150.createHost("h1").joinNetwork("net0")
+        emu.addLayer(base)
+        emu.getServiceNetwork()
+        emu.render()
+        emu.compile(Docker(internetMapEnabled=False), str(OUTPUT), override=True)
+        """,
+    )
+
+    ipv6_service_net = ipv6_compose["networks"]["000_svc"]
+    assert ipv6_service_net["enable_ipv6"] is True
+    assert ipv6_service_net["ipam"]["config"] == [
+        {"subnet": "192.168.66.0/24"},
+        {"subnet": "fd00:66::/64"},
+    ]
+
+
+def test_custom_container_and_internet_map_ipv6_attachment_is_explicit(tmp_path):
+    _, compose = _run_real_docker_compile(
+        tmp_path,
+        """
+        emu = Emulator()
+        base = Base(enableIpv6=True)
+        as150 = base.createAutonomousSystem(150)
+        as150.createNetwork("net0")
+        as150.createHost("h1").joinNetwork("net0")
+        emu.addLayer(base)
+        emu.render()
+
+        docker = Docker(internetMapEnabled=False)
+        docker.attachCustomContainer(
+            "    probe_v4:\\n        image: alpine:latest\\n",
+            asn=150,
+            net="net0",
+            ip_address="10.150.0.200",
+            show_on_map=True,
+            node_name="probe_v4",
+        )
+        docker.attachInternetMap(
+            asn=150,
+            net="net0",
+            ip_address=" 10.150.0.201 ",
+            ipv6_address=" [2000:0:96::201] ",
+            node_name="seedemu_internet_map",
+        )
+        emu.compile(docker, str(OUTPUT), override=True)
+        """,
+    )
+
+    probe_net = compose["services"]["probe_v4"]["networks"]["net_150_net0"]
+    assert probe_net == {"ipv4_address": "10.150.0.200"}
+    assert "org.seedsecuritylabs.seedemu.meta.net.0.ipv6_address" not in compose["services"]["probe_v4"]["labels"]
+
+    map_net = compose["services"]["seedemu_internet_map"]["networks"]["net_150_net0"]
+    assert map_net["ipv4_address"] == "10.150.0.201"
+    assert map_net["ipv6_address"] == "2000:0:96::201"
+
+
+def test_custom_container_attachment_rejects_mismatched_address_families(tmp_path):
+    _run_real_docker_compile(
+        tmp_path,
+        """
+        docker = Docker(internetMapEnabled=False)
+        try:
+            docker.attachCustomContainer(
+                "    bad_v4:\\n        image: alpine:latest\\n",
+                asn=150,
+                net="net0",
+                ip_address="2000:0:96::202",
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("IPv6 literal was accepted in ip_address")
+
+        try:
+            docker.attachInternetMap(
+                asn=150,
+                net="net0",
+                ipv6_address="10.150.0.202",
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("IPv4 literal was accepted in ipv6_address")
+
+        emu = Emulator()
+        base = Base()
+        as150 = base.createAutonomousSystem(150)
+        as150.createNetwork("net0")
+        as150.createHost("h1").joinNetwork("net0")
+        emu.addLayer(base)
+        emu.render()
+        emu.compile(docker, str(OUTPUT), override=True)
+        """,
+    )

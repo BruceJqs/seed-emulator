@@ -8,17 +8,21 @@ tests or code review reveal a better path.
 
 Already established in this branch:
 
+- shared endpoint/address helpers in `seedemu.core`;
 - optional IPv6 core state for networks and interfaces;
 - deterministic IPv6 allocation under default `2000::/12`;
 - Docker dual-stack output for IPv6-enabled networks;
+- optional IPv6 service network and custom container / Internet Map attachment
+  support in the Docker compiler;
+- repository readiness design and user manual updates;
+
+Not yet re-landed on `development2`:
+
 - BIRD/FRR IPv6 BGP and OSPFv3 rendering;
 - ExaBGP IPv6 control-plane announcements;
 - Looking Glass IPv6 route-state observation;
-- repository readiness design and user manual updates;
-- shared endpoint/address helpers in `seedemu.core`;
 - baseline dual-stack DNS and `/etc/hosts` behavior;
-- IPv6-aware `Filter` / `Binding` matching;
-- optional IPv6 service network and custom container attachment support.
+- IPv6-aware `Filter` / `Binding` matching.
 
 Before adding more work, verify the baseline still passes:
 
