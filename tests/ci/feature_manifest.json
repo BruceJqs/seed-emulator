@@ -1,5 +1,55 @@
 {
   "schema": 1,
+  "coverage_policy": {
+    "required_features": [
+      "ipv4-default",
+      "ipv6-core",
+      "routing-bird-frr",
+      "exabgp-service",
+      "looking-glass",
+      "dns-endpoint",
+      "legacy-guard"
+    ],
+    "covered_requires_evidence": true
+  },
+  "static": {
+    "compile_targets": [
+      "seedemu",
+      "tests/control_plane",
+      "tests/ci",
+      "test_ci_runner.py"
+    ],
+    "compile_exclude": "seedemu/services/EthereumService/EthTemplates/",
+    "import_smoke": [
+      {
+        "statement": "from seedemu.layers.Base import Base"
+      },
+      {
+        "statement": "from seedemu.layers.Routing import Routing, Router"
+      },
+      {
+        "statement": "from seedemu.layers.Ebgp import Ebgp"
+      },
+      {
+        "statement": "from seedemu.layers.Ibgp import Ibgp"
+      },
+      {
+        "statement": "from seedemu.layers.Ospf import Ospf"
+      },
+      {
+        "statement": "from seedemu.services.ExaBgpService import ExaBgpService"
+      },
+      {
+        "statement": "from seedemu.services.BgpLookingGlassService import BgpLookingGlassService"
+      },
+      {
+        "statement": "from seedemu.compiler.Docker import Docker"
+      },
+      {
+        "statement": "import runpy; runpy.run_path('tests/ci/run_ci.py', run_name='seed_ci_runner_smoke')"
+      }
+    ]
+  },
   "features": {
     "ipv4-default": {
       "status": "covered",
@@ -63,6 +113,10 @@
     }
   },
   "unit_groups": {
+    "ci-runner-unit": {
+      "description": "Example-first CI runner manifest, selector, and logging checks.",
+      "pytest_args": ["test_ci_runner.py"]
+    },
     "control-plane-unit": {
       "description": "Control-plane API, rendering, service, and legacy guard checks.",
       "pytest_args": ["tests/control_plane/test_bgp_control_plane_extensions.py"]
@@ -81,19 +135,43 @@
       "description": "Small IPv4 default behavior smoke example.",
       "script": "examples/basic/A00_simple_as/simple_as.py",
       "args": ["amd"],
+      "features": ["ipv4-default"],
+      "tags": ["basic", "ipv4-default", "docker-compile", "docker-build"],
       "clean": ["output"],
-      "expected": ["output/docker-compose.yml"],
-      "compile": true,
-      "build": true
+      "compile": {
+        "enabled": true,
+        "outputs": ["output/docker-compose.yml"],
+        "timeout": 900
+      },
+      "build": {
+        "enabled": true,
+        "compose_file": "output/docker-compose.yml",
+        "timeout": 1800
+      },
+      "runtime": {
+        "enabled": false
+      }
     },
     "basic-a12-bgp-mixed-backend": {
       "description": "Mixed BIRD/FRR routing backend example.",
       "script": "examples/basic/A12_bgp_mixed_backend/bgp_mixed_backend.py",
       "args": ["amd"],
+      "features": ["routing-bird-frr"],
+      "tags": ["basic", "routing", "bird", "frr", "docker-compile", "docker-build"],
       "clean": ["output"],
-      "expected": ["output/docker-compose.yml"],
-      "compile": true,
-      "build": true
+      "compile": {
+        "enabled": true,
+        "outputs": ["output/docker-compose.yml"],
+        "timeout": 900
+      },
+      "build": {
+        "enabled": true,
+        "compose_file": "output/docker-compose.yml",
+        "timeout": 1800
+      },
+      "runtime": {
+        "enabled": false
+      }
     },
     "basic-a13-exabgp-control-plane": {
       "description": "ExaBGP service plus Binding control-plane speaker example.",
@@ -102,10 +180,22 @@
       "env": {
         "SEED_A13_EXABGP_PORT": "5101"
       },
+      "features": ["exabgp-service"],
+      "tags": ["basic", "exabgp", "service-binding", "docker-compile", "docker-build"],
       "clean": ["output"],
-      "expected": ["output/docker-compose.yml"],
-      "compile": true,
-      "build": true
+      "compile": {
+        "enabled": true,
+        "outputs": ["output/docker-compose.yml"],
+        "timeout": 900
+      },
+      "build": {
+        "enabled": true,
+        "compose_file": "output/docker-compose.yml",
+        "timeout": 1800
+      },
+      "runtime": {
+        "enabled": false
+      }
     },
     "basic-a14-bgp-event-looking-glass": {
       "description": "Looking Glass route-state observer plus separate ExaBGP event dashboard example.",
@@ -115,19 +205,43 @@
         "SEED_A14_LG_PORT": "5002",
         "SEED_A14_EVENT_PORT": "5003"
       },
+      "features": ["looking-glass"],
+      "tags": ["basic", "looking-glass", "exabgp-events", "docker-compile", "docker-build"],
       "clean": ["output"],
-      "expected": ["output/docker-compose.yml"],
-      "compile": true,
-      "build": true
+      "compile": {
+        "enabled": true,
+        "outputs": ["output/docker-compose.yml"],
+        "timeout": 900
+      },
+      "build": {
+        "enabled": true,
+        "compose_file": "output/docker-compose.yml",
+        "timeout": 1800
+      },
+      "runtime": {
+        "enabled": false
+      }
     },
     "internet-b02-mini-internet-with-dns": {
       "description": "Mini Internet with DNS component and local DNS endpoints.",
       "script": "examples/internet/B02_mini_internet_with_dns/mini_internet_with_dns.py",
       "args": ["amd"],
+      "features": ["dns-endpoint"],
+      "tags": ["internet", "dns", "docker-compile", "docker-build"],
       "clean": ["output", "base_internet.bin", "dns_component.bin"],
-      "expected": ["output/docker-compose.yml"],
-      "compile": true,
-      "build": true
+      "compile": {
+        "enabled": true,
+        "outputs": ["output/docker-compose.yml"],
+        "timeout": 900
+      },
+      "build": {
+        "enabled": true,
+        "compose_file": "output/docker-compose.yml",
+        "timeout": 1800
+      },
+      "runtime": {
+        "enabled": false
+      }
     },
     "internet-b30-mini-internet-exabgp-ix": {
       "description": "Internet-scale ExaBGP IX speaker compile coverage.",
@@ -136,10 +250,21 @@
       "env": {
         "SEED_B30_EXABGP_PORT": "5130"
       },
+      "features": ["exabgp-service"],
+      "tags": ["internet", "exabgp", "ix", "docker-compile"],
       "clean": ["output", "base_internet.bin"],
-      "expected": ["output/docker-compose.yml"],
-      "compile": true,
-      "build": false
+      "compile": {
+        "enabled": true,
+        "outputs": ["output/docker-compose.yml"],
+        "timeout": 900
+      },
+      "build": {
+        "enabled": false,
+        "compose_file": "output/docker-compose.yml"
+      },
+      "runtime": {
+        "enabled": false
+      }
     }
   }
 }

@@ -30,6 +30,7 @@ jobs:
   static:
     name: Static
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out the source repository
         uses: actions/checkout@v4
@@ -56,6 +57,7 @@ jobs:
     name: Unit
     needs: static
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out the source repository
         uses: actions/checkout@v4
@@ -80,6 +82,7 @@ jobs:
     name: Example Compile
     needs: static
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - name: Check out the source repository
         uses: actions/checkout@v4
@@ -105,6 +108,7 @@ jobs:
     needs: example-compile
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs['run-example-build'] == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - name: Check out the source repository
         uses: actions/checkout@v4
@@ -130,6 +134,7 @@ jobs:
     needs: example-compile
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs['run-runtime-integration'] == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - name: Check out the source repository
         uses: actions/checkout@v4
