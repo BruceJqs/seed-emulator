@@ -1155,16 +1155,22 @@ fill_placeholder = """\
 gw="`ip rou show default | cut -d' ' -f3`"
 if [ -z "$gw" ]; then
 
-    #line=$(<"/ifinfo.txt")
-    line=$(grep '^000_svc:' "/ifinfo.txt")
+    line=$(awk -F'|' '$1 == "000_svc" && $2 !~ /:/ { print; exit }' "/ifinfo.txt")
+    if [ -z "$line" ]; then
+        line=$(grep '^000_svc:' "/ifinfo.txt" | head -n1)
+    fi
     if [ -z "$line" ]; then
         echo "Error: Could not find 000_svc in /ifinfo.txt" >&2
         exit 1
     fi
-    ip_portion=$(echo "$line" | cut -d':' -f2)
+    if [[ "$line" == *"|"* ]]; then
+        ip_portion=$(echo "$line" | cut -d'|' -f2)
+    else
+        ip_portion=$(echo "$line" | cut -d':' -f2)
+    fi
     ip_only=$(echo "$ip_portion" | cut -d'/' -f1)
     docker_host="${ip_only%.*}.1"
-    if [ -z "$docker_host"]; then
+    if [ -z "$docker_host" ]; then
         echo "Error: Could not determine the default route required to configure BIRD." >&2
         exit 1;
     else
