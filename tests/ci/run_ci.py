@@ -36,6 +36,86 @@ def _json_dump(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _artifact_kind(path: Path) -> str:
+    if path.name == "ci-summary.json":
+        return "stage-summary"
+    if path.name == "feature-coverage.json":
+        return "feature-coverage"
+    if path.name == "failure-summary.json":
+        return "failure-summary"
+    if path.name == "artifact-manifest.json":
+        return "artifact-manifest"
+    if path.name == "junit.xml" or path.name.startswith("pytest-") and path.suffix == ".xml":
+        return "junit"
+    if path.parent.name == "logs":
+        return "command-log"
+    return "artifact"
+
+
+def _write_artifact_manifest(stage: str, artifact_dir: Path) -> None:
+    manifest_path = artifact_dir / "artifact-manifest.json"
+    artifacts = []
+    for path in sorted(artifact_dir.rglob("*")):
+        if not path.is_file() or path == manifest_path:
+            continue
+        artifacts.append(
+            {
+                "path": _rel(path),
+                "kind": _artifact_kind(path),
+                "size_bytes": path.stat().st_size,
+            }
+        )
+
+    artifacts.append(
+        {
+            "path": _rel(manifest_path),
+            "kind": "artifact-manifest",
+            "size_bytes": None,
+        }
+    )
+    manifest = {
+        "schema": 1,
+        "stage": stage,
+        "generated_by": "tests/ci/run_ci.py",
+        "artifacts": artifacts,
+    }
+    _json_dump(manifest_path, manifest)
+    artifacts[-1]["size_bytes"] = manifest_path.stat().st_size
+    _json_dump(manifest_path, manifest)
+
+
+def _write_failure_summary(stage: str, checks: list[dict[str, Any]], artifact_dir: Path) -> None:
+    failures = []
+    skipped = []
+    for check in checks:
+        entry = {
+            "name": check["name"],
+            "message": check.get("message", ""),
+            "log_path": check.get("log_path", ""),
+            "features": check.get("features", []),
+            "examples": check.get("examples", []),
+            "command": check.get("command", []),
+        }
+        if check["status"] == "failed":
+            entry["details_tail"] = _tail(check.get("details", ""), limit=1200)
+            failures.append(entry)
+        elif check["status"] == "skipped":
+            skipped.append(entry)
+
+    _json_dump(
+        artifact_dir / "failure-summary.json",
+        {
+            "schema": 1,
+            "stage": stage,
+            "status": "failed" if failures else "passed",
+            "failed_count": len(failures),
+            "skipped_count": len(skipped),
+            "failures": failures,
+            "skipped": skipped,
+        },
+    )
+
+
 def _tail(text: str, limit: int = 4000) -> str:
     if len(text) <= limit:
         return text
@@ -65,6 +145,13 @@ def _example_outputs(example: dict[str, Any]) -> list[str]:
     return list(example.get("expected", []))
 
 
+def _example_runtime_probes(example: dict[str, Any]) -> list[str]:
+    runtime_config = example.get("runtime", {})
+    if isinstance(runtime_config, dict):
+        return list(runtime_config.get("probes", []))
+    return []
+
+
 def _example_compose_file(example: dict[str, Any]) -> str:
     build_config = example.get("build", {})
     if isinstance(build_config, dict):
@@ -88,6 +175,7 @@ def _validate_manifest(manifest: dict[str, Any]) -> list[str]:
     features = manifest.get("features", {})
     unit_groups = manifest.get("unit_groups", {})
     runtime_groups = manifest.get("runtime_groups", {})
+    runtime_probes = manifest.get("runtime_probes", {})
     examples = manifest.get("examples", {})
     coverage_policy = manifest.get("coverage_policy", {})
     required_features = set(coverage_policy.get("required_features", []))
@@ -107,6 +195,16 @@ def _validate_manifest(manifest: dict[str, Any]) -> list[str]:
                 errors.append(f"feature {feature_id} references missing runtime group {group_id}")
             else:
                 evidence.append(f"runtime:{group_id}")
+        for probe_id in feature.get("runtime_probes", []):
+            if probe_id not in runtime_probes:
+                errors.append(f"feature {feature_id} references missing runtime probe {probe_id}")
+            elif feature_id not in runtime_probes[probe_id].get("features", []):
+                errors.append(
+                    f"feature {feature_id} references runtime probe {probe_id} "
+                    "that does not link back to the feature"
+                )
+            else:
+                evidence.append(f"runtime-probe:{probe_id}")
         for example_id in feature.get("compile_examples", []):
             if example_id not in examples:
                 errors.append(
@@ -138,6 +236,14 @@ def _validate_manifest(manifest: dict[str, Any]) -> list[str]:
         for feature_id in example.get("features", []):
             if feature_id not in features:
                 errors.append(f"example {example_id} references missing feature {feature_id}")
+        for probe_id in _example_runtime_probes(example):
+            if probe_id not in runtime_probes:
+                errors.append(f"example {example_id} references missing runtime probe {probe_id}")
+            elif example_id not in runtime_probes[probe_id].get("examples", []):
+                errors.append(
+                    f"example {example_id} references runtime probe {probe_id} "
+                    "that does not link back to the example"
+                )
         for expected in _example_outputs(example):
             if Path(expected).is_absolute():
                 errors.append(f"example {example_id} expected path must be relative: {expected}")
@@ -147,6 +253,23 @@ def _validate_manifest(manifest: dict[str, Any]) -> list[str]:
         compose_file = _example_compose_file(example)
         if Path(compose_file).is_absolute():
             errors.append(f"example {example_id} compose file must be relative: {compose_file}")
+
+    for probe_id, probe in runtime_probes.items():
+        group_id = probe.get("group")
+        if group_id not in runtime_groups:
+            errors.append(f"runtime probe {probe_id} references missing group {group_id}")
+        if not probe.get("pytest_args"):
+            errors.append(f"runtime probe {probe_id} must declare pytest_args")
+        for feature_id in probe.get("features", []):
+            if feature_id not in features:
+                errors.append(f"runtime probe {probe_id} references missing feature {feature_id}")
+        for example_id in probe.get("examples", []):
+            if example_id not in examples:
+                errors.append(f"runtime probe {probe_id} references missing example {example_id}")
+            elif not _example_flag(examples[example_id], "runtime"):
+                errors.append(
+                    f"runtime probe {probe_id} references runtime-disabled example {example_id}"
+                )
     return errors
 
 
@@ -160,6 +283,7 @@ def feature_coverage(manifest: dict[str, Any]) -> dict[str, Any]:
             "compile_examples": feature.get("compile_examples", []),
             "build_examples": feature.get("build_examples", []),
             "runtime_groups": feature.get("runtime_groups", []),
+            "runtime_probes": feature.get("runtime_probes", []),
             "notes": feature.get("notes", ""),
         }
     examples = {}
@@ -171,8 +295,19 @@ def feature_coverage(manifest: dict[str, Any]) -> dict[str, Any]:
             "compile": _example_flag(example, "compile"),
             "build": _example_flag(example, "build"),
             "runtime": _example_flag(example, "runtime"),
+            "runtime_probes": _example_runtime_probes(example),
             "outputs": _example_outputs(example),
             "compose_file": _example_compose_file(example),
+        }
+    runtime_probes = {}
+    for probe_id, probe in sorted(manifest.get("runtime_probes", {}).items()):
+        runtime_probes[probe_id] = {
+            "description": probe.get("description", ""),
+            "group": probe.get("group", ""),
+            "features": probe.get("features", []),
+            "examples": probe.get("examples", []),
+            "pytest_args": probe.get("pytest_args", []),
+            "evidence": probe.get("evidence", []),
         }
     return {
         "schema": manifest["schema"],
@@ -180,7 +315,12 @@ def feature_coverage(manifest: dict[str, Any]) -> dict[str, Any]:
         "coverage_policy": manifest.get("coverage_policy", {}),
         "features": features,
         "examples": examples,
+        "runtime_probes": runtime_probes,
     }
+
+
+def _write_feature_coverage(manifest: dict[str, Any], artifact_dir: Path) -> None:
+    _json_dump(artifact_dir / "feature-coverage.json", feature_coverage(manifest))
 
 
 def _write_junit(stage: str, checks: list[dict[str, Any]], path: Path) -> None:
@@ -235,6 +375,8 @@ def _stage_result(stage: str, checks: list[dict[str, Any]], artifact_dir: Path) 
     }
     _json_dump(artifact_dir / "ci-summary.json", summary)
     _write_junit(stage, checks, artifact_dir / "junit.xml")
+    _write_failure_summary(stage, checks, artifact_dir)
+    _write_artifact_manifest(stage, artifact_dir)
 
     print(f"[seed-ci] stage={stage} status={summary['status']} artifact_dir={_rel(artifact_dir)}")
     for check in checks:
@@ -420,6 +562,30 @@ def _selected_runtime_group_ids(
     return ids
 
 
+def _selected_runtime_probe_ids(
+    manifest: dict[str, Any],
+    groups: Sequence[str],
+    features: Sequence[str],
+    examples: Sequence[str],
+) -> list[str]:
+    group_filter = set(groups)
+    feature_filter = set(features)
+    example_filter = set(examples)
+    selected: list[str] = []
+    for probe_id, probe in manifest.get("runtime_probes", {}).items():
+        if group_filter and probe.get("group") not in group_filter:
+            continue
+        if feature_filter or example_filter:
+            probe_features = set(probe.get("features", []))
+            probe_examples = set(probe.get("examples", []))
+            if feature_filter.isdisjoint(probe_features) and example_filter.isdisjoint(
+                probe_examples
+            ):
+                continue
+        selected.append(probe_id)
+    return selected
+
+
 def _selected_example_ids(
     manifest: dict[str, Any],
     key: str,
@@ -436,6 +602,11 @@ def _selected_example_ids(
             selected.update(feature.get("compile_examples", []))
         elif key == "build":
             selected.update(feature.get("build_examples", []))
+        elif key == "runtime":
+            for probe_id in feature.get("runtime_probes", []):
+                selected.update(
+                    manifest.get("runtime_probes", {}).get(probe_id, {}).get("examples", [])
+                )
     ids = _example_ids(manifest, key)
     if feature_set:
         ids = [
@@ -479,6 +650,28 @@ def _selector_check(errors: list[str]) -> dict[str, Any] | None:
         "duration_s": 0.0,
         "message": "selector validation failed",
         "details": "\n".join(errors),
+        "log_path": "",
+    }
+
+
+def _runtime_no_probe_check(
+    *, features: Sequence[str], examples: Sequence[str], groups: Sequence[str]
+) -> dict[str, Any]:
+    return {
+        "name": "runtime-probe-selection",
+        "status": "skipped",
+        "duration_s": 0.0,
+        "message": "no runtime probe matches the selected feature/example/group",
+        "details": json.dumps(
+            {
+                "features": list(features),
+                "examples": list(examples),
+                "groups": list(groups),
+            },
+            sort_keys=True,
+        ),
+        "features": list(features),
+        "examples": list(examples),
         "log_path": "",
     }
 
@@ -571,8 +764,7 @@ def run_static(
     errors.extend(
         _validate_selectors(manifest, groups=groups, features=features, examples=examples)
     )
-    coverage = feature_coverage(manifest)
-    _json_dump(artifact_dir / "feature-coverage.json", coverage)
+    _write_feature_coverage(manifest, artifact_dir)
     checks.append(
         {
             "name": "manifest",
@@ -627,6 +819,7 @@ def run_unit(
     artifact_dir: Path, *, features: Sequence[str], groups: Sequence[str], examples: Sequence[str]
 ) -> int:
     manifest = load_manifest()
+    _write_feature_coverage(manifest, artifact_dir)
     checks: list[dict[str, Any]] = []
     selector_check = _selector_check(
         _validate_selectors(manifest, groups=groups, features=features, examples=examples)
@@ -654,6 +847,7 @@ def run_example_compile(
     artifact_dir: Path, *, features: Sequence[str], examples: Sequence[str], groups: Sequence[str]
 ) -> int:
     manifest = load_manifest()
+    _write_feature_coverage(manifest, artifact_dir)
     selector_check = _selector_check(
         _validate_selectors(manifest, groups=groups, features=features, examples=examples)
     )
@@ -681,6 +875,7 @@ def run_example_build(
     artifact_dir: Path, *, features: Sequence[str], examples: Sequence[str], groups: Sequence[str]
 ) -> int:
     manifest = load_manifest()
+    _write_feature_coverage(manifest, artifact_dir)
     checks: list[dict[str, Any]] = []
     selector_check = _selector_check(
         _validate_selectors(manifest, groups=groups, features=features, examples=examples)
@@ -722,6 +917,7 @@ def run_runtime_integration(
     artifact_dir: Path, *, features: Sequence[str], groups: Sequence[str], examples: Sequence[str]
 ) -> int:
     manifest = load_manifest()
+    _write_feature_coverage(manifest, artifact_dir)
     checks: list[dict[str, Any]] = []
     selector_check = _selector_check(
         _validate_selectors(manifest, groups=groups, features=features, examples=examples)
@@ -729,6 +925,37 @@ def run_runtime_integration(
     if selector_check:
         checks.append(selector_check)
         return _stage_result("runtime-integration", checks, artifact_dir)
+
+    probe_ids = _selected_runtime_probe_ids(manifest, groups, features, examples)
+    for probe_id in probe_ids:
+        probe = manifest["runtime_probes"][probe_id]
+        junit_path = artifact_dir / f"pytest-{_slug(probe_id)}.xml"
+        group = manifest["runtime_groups"][probe["group"]]
+        cmd = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            f"--junitxml={junit_path}",
+        ] + list(probe["pytest_args"])
+        check = _run_command(
+            f"runtime-probe:{probe_id}",
+            cmd,
+            artifact_dir,
+            env=_pytest_env(),
+            timeout=int(probe.get("timeout", group.get("timeout", 7200))),
+        )
+        check["features"] = probe.get("features", [])
+        check["examples"] = probe.get("examples", [])
+        checks.append(check)
+    if checks:
+        return _stage_result("runtime-integration", checks, artifact_dir)
+    if features or examples:
+        checks.append(
+            _runtime_no_probe_check(features=features, examples=examples, groups=groups)
+        )
+        return _stage_result("runtime-integration", checks, artifact_dir)
+
     for group_id in _selected_runtime_group_ids(manifest, groups, features):
         group = manifest["runtime_groups"][group_id]
         junit_path = artifact_dir / f"pytest-{_slug(group_id)}.xml"

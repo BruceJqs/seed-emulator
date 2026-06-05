@@ -4,7 +4,7 @@ The pull-request workflow is organized around feature evidence, with examples as
 the primary reusable test unit for both agents and GitHub Actions. The manifest
 in `feature_manifest.json` is the source of truth for feature coverage, example
 compile outputs, Docker compose files, import smoke checks, and selected runtime
-groups.
+groups and probes.
 
 The runner executes the manifest. It should not hard-code the project feature
 set, import smoke surface, or compose output layout.
@@ -18,7 +18,11 @@ Every stage writes human-readable logs and machine-readable evidence:
 - `junit.xml` records the same stage in a format GitHub and review tooling can
   ingest.
 - `feature-coverage.json` records manifest-derived feature and example evidence,
-  including declared gaps.
+  including declared gaps and runtime probes.
+- `failure-summary.json` records failed and skipped checks with feature/example
+  labels, command lines, log paths, and a short failure tail.
+- `artifact-manifest.json` indexes the files emitted by the stage, including
+  summaries, JUnit files, logs, and feature coverage.
 - `logs/*.log` contains streamed command output, so large Docker build/runtime
   logs do not have to be kept in memory.
 
@@ -39,6 +43,8 @@ example, or test group:
 python3 tests/ci/run_ci.py example-compile --feature routing-bird-frr --artifact-dir ci-artifacts/example-routing
 python3 tests/ci/run_ci.py example-compile --example basic-a00-simple-as --artifact-dir ci-artifacts/example-a00
 python3 tests/ci/run_ci.py unit --group control-plane-unit --artifact-dir ci-artifacts/unit-control-plane
+python3 tests/ci/run_ci.py runtime-integration --feature exabgp-service --artifact-dir ci-artifacts/runtime-exabgp
+python3 tests/ci/run_ci.py runtime-integration --example basic-a14-bgp-event-looking-glass --artifact-dir ci-artifacts/runtime-a14
 ```
 
 Docker image builds and runtime integration are explicit entry points. They are
@@ -50,6 +56,13 @@ python3 tests/ci/run_ci.py example-build --artifact-dir ci-artifacts/example-bui
 python3 tests/ci/run_ci.py runtime-integration --artifact-dir ci-artifacts/runtime-integration
 ```
 
+Runtime integration uses `runtime_probes` when the manifest declares them. A
+probe binds one pytest node to the feature ids, examples, evidence statements,
+and runtime group that it validates. This lets agents run a single high-value
+runtime check without executing the entire integration group. Selecting a
+feature or example with no runtime probe records a skipped check instead of
+silently falling back to unrelated runtime coverage.
+
 ## Manifest Contract
 
 `coverage_policy.required_features` declares the feature ids that must be
@@ -57,9 +70,10 @@ tracked by this integration line. Adding or removing a required feature is a
 manifest change, not a Python runner change.
 
 Each `covered` feature must declare at least one evidence source: a unit group,
-compile example, build example, or runtime group. Use `declared-gap` for work
-that is intentionally tracked but not yet covered by this line. Do not mark a
-feature `covered` until its evidence is present and runnable.
+compile example, build example, runtime group, or runtime probe. Use
+`declared-gap` for work that is intentionally tracked but not yet covered by
+this line. Do not mark a feature `covered` until its evidence is present and
+runnable.
 
 Each example declares:
 
@@ -67,7 +81,14 @@ Each example declares:
 - `features` and `tags` for agent/reviewer discovery.
 - `compile.enabled` and `compile.outputs` for generated-file evidence.
 - `build.enabled` and `build.compose_file` for Docker build evidence.
-- `runtime.enabled` for future runtime probe wiring.
+- `runtime.enabled` and `runtime.probes` for runtime evidence wiring.
+
+Each runtime probe declares:
+
+- `group` for workflow-dispatch and timeout ownership.
+- `features` and `examples` for selector matching.
+- `pytest_args` for the exact pytest node to run.
+- `evidence` for the human/AI-readable runtime assertions covered by the probe.
 
 The static stage compiles importable Python source plus the selected example
 directories. It intentionally excludes embedded payload templates under
