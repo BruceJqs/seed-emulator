@@ -1,0 +1,66 @@
+id: basic-a16-exabgp-ipv6-control-plane
+name: ExaBGP IPv6 Control Plane
+description: ExaBgpService plus Binding with IPv6 static and live control-plane evidence.
+runner: internet
+script: exabgp_ipv6_control_plane.py
+platform: amd
+features:
+  - ipv6-core
+  - exabgp-service
+  - bgp-ipv6
+  - service-binding
+
+compile:
+  enabled: true
+  output: output
+  clean:
+    - output
+  env:
+    SEED_A16_EXABGP_PORT: "5016"
+  expected:
+    - output/docker-compose.yml
+  timeout: 300
+
+build:
+  enabled: true
+  timeout: 1200
+
+runtime:
+  compose: output/docker-compose.yml
+  readiness:
+    - name: A16 router and ExaBGP speaker are running
+      type: compose-ps
+      services:
+        - brdnode_2_router0
+        - hnode_180_exabgp
+      retries: 30
+      interval: 2
+
+probes:
+  - name: ExaBGP dashboard is reachable
+    type: http
+    url: http://127.0.0.1:5016/
+    expect_status: 200
+    retries: 30
+    interval: 2
+
+  - name: ExaBGP config enables IPv6 family
+    type: exec
+    service: hnode_180_exabgp
+    command: grep -q "ipv6 unicast" /etc/exabgp/exabgp.conf && grep -q "2000:b400:100::/64" /etc/exabgp/exabgp.conf
+    expect_exit: 0
+    retries: 10
+    interval: 2
+
+  - name: BIRD peer learns the ExaBGP IPv6 announcement
+    type: exec
+    service: brdnode_2_router0
+    command: birdc show route 2000:b400:100::/64 all | grep -q "2000:b400:100::/64"
+    expect_exit: 0
+    retries: 30
+    interval: 5
+
+test_programs:
+  - name: A16 generated ExaBGP IPv6 config validation
+    script: test_runtime.py
+    timeout: 180

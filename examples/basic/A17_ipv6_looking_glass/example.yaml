@@ -1,0 +1,68 @@
+id: basic-a17-ipv6-looking-glass
+name: IPv6 Looking Glass
+description: Looking Glass route-state observer over IPv4 and IPv6 BGP route state.
+runner: internet
+script: ipv6_looking_glass.py
+platform: amd
+features:
+  - ipv6-core
+  - looking-glass
+  - routing-bird-frr
+  - bgp-dual-stack
+
+compile:
+  enabled: true
+  output: output
+  clean:
+    - output
+  env:
+    SEED_A17_LG_PORT: "5017"
+  expected:
+    - output/docker-compose.yml
+  timeout: 300
+
+build:
+  enabled: true
+  timeout: 1200
+
+runtime:
+  compose: output/docker-compose.yml
+  readiness:
+    - name: A17 routers and Looking Glass are running
+      type: compose-ps
+      services:
+        - brdnode_2_router0
+        - brdnode_151_router0
+        - hnode_2_looking-glass
+      retries: 30
+      interval: 2
+
+probes:
+  - name: Looking Glass route-state API is reachable
+    type: http
+    url: http://127.0.0.1:5017/api/state
+    expect_status: 200
+    expect_body_contains: routers
+    retries: 30
+    interval: 2
+
+  - name: Looking Glass route-state API includes IPv6 route output
+    type: http
+    url: http://127.0.0.1:5017/api/state
+    expect_status: 200
+    expect_body_contains: "2000:"
+    retries: 30
+    interval: 3
+
+  - name: FRR observed router exposes IPv6 BGP state
+    type: exec
+    service: brdnode_2_router0
+    command: vtysh -c "show bgp ipv6 unicast" | grep -q "2000:"
+    expect_exit: 0
+    retries: 30
+    interval: 5
+
+test_programs:
+  - name: A17 generated Looking Glass IPv6 config validation
+    script: test_runtime.py
+    timeout: 180

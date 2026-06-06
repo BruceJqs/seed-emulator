@@ -1369,19 +1369,24 @@ class Router(Node):
 
         return self
 
-    def addTable(self, tableName: str) -> Router:
+    def addTable(self, tableName: str, family: str = "ipv4") -> Router:
         """!
         @brief Add a new routing table to BIRD on the given node.
 
         @param tableName name of the new table.
+        @param family address family for the table. Supported values are ipv4
+        and ipv6.
 
         @returns self, for chaining API calls.
         """
         meta = self.getAttribute('__routing_layer_metadata', {})
         if 'tables' not in meta: meta['tables'] = []
         tables = meta['tables']
-        if tableName not in tables: self.appendFile('/etc/bird/bird.conf', 'ipv4 table {};\n'.format(tableName))
-        tables.append(tableName)
+        key = '{}:{}'.format(family, tableName)
+        assert family in {'ipv4', 'ipv6'}, 'unsupported table family: {}'.format(family)
+        if key not in tables:
+            self.appendFile('/etc/bird/bird.conf', '{} table {};\n'.format(family, tableName))
+            tables.append(key)
 
         return self
 

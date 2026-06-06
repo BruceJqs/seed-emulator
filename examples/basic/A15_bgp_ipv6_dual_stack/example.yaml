@@ -1,0 +1,78 @@
+id: basic-a15-bgp-ipv6-dual-stack
+name: BGP IPv6 Dual Stack
+description: Dual-stack BIRD/FRR BGP and OSPF example with IPv4 defaults preserved.
+runner: internet
+script: bgp_ipv6_dual_stack.py
+platform: amd
+features:
+  - ipv6-core
+  - routing-bird-frr
+  - bgp-dual-stack
+  - ospf3
+  - web-service
+
+compile:
+  enabled: true
+  output: output
+  clean:
+    - output
+  expected:
+    - output/docker-compose.yml
+  timeout: 300
+
+build:
+  enabled: true
+  timeout: 1200
+
+runtime:
+  compose: output/docker-compose.yml
+  readiness:
+    - name: A15 dual-stack routers and hosts are running
+      type: compose-ps
+      services:
+        - brdnode_2_r1
+        - brdnode_2_r2
+        - brdnode_151_router0
+        - brdnode_152_router0
+        - hnode_151_web
+        - hnode_152_web
+      retries: 30
+      interval: 2
+
+probes:
+  - name: AS151 reaches AS152 over IPv4
+    type: exec
+    service: hnode_151_web
+    command: curl -fsS http://10.152.0.71 >/dev/null
+    expect_exit: 0
+    retries: 30
+    interval: 5
+
+  - name: AS151 reaches AS152 over IPv6
+    type: exec
+    service: hnode_151_web
+    command: ping -6 -c 3 2000:0:98::47 >/dev/null
+    expect_exit: 0
+    retries: 30
+    interval: 5
+
+  - name: FRR router sees IPv6 BGP summary
+    type: exec
+    service: brdnode_151_router0
+    command: vtysh -c "show bgp ipv6 unicast summary" | grep -E "2000:|Established|[[:space:]]1[[:space:]]*$"
+    expect_exit: 0
+    retries: 30
+    interval: 5
+
+  - name: BIRD router has IPv6 route state
+    type: exec
+    service: brdnode_152_router0
+    command: birdc show route all | grep -q "2000:"
+    expect_exit: 0
+    retries: 30
+    interval: 5
+
+test_programs:
+  - name: A15 generated dual-stack config validation
+    script: test_runtime.py
+    timeout: 180
