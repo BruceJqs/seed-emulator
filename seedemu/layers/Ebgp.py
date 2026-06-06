@@ -43,33 +43,64 @@ class Ebgp(Layer, Graphable):
         self.__rs_peers = []
         self.addDependency('Routing', False, False)
 
-    def __createPeer(self, nodeA: Router, nodeB: Router, addrA: str, addrB: str, rel: PeerRelationship) -> None:
+    def __createPeer(self, nodeA: Router, nodeB: Router, ifaceA: Interface, ifaceB: Interface, rel: PeerRelationship) -> None:
         rsNode: Router = None
         routerA: Router = None
         routerB: Router = None
+        rsIface: Interface = None
+        routerAIface: Interface = None
+        routerBIface: Interface = None
 
-        for node in [nodeA, nodeB]:
+        for node, iface in [(nodeA, ifaceA), (nodeB, ifaceB)]:
             if node.getRegistryInfo()[1] == 'rs':
                 rsNode = node
+                rsIface = iface
                 continue
             if routerA is None:
                 routerA = node
+                routerAIface = iface
             elif routerB is None:
                 routerB = node
+                routerBIface = iface
 
         assert routerA is not None, 'both nodes are RS node. cannot setup peering.'
         assert routerA != routerB, 'cannot peer with oneself.'
 
+        def iface_ipv4(iface) -> str:
+            return str(iface.getAddress()) if isinstance(iface, Interface) else str(iface)
+
+        def iface_ipv6(iface):
+            return iface.getIpv6Address() if isinstance(iface, Interface) else None
+
+        addrA = iface_ipv4(routerAIface if routerAIface is not None else rsIface)
+        addrB = iface_ipv4(routerBIface if routerBIface is not None else rsIface)
+        ipv6A = iface_ipv6(routerAIface if routerAIface is not None else rsIface)
+        ipv6B = iface_ipv6(routerBIface if routerBIface is not None else rsIface)
+        families = ["ipv4"]
+        if ipv6A is not None and ipv6B is not None:
+            families.append("ipv6")
+
         if rsNode is not None:
+            assert rsIface is not None and routerAIface is not None, 'route-server peering is missing interface state'
+            rs_addr = str(rsIface.getAddress())
+            router_addr = str(routerAIface.getAddress())
+            rs_ipv6 = rsIface.getIpv6Address()
+            router_ipv6 = routerAIface.getIpv6Address()
+            rs_families = ["ipv4"]
+            if rs_ipv6 is not None and router_ipv6 is not None:
+                rs_families.append("ipv6")
             record_bgp_session(
                 rsNode,
                 {
                     "name": 'p_as{}'.format(routerA.getAsn()),
                     "kind": "ebgp",
-                    "local_address": addrA,
+                    "local_address": rs_addr,
+                    "local_ipv6_address": str(rs_ipv6) if rs_ipv6 is not None else "",
                     "local_asn": rsNode.getAsn(),
-                    "peer_address": addrB,
+                    "peer_address": router_addr,
+                    "peer_ipv6_address": str(router_ipv6) if router_ipv6 is not None else "",
                     "peer_asn": routerA.getAsn(),
+                    "families": rs_families,
                     "import_community": None,
                     "local_pref": None,
                     "export_policy": "all",
@@ -82,10 +113,13 @@ class Ebgp(Layer, Graphable):
                 {
                     "name": 'p_rs{}'.format(rsNode.getAsn()),
                     "kind": "ebgp",
-                    "local_address": addrB,
+                    "local_address": router_addr,
+                    "local_ipv6_address": str(router_ipv6) if router_ipv6 is not None else "",
                     "local_asn": routerA.getAsn(),
-                    "peer_address": addrA,
+                    "peer_address": rs_addr,
+                    "peer_ipv6_address": str(rs_ipv6) if rs_ipv6 is not None else "",
                     "peer_asn": rsNode.getAsn(),
+                    "families": rs_families,
                     "import_community": "PEER_COMM",
                     "local_pref": 20,
                     "export_policy": "local_and_customer",
@@ -102,9 +136,12 @@ class Ebgp(Layer, Graphable):
                     "name": 'p_as{}'.format(routerB.getAsn()),
                     "kind": "ebgp",
                     "local_address": addrA,
+                    "local_ipv6_address": str(ipv6A) if ipv6A is not None else "",
                     "local_asn": routerA.getAsn(),
                     "peer_address": addrB,
+                    "peer_ipv6_address": str(ipv6B) if ipv6B is not None else "",
                     "peer_asn": routerB.getAsn(),
+                    "families": families,
                     "import_community": "PEER_COMM",
                     "local_pref": 20,
                     "export_policy": "local_and_customer",
@@ -118,9 +155,12 @@ class Ebgp(Layer, Graphable):
                     "name": 'p_as{}'.format(routerA.getAsn()),
                     "kind": "ebgp",
                     "local_address": addrB,
+                    "local_ipv6_address": str(ipv6B) if ipv6B is not None else "",
                     "local_asn": routerB.getAsn(),
                     "peer_address": addrA,
+                    "peer_ipv6_address": str(ipv6A) if ipv6A is not None else "",
                     "peer_asn": routerA.getAsn(),
+                    "families": families,
                     "import_community": "PEER_COMM",
                     "local_pref": 20,
                     "export_policy": "local_and_customer",
@@ -136,9 +176,12 @@ class Ebgp(Layer, Graphable):
                     "name": 'c_as{}'.format(routerB.getAsn()),
                     "kind": "ebgp",
                     "local_address": addrA,
+                    "local_ipv6_address": str(ipv6A) if ipv6A is not None else "",
                     "local_asn": routerA.getAsn(),
                     "peer_address": addrB,
+                    "peer_ipv6_address": str(ipv6B) if ipv6B is not None else "",
                     "peer_asn": routerB.getAsn(),
+                    "families": families,
                     "import_community": "CUSTOMER_COMM",
                     "local_pref": 30,
                     "export_policy": "all",
@@ -152,9 +195,12 @@ class Ebgp(Layer, Graphable):
                     "name": 'u_as{}'.format(routerA.getAsn()),
                     "kind": "ebgp",
                     "local_address": addrB,
+                    "local_ipv6_address": str(ipv6B) if ipv6B is not None else "",
                     "local_asn": routerB.getAsn(),
                     "peer_address": addrA,
+                    "peer_ipv6_address": str(ipv6A) if ipv6A is not None else "",
                     "peer_asn": routerA.getAsn(),
+                    "families": families,
                     "import_community": "PROVIDER_COMM",
                     "local_pref": 10,
                     "export_policy": "local_and_customer",
@@ -170,9 +216,12 @@ class Ebgp(Layer, Graphable):
                     "name": 'x_as{}'.format(routerB.getAsn()),
                     "kind": "ebgp",
                     "local_address": addrA,
+                    "local_ipv6_address": str(ipv6A) if ipv6A is not None else "",
                     "local_asn": routerA.getAsn(),
                     "peer_address": addrB,
+                    "peer_ipv6_address": str(ipv6B) if ipv6B is not None else "",
                     "peer_asn": routerB.getAsn(),
+                    "families": families,
                     "import_community": "CUSTOMER_COMM",
                     "local_pref": 30,
                     "export_policy": "all",
@@ -186,9 +235,12 @@ class Ebgp(Layer, Graphable):
                     "name": 'x_as{}'.format(routerA.getAsn()),
                     "kind": "ebgp",
                     "local_address": addrB,
+                    "local_ipv6_address": str(ipv6B) if ipv6B is not None else "",
                     "local_asn": routerB.getAsn(),
                     "peer_address": addrA,
+                    "peer_ipv6_address": str(ipv6A) if ipv6A is not None else "",
                     "peer_asn": routerA.getAsn(),
+                    "families": families,
                     "import_community": "PROVIDER_COMM",
                     "local_pref": 10,
                     "export_policy": "all",
@@ -353,7 +405,7 @@ class Ebgp(Layer, Graphable):
             assert p_ixnode != None, 'cannot resolve peering: as{} not in ix{}'.format(peer, ix)
             self._log("adding peering: {} as {} (RS) <-> {} as {}".format(rs_if.getAddress(), ix, p_ixif.getAddress(), peer))
 
-            self.__createPeer(ix_rs, p_ixnode, rs_if.getAddress(), p_ixif.getAddress(), PeerRelationship.Peer)
+            self.__createPeer(ix_rs, p_ixnode, rs_if, p_ixif, PeerRelationship.Peer)
 
         for (a, b), rel in self.__xc_peerings.items():
             a_reg = ScopedRegistry(str(a), reg)
@@ -425,7 +477,7 @@ class Ebgp(Layer, Graphable):
 
             self._log("adding IX peering: {} as {} <-({})-> {} as {}".format(a_ixif.getAddress(), a, rel, b_ixif.getAddress(), b))
 
-            self.__createPeer(a_ixnode, b_ixnode, a_ixif.getAddress(), b_ixif.getAddress(), rel)
+            self.__createPeer(a_ixnode, b_ixnode, a_ixif, b_ixif, rel)
 
     def render(self, emulator: Emulator) -> None:
         pass

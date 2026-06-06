@@ -100,21 +100,30 @@ class Ibgp(Layer, Graphable):
 
                     laddr = local.getLoopbackAddress()
                     raddr = remote.getLoopbackAddress()
+                    laddr_v6 = local.getLoopbackIpv6Address()
+                    raddr_v6 = remote.getLoopbackIpv6Address()
+                    families = ["ipv4"]
+                    if laddr_v6 is not None and raddr_v6 is not None:
+                        families.append("ipv6")
                     install_router_bgp_session(
                         local,
                         {
                             "name": 'ibgp{}'.format(n),
                             "kind": "ibgp",
                             "local_address": laddr,
+                            "local_ipv6_address": laddr_v6 or "",
                             "local_asn": asn,
                             "peer_address": raddr,
+                            "peer_ipv6_address": raddr_v6 or "",
                             "peer_asn": asn,
+                            "families": families,
                             "import_community": None,
                             "local_pref": None,
                             "export_policy": "all",
                             "next_hop_self": False,
                             "route_server_client": False,
                             "igp_table": "t_ospf",
+                            "igp_table_v6": "t_ospf6",
                         },
                     )
 

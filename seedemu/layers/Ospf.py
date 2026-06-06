@@ -157,7 +157,10 @@ class Ospf(Layer):
             masked = [netname for (asn, netname) in self.__masked if asn == int(scope)]
             stubs = [netname for (asn, netname) in self.__stubs if asn == int(scope)]
             active, passive = classify_ospf_interfaces(router, stubs=stubs, masked=masked)
-            set_ospf_interface_intents(router, active, passive)
+            families = ["ipv4"]
+            if any(iface.hasIpv6Address() for iface in router.getInterfaces()):
+                families.append("ipv6")
+            set_ospf_interface_intents(router, active, passive, families)
 
     def render(self, emulator: Emulator):
         pass
