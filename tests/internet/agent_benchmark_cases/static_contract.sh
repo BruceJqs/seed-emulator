@@ -36,4 +36,46 @@ for entry in "${cases[@]}"; do
   done
 done
 
+python3 - "$ROOT_DIR" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+scan_roots = [
+    root / "design_notes",
+    root / "examples/internet/B51_meta_style_cascade",
+    root / "examples/internet/B52_aws_s3_control_plane",
+    root / "examples/internet/B53_fastly_edge_config_bug",
+    root / "examples/internet/B54_cloudflare_feature_file_proxy",
+    root / "examples/internet/B55_verizon_bgp_route_leak",
+    root / "examples/internet/B56_dyn_authoritative_dns_ddos",
+    root / "examples/internet/B57_google_network_congestion",
+    root / "examples/internet/_agent_benchmark_common",
+    root / "tests/internet/agent_benchmark_cases",
+    root / "tests/internet/meta_style_cascade",
+]
+skip_dirs = {"output", "test_log", "__pycache__"}
+bad = []
+
+for scan_root in scan_roots:
+    if not scan_root.exists():
+        continue
+    for path in scan_root.rglob("*"):
+        if path.is_dir() or any(part in skip_dirs for part in path.parts):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if any("\u4e00" <= ch <= "\u9fff" for ch in line):
+                bad.append(f"{path.relative_to(root)}:{lineno}")
+
+if bad:
+    print("CJK text is not allowed in benchmark source documentation/config/test files:", file=sys.stderr)
+    for item in bad:
+        print(f"  {item}", file=sys.stderr)
+    sys.exit(1)
+PY
+
 echo "agent benchmark static contract passed"
