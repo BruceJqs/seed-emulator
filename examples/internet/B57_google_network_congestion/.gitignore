@@ -1,0 +1,4 @@
+output/
+test_log/
+__pycache__/
+*.pyc

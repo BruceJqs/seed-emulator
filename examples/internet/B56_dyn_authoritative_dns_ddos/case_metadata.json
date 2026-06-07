@@ -1,0 +1,12 @@
+{
+  "id": "b56-dyn-authoritative-dns-ddos",
+  "title": "Dyn-style authoritative DNS DDoS with cache and secondary-DNS contrast",
+  "scenario": "bot traffic overloads authoritative DNS path; origin stays healthy; fresh Dyn-only lookups fail while secondary provider remains usable",
+  "target_tiers": {"S0": "live mechanism smoke", "S1": "hundred-container rehearsal", "S1_5": "live accepted DNS DDoS runtime", "S2": "guarded preflight only"},
+  "domains": {"dyn_only": "www.customer-a.test", "secondary_provider": "www.customer-b.test"},
+  "roles": ["Dyn anycast authoritative DNS", "recursive resolver", "client probes", "customer origin", "botnet hosts", "scrubber", "secondary authoritative DNS", "route collectors"],
+  "normal_evidence": ["fresh recursive lookup succeeds", "origin is locally healthy", "client HTTP succeeds with resolved address"],
+  "fault_evidence": ["fresh Dyn-only lookup times out or fails", "named process remains alive", "origin remains healthy", "secondary-provider lookup succeeds"],
+  "recovery_sequence": ["activate scrubber or rate limit", "optionally activate secondary DNS", "flush resolver for cache-miss validation", "verify fresh lookup and HTTP"],
+  "current_runtime_status": "S1.5 live accepted at 178 containers with DNS overload simulation, named kept alive, secondary-DNS contrast, and cache-miss recovery validation"
+}

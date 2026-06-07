@@ -1,0 +1,11 @@
+{
+  "id": "b54-cloudflare-feature-file-proxy",
+  "title": "Cloudflare-style feature file expansion breaks core proxy",
+  "scenario": "internal feature file count and size expands, propagates globally, and causes core proxy 5xx while origins remain healthy",
+  "target_tiers": {"S0": "mechanism smoke", "S1": "hundred-container rehearsal", "S1_5": "live accepted Cloudflare-specific multi-component runtime", "S2": "guarded preflight only"},
+  "roles": ["clients", "core proxy", "Bot module", "feature DB", "permission rollout", "feature generator", "distributor", "known-good store", "KV/Access/Turnstile", "origins"],
+  "normal_evidence": ["core proxy returns 200", "origin remains healthy", "known-good feature state active"],
+  "fault_evidence": ["core proxy returns 503", "origin remains healthy", "DB permission rollout expands feature query", "generator records bad feature count/size/hash", "tail services degrade through core proxy"],
+  "recovery_sequence": ["stop generation", "stop distribution", "known-good rollback", "kill switch or fail-small", "canary", "tail service validation"],
+  "current_runtime_status": "S1.5 live accepted at 191 containers with case-local feature DB, permission rollout, generator, distributor, known-good store, 8 core-proxy POPs, KV/Access/Turnstile/dashboard tail services, 3 origins, known-good rollback, fail-small, canary, and tail-service validation; not a full Cloudflare proxy/Bot Management implementation"
+}

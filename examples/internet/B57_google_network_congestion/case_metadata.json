@@ -1,0 +1,11 @@
+{
+  "id": "b57-google-network-congestion",
+  "title": "Google-style maintenance automation deschedules network control plane",
+  "scenario": "automation deschedules control-plane jobs, fail-static expires, BGP/TE state degrades and service probes fail while workloads stay alive",
+  "target_tiers": {"S0": "mechanism smoke", "S1": "hundred-container rehearsal", "S1_5": "live accepted Google-specific route/control-plane runtime", "S2": "guarded preflight only"},
+  "roles": ["clients", "service frontends", "customer workloads", "maintenance automation", "cluster managers", "network control plane", "config store", "route distributor", "TE controller", "ops tooling"],
+  "normal_evidence": ["frontend returns 200", "workload remains healthy", "route to frontend prefix visible"],
+  "fault_evidence": ["external route to frontend prefix withdrawn", "external curl returns 000", "frontend remains locally alive", "workload remains healthy", "control state records automation/deschedule fault"],
+  "recovery_sequence": ["halt automation", "drop noncritical retry traffic", "reschedule control plane", "rebuild and distribute config", "region-by-region verification"],
+  "current_runtime_status": "S1.5 live accepted at 194 containers with case-local maintenance automation, cluster managers, network-control-plane replicas, config store, route distributor, TE controller, 8 region frontends, 6 workloads, real BGP peer disable/enable for external route withdrawal/restoration, constrained recovery, and region verification; congestion is represented by control/TE state and reachability, not full packet-level TE"
+}

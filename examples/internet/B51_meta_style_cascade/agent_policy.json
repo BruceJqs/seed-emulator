@@ -1,0 +1,74 @@
+{
+  "id": "meta-style-cascade-runtime-policy",
+  "status": "P0-P5 first-round runtime policy",
+  "observe": {
+    "blackbox": ["live runtime dig", "live runtime curl", "live runtime ping"],
+    "network": ["birdc route view from AS50 and runtime route collectors", "edge-to-backend reachability"],
+    "service": ["health gate status", "health gate log", "recent change log"]
+  },
+  "non_runtime_fixtures": [
+    "S1/S2 telemetry probe logs for later scorer/replay work",
+    "S1/S2 telemetry route views for later scorer/replay work",
+    "S1/S2 telemetry event timelines for later scorer/replay work"
+  ],
+  "allowed_actions": [
+    "inspect blackbox probes",
+    "inspect route visibility",
+    "inspect health gate status/logs",
+    "inject the provided internal path fault for benchmark setup",
+    "clear the provided internal path fault for recovery",
+    "verify internal health",
+    "wait for health-gate-managed canary reannouncement"
+  ],
+  "forbidden_actions": [
+    "stop or kill DNS services",
+    "delete or modify DNS zone records",
+    "edit client hosts files",
+    "edit hidden oracle or scoring truth",
+    "force announce an unhealthy prefix",
+    "disable the health gate and claim recovery",
+    "perform unrelated global resets"
+  ],
+  "controller_actions": [
+    "agent-observe",
+    "agent-act rollback-internal-policy",
+    "agent-act verify-health",
+    "agent-act canary-reannounce",
+    "recover",
+    "recovery-check"
+  ],
+  "interactive_exercise": {
+    "tier": "S1.5",
+    "ledger_path": "test_log/runtime/S1_5/exercise/<B51_EXERCISE_ID>/",
+    "roles": [
+      "public-users",
+      "resolver-support",
+      "external-routing",
+      "meta-noc",
+      "meta-dns",
+      "meta-neteng",
+      "dc-team",
+      "change-audit"
+    ],
+    "phase_gates": [
+      "baseline",
+      "impact",
+      "resolver-triage",
+      "external-routing",
+      "meta-triage",
+      "neteng-triage",
+      "change-audit",
+      "mitigation",
+      "recovery-verification",
+      "postmortem"
+    ],
+    "exercise_actions": [
+      "inject-fault",
+      "rollback-internal-policy",
+      "verify-health",
+      "canary-reannounce",
+      "validate-recovery"
+    ],
+    "acceptance_note": "exercise acceptance requires staged observations, notes, allowed actions, and recovery validation; final smoke success alone is not enough"
+  }
+}

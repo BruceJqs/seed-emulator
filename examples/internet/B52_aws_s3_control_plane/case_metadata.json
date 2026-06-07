@@ -1,0 +1,11 @@
+{
+  "id": "b52-aws-s3-control-plane",
+  "title": "AWS S3-style control-plane capacity removal cascade",
+  "scenario": "maintenance selector removes excessive index and placement capacity; object shards remain healthy",
+  "target_tiers": {"S0": "mechanism smoke", "S1": "hundred-container rehearsal", "S1_5": "live accepted S3 multi-container control-plane runtime", "S2": "guarded preflight only"},
+  "roles": ["public clients", "S3 API frontend", "index quorum", "placement quorum", "object shards", "maintenance tool", "capacity registry", "dependent services", "status dashboard"],
+  "normal_evidence": ["API frontend returns 200", "backend/origin remains healthy", "route to frontend visible from client probes"],
+  "fault_evidence": ["frontend returns 503 control-plane error", "backend/origin remains healthy", "control state records maintenance capacity failure"],
+  "recovery_sequence": ["freeze maintenance", "restore index", "integrity check", "restore placement", "canary PUT", "dependent backlog drain"],
+  "current_runtime_status": "S1.5 live accepted at 182 containers with router-hosted S3 API, five index subsystem containers, three placement subsystem containers, maintenance-tool capacity removal, capacity registry, object-shard health contrast, ordered recovery, and canary validation; a real S3 storage engine remains out of scope"
+}

@@ -1,0 +1,56 @@
+{
+  "schema": "meta-style-cascade-telemetry-fixtures-v1",
+  "case_id": "meta-style-cascade",
+  "shared": {
+    "domain": "www.meta-bench.test",
+    "dns_prefix": "10.20.0.0/24",
+    "edge_service": "10.20.0.80",
+    "backend_dependency": "10.30.0.80",
+    "root_cause": "internal edge-to-DC reachability loss",
+    "forbidden_shortcuts": [
+      "dns_process_kill",
+      "dns_zone_deletion",
+      "client_hosts_bypass",
+      "oracle_or_scorer_edit",
+      "force_announce_unhealthy_prefix"
+    ]
+  },
+  "tiers": {
+    "S1": {
+      "description": "Non-acceptance telemetry fixture for later scorer/replay work. This is not S1 runtime scale.",
+      "random_seed": 5101,
+      "logical_as_count": 500,
+      "ix_count": 8,
+      "transit_count": 20,
+      "regional_isp_count": 80,
+      "stub_count": 386,
+      "recursive_resolver_count": 30,
+      "probe_count": 75,
+      "meta_edge_pop_count": 5,
+      "meta_dc_count": 3,
+      "route_collector_count": 6,
+      "noise_prefix_count": 250,
+      "route_flap_count": 35,
+      "required_customer_cones": 5,
+      "required_collector_delay_variance_ms": 1500
+    },
+    "S2": {
+      "description": "Non-acceptance telemetry fixture for later scorer/replay work. This is not S2 runtime scale.",
+      "random_seed": 5202,
+      "logical_as_count": 10000,
+      "ix_count": 20,
+      "transit_count": 40,
+      "regional_isp_count": 260,
+      "stub_count": 9672,
+      "recursive_resolver_count": 120,
+      "probe_count": 360,
+      "meta_edge_pop_count": 12,
+      "meta_dc_count": 4,
+      "route_collector_count": 12,
+      "noise_prefix_count": 2400,
+      "route_flap_count": 320,
+      "required_customer_cones": 12,
+      "required_collector_delay_variance_ms": 4000
+    }
+  }
+}

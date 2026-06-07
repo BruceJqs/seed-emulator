@@ -1,0 +1,129 @@
+{
+  "id": "meta-style-cascade",
+  "title": "Meta-style edge DNS health-gated BGP withdrawal cascade",
+  "scope": "S0-S1 ordered SEED Docker runtime ladder plus S1.5 intermediate runtime test and first-round restricted intervention/recovery; S2 local runtime prototype is guarded and not accepted; S1/S2 telemetry fixtures are optional and are not runtime acceptance",
+  "domain": "www.meta-bench.test",
+  "wildcard_domain": "*.meta-bench.test",
+  "dns_prefix": "10.20.0.0/24",
+  "edge_authoritative_dns": "10.20.0.53",
+  "edge_service": "10.20.0.80",
+  "recursive_resolver": "10.50.0.53",
+  "backend_dependency": "10.30.0.80",
+  "roles": {
+    "external_client": "AS50 client-router external probe",
+    "recursive_resolver": "AS50 client-router local recursive resolver",
+    "edge_authoritative_dns": "AS20 edge-router authoritative DNS on 10.20.0.53/32",
+    "edge_service": "AS20 edge-router service entrypoint on 10.20.0.80/32",
+    "edge_health_gate": "AS20 edge-router health gate",
+    "dc_backend": "AS30 dc-router backend dependency on 10.30.0.80/32",
+    "external_transit": "AS10 external transit/router-view",
+    "internal_backbone": "AS20-to-AS30 internal BGP path",
+    "scale_probe": "S1 AS51-AS90 and S1.5 AS51-AS99, AS102-AS132 external probe routers",
+    "scale_route_collector": "S1 AS110-AS121 and S1.5 AS133-AS148 route collector routers",
+    "scale_noise": "S1/S1.5 background-noise routers"
+  },
+  "normal_evidence": [
+    "dig via AS50 resolver succeeds",
+    "curl to www.meta-bench.test succeeds",
+    "edge health gate reports healthy",
+    "edge DNS/service prefix is visible from AS50 router",
+    "edge-to-backend probe succeeds"
+  ],
+  "fault_evidence": [
+    "internal edge-to-backend policy fault is active",
+    "health gate reports unhealthy",
+    "health gate withdraws external BGP session",
+    "edge DNS/service prefix is not visible from AS50 router",
+    "external dig/curl fail or time out"
+  ],
+  "recovery_evidence": [
+    "agent observes blackbox, route, health, backend reachability, and recent-change evidence",
+    "agent rolls back the internal path policy fault",
+    "health gate reports healthy before external visibility is accepted",
+    "health-gate-managed canary reannouncement restores the DNS/service prefix",
+    "external dig/curl succeed again from AS50 and S1 probes"
+  ],
+  "interactive_exercise": {
+    "target_tier": "S1.5",
+    "meaning": "participatory incident exercise with staged role observations, operator notes, restricted actions, and ledger gates; final recovery alone is not sufficient",
+    "ledger": "test_log/runtime/S1_5/exercise/<B51_EXERCISE_ID>/",
+    "roles": [
+      "public-users",
+      "resolver-support",
+      "external-routing",
+      "meta-noc",
+      "meta-dns",
+      "meta-neteng",
+      "dc-team",
+      "change-audit"
+    ],
+    "phases": [
+      "baseline",
+      "impact",
+      "resolver-triage",
+      "external-routing",
+      "meta-triage",
+      "neteng-triage",
+      "change-audit",
+      "mitigation",
+      "recovery-verification",
+      "postmortem"
+    ],
+    "accepted_mitigation": "rollback-internal-policy followed by health verification, health-gate-managed canary reannouncement, and external recovery validation"
+  },
+  "scale_tiers": {
+    "S0": {
+      "mode": "SEED Docker runtime",
+      "runtime_as_count": 4,
+      "live_container_count": 7,
+      "acceptance": "must be generated, started, and checked as live containers",
+      "probe_asns": [50],
+      "collector_asns": [50],
+      "noise_asns": [],
+      "purpose": "prove the real DNS health gate and BGP withdrawal cascade"
+    },
+    "S1": {
+      "mode": "SEED Docker runtime",
+      "runtime_as_count": 126,
+      "live_container_count": 129,
+      "acceptance": "must be generated, started, and checked as live containers",
+      "probe_asns": "51-90",
+      "collector_asns": "110-121",
+      "noise_asns": "130-149,151-152,154-199,206-207",
+      "purpose": "prove the cascade with hundreds of live containers and many external viewpoints"
+    },
+    "S1_5": {
+      "display": "S1.5",
+      "mode": "SEED Docker runtime intermediate test",
+      "runtime_as_count": 222,
+      "live_container_count": 225,
+      "acceptance": "must be generated, started, and normal/fault/recovery checked as live containers",
+      "probe_asns": "51-99,102-132",
+      "collector_asns": "133-148",
+      "noise_asns": "149-254,31-46 excluding AS255",
+      "purpose": "exercise the complete fault and restricted recovery flow above S1 without jumping to guarded S2"
+    },
+    "S2": {
+      "mode": "guarded local runtime prototype",
+      "runtime_as_count": 1010,
+      "live_container_count": 1023,
+      "acceptance": "not passed until generated, started, and normal/fault/recovery checked on a prepared host or distributed runtime",
+      "guard": "requires B51_ALLOW_S2_RUNTIME=1 and host neighbor cache thresholds gc_thresh1>=4096 gc_thresh2>=8192 gc_thresh3>=65536",
+      "purpose": "future larger runtime tier; telemetry fixtures do not satisfy it"
+    }
+  },
+  "optional_telemetry_fixtures": {
+    "S1": {
+      "acceptance": "non-runtime fixture only",
+      "logical_as_count": 500,
+      "route_collector_count": 6,
+      "probe_count": 75
+    },
+    "S2": {
+      "acceptance": "non-runtime fixture only",
+      "logical_as_count": 10000,
+      "route_collector_count": 12,
+      "probe_count": 360
+    }
+  }
+}

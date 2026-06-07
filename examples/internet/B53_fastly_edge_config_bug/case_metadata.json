@@ -1,0 +1,11 @@
+{
+  "id": "b53-fastly-edge-config-bug",
+  "title": "Fastly-style legal customer config triggers latent edge runtime bug",
+  "scenario": "valid customer config is distributed to edge POPs and triggers latent runtime failure while origins stay healthy",
+  "target_tiers": {"S0": "mechanism smoke", "S1": "hundred-container rehearsal", "S1_5": "live accepted Fastly-specific multi-POP runtime", "S2": "guarded preflight only"},
+  "roles": ["global clients", "config API", "validator", "compiler", "distributor", "release manager", "edge POP proxies", "customer origins"],
+  "normal_evidence": ["edge returns 200", "origin remains healthy", "config/runtime state records normal version"],
+  "fault_evidence": ["edge returns 503", "origin remains healthy", "validator passes the legal config", "7/8 POPs record runtime error", "control state records trigger config path"],
+  "recovery_sequence": ["freeze distribution", "rollback or disable trigger config", "POP canary", "full restore", "hotfix note"],
+  "current_runtime_status": "S1.5 live accepted at 186 containers with case-local config API, validator, compiler, distributor, release manager, 8 edge POPs, 3 origins, route/user/provider/control-plane observations, rollback, POP canary validation, and origin-health contrast; not a full CDN cache/runtime"
+}

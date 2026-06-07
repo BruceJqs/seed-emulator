@@ -1,0 +1,12 @@
+{
+  "id": "b55-verizon-bgp-route-leak",
+  "title": "Verizon/DQE/Allegheny-style more-specific BGP route leak",
+  "scenario": "DQE-originated more-specific is exported through Allegheny to Verizon and then to unfiltered access networks",
+  "target_tiers": {"S0": "live mechanism smoke", "S1": "hundred-container rehearsal", "S1_5": "live accepted route-leak runtime", "S2": "guarded preflight only"},
+  "prefixes": {"victim_aggregate": "10.55.0.0/24", "leaked_more_specific": "10.55.0.0/25"},
+  "roles": ["victim CDN AS55", "legitimate transit AS56", "filtered transit AS57", "Verizon AS701", "DQE AS702", "Allegheny AS703", "unfiltered probe ASes", "filtered probe ASes", "route collectors"],
+  "normal_evidence": ["victim aggregate visible", "leaked more-specific absent", "victim service locally healthy", "filtered and unfiltered probes can curl victim"],
+  "fault_evidence": ["leaked more-specific visible from unfiltered probes and collectors", "filtered probes reject the more-specific", "victim service remains locally healthy", "route view shows leak path"],
+  "recovery_sequence": ["withdraw DQE leak export", "apply filter or prefix limit", "verify more-specific disappears", "verify aggregate path and service recover"],
+  "current_runtime_status": "S1.5 live accepted at 177 containers with real BGP more-specific leak, route-collector evidence, filtered/unfiltered client contrast, and recovery validation"
+}

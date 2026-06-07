@@ -1,0 +1,26 @@
+{
+  "observe_layers": {
+    "O0": ["dig", "curl", "traceroute", "HTTP status", "latency"],
+    "O1": ["service health", "local logs", "process status"],
+    "O2": ["BGP route view", "AS path", "DNS cache/fresh lookup", "packet/path evidence"],
+    "O3": ["change log", "control-plane state", "distribution or maintenance state"],
+    "O4": ["hidden oracle and scorer truth; never exposed to agent"]
+  },
+  "allowed_action_classes": [
+    "read-only diagnosis",
+    "case-provided fault injection by facilitator",
+    "case-provided bounded mitigation",
+    "canary or cache-miss verification",
+    "collect runtime artifacts"
+  ],
+  "forbidden_actions": [
+    "edit client hosts files",
+    "edit oracle or scorer truth",
+    "delete DNS zones",
+    "kill authoritative or recursive DNS to simulate failure",
+    "kill origin/backend to simulate network/control-plane failure",
+    "force announce or force failover before root-cause mitigation",
+    "skip canary verification",
+    "global reset that hides the root cause"
+  ]
+}
