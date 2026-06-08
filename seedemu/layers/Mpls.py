@@ -299,7 +299,7 @@ class Mpls(Layer, Graphable):
     def print(self, indent: int) -> str:
         out = ' ' * indent
         out += 'MplsLayer:\n'
-        
+
         indent += 4
         out += ' ' * indent
         out += 'Enabled on:\n'
@@ -310,4 +310,3 @@ class Mpls(Layer, Graphable):
             out += 'as{}\n'.format(asn)
 
         return out
-            
