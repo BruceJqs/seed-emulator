@@ -557,6 +557,12 @@ rm -f "${tmpfile}.stage2"
         used_images = sorted(getattr(self, "_used_images", set()))
         repo_root = Path(__file__).resolve().parents[2]
         base_image_sources = {
+            "handsonsecurity/seedemu-base:2.0": os.path.join(
+                repo_root, "docker_images", "amd64", "seedemu-base"
+            ),
+            "handsonsecurity/seedemu-router:2.0": os.path.join(
+                repo_root, "docker_images", "amd64", "seedemu-router"
+            ),
             "handsonsecurity/seedemu-multiarch-base:buildx-latest": os.path.join(
                 repo_root, "docker_images", "multiarch", "seedemu-base"
             ),
