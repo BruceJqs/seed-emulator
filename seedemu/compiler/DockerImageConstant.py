@@ -1,5 +1,5 @@
 from .DockerImage import DockerImage
-from seedemu.core import BaseSystem
+from seedemu.core.BaseSystem import BaseSystem
 from enum import Enum
 
 UBUNTU_IMAGE   = DockerImage(name='ubuntu:24.04',

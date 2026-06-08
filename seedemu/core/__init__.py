@@ -6,6 +6,7 @@ from .IsolationDomain import IsolationDomain
 from .InternetExchange import InternetExchange
 from .Ipv6Addressing import DEFAULT_IPV6_INFRA_PREFIX, DEFAULT_IPV6_ROOT_PREFIX, Ipv6Addressing
 from .Network import Network
+from .BaseSystem import BaseSystem
 from .Node import Node, File, Interface, Router, promote_to_real_world_router, promote_to_scion_router
 from .Printable import Printable
 from .Registry import Registry, ScopedRegistry, Registrable
@@ -22,9 +23,8 @@ from .Filter import Filter
 from .Component import Component
 from .RemoteAccessProvider import RemoteAccessProvider
 from .ExternalConnectivityProvider import ExternalConnectivityProvider
-from .Compiler import Compiler, OptionHandling
-from .BaseSystem import BaseSystem
 from .Scope import *
 from .Option import BaseOption, OptionMode, Option, BaseComponent, BaseOptionGroup, AutoRegister, OptionGroupMeta
 from .OptionRegistry import OptionRegistry
 from .Volume import BaseVolume, ServiceLvlVolume, TopLvlVolume
+from .Compiler import Compiler, OptionHandling

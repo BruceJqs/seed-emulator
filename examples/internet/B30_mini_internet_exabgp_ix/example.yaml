@@ -1,0 +1,54 @@
+id: internet-b30-mini-internet-exabgp-ix
+name: Mini Internet ExaBGP IX Speaker
+description: B00-style mini Internet with an AS180 ExaBGP speaker attached to IX100 through Service and Binding.
+runner: internet
+script: mini_internet_exabgp_ix.py
+platform: amd
+features:
+  - ipv4-default
+  - mini-internet
+  - exabgp-service
+  - bgp-control-plane
+  - ebgp-route-server
+
+compile:
+  enabled: true
+  output: output
+  clean:
+    - output
+  expected:
+    - output/docker-compose.yml
+  timeout: 900
+  args:
+    - --hosts-per-as
+    - "0"
+
+build:
+  enabled: true
+  timeout: 1800
+
+runtime:
+  compose: output/docker-compose.yml
+  readiness:
+    - name: B30 ExaBGP speaker and representative routers are running
+      type: compose-ps
+      services:
+        - hnode_180_exabgp
+        - brdnode_2_r100
+        - brdnode_3_r100
+      retries: 40
+      interval: 3
+
+probes:
+  - name: ExaBGP config exists
+    type: exec
+    service: hnode_180_exabgp
+    command: test -s /etc/exabgp/exabgp.conf
+    expect_exit: 0
+    retries: 10
+    interval: 3
+
+test_programs:
+  - name: B30 generated ExaBGP IX config validation
+    script: test_runtime.py
+    timeout: 240

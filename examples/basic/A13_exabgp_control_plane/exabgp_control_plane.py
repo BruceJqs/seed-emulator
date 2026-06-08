@@ -1,55 +1,90 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from __future__ import annotations
+
+import argparse
+import os
+from pathlib import Path
+import sys
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from seedemu.compiler import Docker, Platform
+from seedemu.core import Binding, Emulator, Filter
 from seedemu.layers import Base, Routing
 from seedemu.services import ExaBgpService
-from seedemu.core import Emulator, Binding, Filter
-from seedemu.compiler import Docker, Platform
-import sys, os
 
 
-script_name = os.path.basename(__file__)
-output_dir = os.path.join(os.path.dirname(__file__), "output")
-exabgp_dashboard_port = int(os.environ.get("SEED_A13_EXABGP_PORT", "5001"))
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build an ExaBGP control-plane service example.")
+    parser.add_argument("legacy_platform", nargs="?", choices=["amd", "arm"])
+    parser.add_argument("--platform", choices=["amd", "arm"])
+    parser.add_argument("--output", default=str(SCRIPT_DIR / "output"))
+    parser.add_argument("--dumpfile")
+    parser.add_argument("--override", dest="override", action="store_true", default=True)
+    parser.add_argument("--no-override", dest="override", action="store_false")
+    parser.add_argument("--skip-render", dest="render", action="store_false", default=True)
+    args = parser.parse_args()
+    args.platform = args.platform or args.legacy_platform or "amd"
+    return args
 
-if len(sys.argv) == 1:
-    platform = Platform.AMD64
-elif len(sys.argv) == 2:
-    if sys.argv[1].lower() == 'amd':
-        platform = Platform.AMD64
-    elif sys.argv[1].lower() == 'arm':
-        platform = Platform.ARM64
-    else:
-        print(f"Usage:  {script_name} amd|arm")
-        sys.exit(1)
-else:
-    print(f"Usage:  {script_name} amd|arm")
-    sys.exit(1)
 
-emu = Emulator()
+def resolve_platform(name: str) -> Platform:
+    return Platform.AMD64 if name == "amd" else Platform.ARM64
 
-base = Base()
-routing = Routing()
-exabgp = ExaBgpService()
 
-base.createInternetExchange(100)
+def build_emulator() -> Emulator:
+    emu = Emulator()
 
-as2 = base.createAutonomousSystem(2)
-as2.createNetwork("net0")
-as2.createRouter("router0").joinNetwork("net0").joinNetwork("ix100")
+    base = Base()
+    routing = Routing()
+    exabgp = ExaBgpService()
 
-as180 = base.createAutonomousSystem(180)
-as180.createHost("exabgp").joinNetwork("ix100", address="10.100.0.180").addPort(exabgp_dashboard_port, 5000)
+    base.createInternetExchange(100)
 
-exabgp.install("as180_exabgp") \
-    .setLocalAsn(180) \
-    .addPeer("router0", router_asn=2, router_relationship="customer") \
-    .addAnnouncement("198.51.100.0/24")
-emu.addBinding(Binding("as180_exabgp", filter=Filter(asn=180, nodeName="exabgp")))
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createRouter("router0").joinNetwork("net0").joinNetwork("ix100")
 
-emu.addLayer(base)
-emu.addLayer(routing)
-emu.addLayer(exabgp)
+    dashboard_port = int(os.environ.get("SEED_A13_EXABGP_PORT", "5001"))
+    as180 = base.createAutonomousSystem(180)
+    as180.createHost("exabgp").joinNetwork("ix100", address="10.100.0.180").addPort(dashboard_port, 5000)
 
-emu.render()
-emu.compile(Docker(platform=platform), output_dir, override=True)
+    exabgp.install("as180_exabgp") \
+        .setLocalAsn(180) \
+        .addPeer("router0", router_asn=2, router_relationship="customer") \
+        .addAnnouncement("198.51.100.0/24")
+    emu.addBinding(Binding("as180_exabgp", filter=Filter(asn=180, nodeName="exabgp")))
+
+    emu.addLayer(base)
+    emu.addLayer(routing)
+    emu.addLayer(exabgp)
+    return emu
+
+
+def main() -> int:
+    args = parse_args()
+    emu = build_emulator()
+
+    if args.dumpfile:
+        emu.dump(args.dumpfile)
+        print("Saved A13 emulator to {}".format(args.dumpfile))
+        return 0
+
+    if args.render:
+        emu.render()
+
+    output_dir = Path(args.output).resolve()
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    emu.compile(Docker(platform=resolve_platform(args.platform)), str(output_dir), override=args.override)
+    print("Generated A13 Docker output in {}".format(output_dir))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

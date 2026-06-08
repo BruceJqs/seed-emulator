@@ -1,0 +1,48 @@
+id: basic-a13-exabgp-control-plane
+name: ExaBGP Control Plane
+description: ExaBGP service speaker attached through Binding, separate from router backends.
+runner: internet
+script: exabgp_control_plane.py
+platform: amd
+features:
+  - exabgp-service
+  - bgp-control-plane
+  - ipv4-default
+
+compile:
+  enabled: true
+  output: output
+  clean:
+    - output
+  expected:
+    - output/docker-compose.yml
+  timeout: 300
+
+build:
+  enabled: true
+  timeout: 1200
+
+runtime:
+  compose: output/docker-compose.yml
+  readiness:
+    - name: A13 ExaBGP speaker and router are running
+      type: compose-ps
+      services:
+        - hnode_180_exabgp
+        - brdnode_2_router0
+      retries: 30
+      interval: 2
+
+probes:
+  - name: ExaBGP config exists
+    type: exec
+    service: hnode_180_exabgp
+    command: test -s /etc/exabgp/exabgp.conf
+    expect_exit: 0
+    retries: 10
+    interval: 3
+
+test_programs:
+  - name: A13 generated ExaBGP config validation
+    script: test_runtime.py
+    timeout: 180

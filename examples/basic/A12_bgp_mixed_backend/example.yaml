@@ -1,0 +1,54 @@
+id: basic-a12-bgp-mixed-backend
+name: BGP Mixed Backend
+description: Mixed BIRD and FRR routing backends with eBGP, iBGP, OSPF, and web reachability.
+runner: internet
+script: bgp_mixed_backend.py
+platform: amd
+features:
+  - ipv4-default
+  - routing-bird-frr
+  - bgp-control-plane
+  - ospf
+  - web-service
+
+compile:
+  enabled: true
+  output: output
+  clean:
+    - output
+  expected:
+    - output/docker-compose.yml
+  timeout: 300
+
+build:
+  enabled: true
+  timeout: 1200
+
+runtime:
+  compose: output/docker-compose.yml
+  readiness:
+    - name: A12 mixed-backend routers and hosts are running
+      type: compose-ps
+      services:
+        - brdnode_2_r1
+        - brdnode_2_r2
+        - brdnode_151_router0
+        - brdnode_152_router0
+        - hnode_151_web
+        - hnode_152_web
+      retries: 30
+      interval: 2
+
+probes:
+  - name: AS151 reaches AS152 web service
+    type: exec
+    service: hnode_151_web
+    command: curl -fsS http://10.152.0.71 >/dev/null
+    expect_exit: 0
+    retries: 30
+    interval: 5
+
+test_programs:
+  - name: A12 generated mixed-backend config validation
+    script: test_runtime.py
+    timeout: 180
