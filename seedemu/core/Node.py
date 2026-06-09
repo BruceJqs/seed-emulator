@@ -1134,14 +1134,17 @@ class Router(Node):
 
     __loopback_address: str
     __is_border_router: bool
+    __routing_backend: str
 
     __extensions: Dict[str, RouterExtension]
 
-    def __init__(self, name: str, role: NodeRole, asn: int, scope: str = None):
+    def __init__(self, name: str, role: NodeRole, asn: int, scope: str = None, routingBackend: str = "bird"):
         self.__is_border_router = False
         self.__loopback_address = None
+        self.__routing_backend = "bird"
         self.__extensions = {}
         super().__init__( name,role,asn,scope)
+        self.setRoutingBackend(routingBackend)
 
     def hasExtension(self, name: str) -> bool:
         return name in self.__extensions
@@ -1169,6 +1172,30 @@ class Router(Node):
 
     def isBorderRouter(self):
         return self.__is_border_router
+
+    def setRoutingBackend(self, backend: str) -> Router:
+        """!
+        @brief Set the full routing daemon backend for this router.
+
+        @param backend routing backend. Supported values are bird and frr.
+        ExaBGP is installed as a service speaker, not as a router backend.
+
+        @returns self, for chaining API calls.
+        """
+        value = str(backend or "bird").strip().lower() or "bird"
+        assert value in {"bird", "frr"}, "unsupported routing backend: {}".format(backend)
+        self.__routing_backend = value
+        self.setLabel("seedemu_routing_backend", value)
+        self.setLabel("seedemu_bgp_backend", value)
+        return self
+
+    def getRoutingBackend(self) -> str:
+        """!
+        @brief Get the full routing daemon backend for this router.
+
+        @returns backend name.
+        """
+        return self.__routing_backend
 
     def setLoopbackAddress(self, address: str):
         """!
@@ -1472,4 +1499,3 @@ def promote_to_scion_router(node: Node):
         extn.initScionRouter()
         node.installExtension(extn)
     return node
-
