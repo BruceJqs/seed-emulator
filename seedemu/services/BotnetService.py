@@ -2,7 +2,6 @@
 # encoding: utf-8
 # __author__ = 'Demon'
 from __future__ import annotations
-import shlex
 from seedemu.core import Node, Service, Server, Emulator
 from typing import Dict
 
@@ -96,14 +95,6 @@ for rel in targets:
 '''
 
 
-def _write_requirements_command(path: str) -> str:
-    requirements = BotnetServerFileTemplates['requirements_override'].replace("\\", "\\\\").replace("\n", "\\n")
-    return "printf %b {} > {}".format(
-        shlex.quote(requirements),
-        shlex.quote(path),
-    )
-
-
 class BotnetServer(Server):
     """!
     @brief The BotnetServer class.
@@ -172,8 +163,12 @@ class BotnetServer(Server):
         
         # override requirements
         node.addBuildCommand("mkdir -p /tmp/byob/byob")
-        node.addBuildCommand(_write_requirements_command('/tmp/byob/byob/requirements.txt'))
-        node.addBuildCommand('pip3 install --break-system-packages -r /tmp/byob/byob/requirements.txt || pip3 install -r /tmp/byob/byob/requirements.txt')
+        node.addBuildCommand(
+            "cat > /tmp/byob/byob/requirements.txt <<'EOF'\n"
+            + BotnetServerFileTemplates['requirements_override'] +
+            "\nEOF"
+        )
+        node.addBuildCommand('pip3 install -r /tmp/byob/byob/requirements.txt')
 
         node.setFile('/tmp/byob_patch.py', BotnetServerFileTemplates['byob_patch_py'])
         node.appendStartCommand('chmod +x /tmp/byob_patch.py')
@@ -273,9 +268,12 @@ class BotnetClientServer(Server):
         # get byob dependencies.
         node.addSoftware('python3 git cmake python3-dev gcc g++ make python3-pip') 
         
-        node.addBuildCommand(_write_requirements_command('/tmp/byob-requirements.txt'))
-        node.addBuildCommand('pip3 install --break-system-packages -r /tmp/byob-requirements.txt || pip3 install -r /tmp/byob-requirements.txt')
-
+        node.addBuildCommand(
+            "cat > /tmp/byob-requirements.txt <<'EOF'\n"
+            + BotnetServerFileTemplates['requirements_override'] +
+            "\nEOF"
+        )
+        node.addBuildCommand('pip3 install -r /tmp/byob-requirements.txt')
 
         fork = False
 
