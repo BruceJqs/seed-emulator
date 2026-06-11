@@ -83,14 +83,10 @@ accounts_total = 10
 pre_funded_amount = 1000000
 mnemonic = "gentle always fun glass foster produce north tail security list example gain"
 
-Account.enable_unaudited_hdwallet_features()
-for i in range(accounts_total):
-    account = Account.from_mnemonic(
-            mnemonic,
-            account_path=f"m/44'/60'/0'/0/{i}")
-    blockchain.addLocalAccount(
-            address=account.address,
-            balance=pre_funded_amount)
+blockchain.addLocalAccountsFromMnemonic(
+        mnemonic=mnemonic,
+        total=accounts_total,
+        balance=pre_funded_amount)
 ```
 
 All accounts created during the build time are added, together with
@@ -254,22 +250,47 @@ compiling the Docker output.
 ```python
 docker = Docker(
         internetMapEnabled=True,
-        etherViewEnabled=True,
+        etherViewEnabled=ether_view_enabled,
         platform=platform)
-emu.compile(docker, "./output", override=True)
+emu.compile(docker, output, override=True)
 ```
 
 The Internet Map shows the emulated Internet topology. The Eth Explorer
 shows the Ethereum PoS chain state, including slots, epochs, blocks,
 validators, and execution-layer transactions.
 
+`ether_view_enabled` is controlled by command-line options. It is enabled by
+default for manual runs, and can be disabled for CI:
+
+```bash
+python3 ethereum_pos.py --no-ether-view
+```
+
 
 ## How to Run
 
-Run the following commands from this example directory:
+Run the standardized test workflow from the repository root:
 
 ```bash
-python ethereum_pos.py [amd|arm]
+tools/run-example-test.sh D01 compile
+tools/run-example-test.sh D01 all
+```
+
+The test manifest splits validation across lifecycle stages:
+
+- `runtime.readiness` checks that the expected Geth, Beacon, Validator,
+  Beacon Setup, Faucet, and Utility containers are running.
+- `probes` checks key runtime facts: Geth/Lighthouse processes are
+  active, the Beacon Setup node produced `genesis.ssz`, Geth exposes a
+  local funded account, and the PoS chain advances execution blocks.
+- `test_programs` runs the stateful transaction test: it sends a signed
+  ETH transfer and verifies the receipt plus both account balance
+  changes.
+
+For manual use, run the following commands from this example directory:
+
+```bash
+python3 ethereum_pos.py [amd|arm]
 cd output
 docker compose up
 ```
@@ -278,6 +299,12 @@ Arguments:
 
 - `amd`: Generate Docker configuration for AMD64. This is the default.
 - `arm`: Generate Docker configuration for ARM64 hosts.
+- `--platform amd|arm`: Standard test-framework platform argument.
+- `--output DIR`: Standard test-framework output directory argument.
+- `--ether-view`: Enable Eth Explorer output. This is the default for manual
+  runs.
+- `--no-ether-view`: Disable Eth Explorer output. The test manifest uses this
+  option for CI.
 
 Startup may take some time. The Geth nodes, Beacon nodes, Validator
 Clients, Beacon Setup node, Faucet, Utility Server, Internet Map, and
