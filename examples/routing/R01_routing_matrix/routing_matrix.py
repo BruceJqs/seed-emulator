@@ -45,6 +45,65 @@ def connect(transit_as, routers: Dict[str, object], left: str, right: str) -> No
     routers[right].joinNetwork(network)
 
 
+def backend_indicator(backend: str) -> str:
+    return "F" if backend == "frr" else "B"
+
+
+def router_backend_map(backends: Dict[str, str]) -> Dict[str, str]:
+    return {
+        "edge0": backends.get("edge0", "bird"),
+        "core0": backends.get("core0", "bird"),
+        "core1": backends.get("core1", "bird"),
+        "edge1": backends.get("edge1", "bird"),
+    }
+
+
+def format_router_with_backend(router_name: str, backends: Dict[str, str]) -> str:
+    return "{}({})".format(router_name, backend_indicator(backends[router_name]))
+
+
+def route_reflector_cluster_id(asn: int) -> str:
+    return "10.{}.0.1".format(asn)
+
+
+def route_reflector_summary(
+    asn: int,
+    backends: Dict[str, str],
+    cluster_id: Optional[str],
+    reflector: Optional[str],
+    auto_rr: bool,
+) -> Dict[str, object]:
+    rr_name = "core0" if auto_rr else (reflector or "core0")
+    cid = cluster_id or route_reflector_cluster_id(asn)
+    members = ["edge0", "core0", "core1", "edge1"]
+    return {
+        "asn": asn,
+        "cluster_id": cid,
+        "route_reflector": rr_name,
+        "clients": [router for router in members if router != rr_name],
+        "backends": dict(backends),
+    }
+
+
+def print_route_reflector_summaries(summaries: List[Dict[str, object]]) -> None:
+    if not summaries:
+        return
+
+    print("Route-reflector clusters:")
+    for summary in summaries:
+        backends = summary["backends"]
+        clients = ",".join(
+            format_router_with_backend(client, backends)
+            for client in summary["clients"]
+        ) or "none"
+        print("  AS{} cluster {}: rr={}, clients={}".format(
+            summary["asn"],
+            summary["cluster_id"],
+            format_router_with_backend(summary["route_reflector"], backends),
+            clients,
+        ))
+
+
 def make_transit_slice(
     emu: Emulator,
     base: Base,
@@ -60,18 +119,19 @@ def make_transit_slice(
     rr_cluster: Optional[str] = None,
     rr_router: Optional[str] = None,
     auto_rr: bool = False,
-) -> None:
+) -> Optional[Dict[str, object]]:
     """Create one independent transit-AS regression slice."""
 
     base.createInternetExchange(left_ix)
     base.createInternetExchange(right_ix)
 
+    resolved_backends = router_backend_map(backends)
     transit_as = base.createAutonomousSystem(asn)
     routers = {
-        "edge0": transit_as.createRouter("edge0", routingBackend=backends.get("edge0", "bird")).joinNetwork("ix{}".format(left_ix)),
-        "core0": transit_as.createRouter("core0", routingBackend=backends.get("core0", "bird")),
-        "core1": transit_as.createRouter("core1", routingBackend=backends.get("core1", "bird")),
-        "edge1": transit_as.createRouter("edge1", routingBackend=backends.get("edge1", "bird")).joinNetwork("ix{}".format(right_ix)),
+        "edge0": transit_as.createRouter("edge0", routingBackend=resolved_backends["edge0"]).joinNetwork("ix{}".format(left_ix)),
+        "core0": transit_as.createRouter("core0", routingBackend=resolved_backends["core0"]),
+        "core1": transit_as.createRouter("core1", routingBackend=resolved_backends["core1"]),
+        "edge1": transit_as.createRouter("edge1", routingBackend=resolved_backends["edge1"]).joinNetwork("ix{}".format(right_ix)),
     }
 
     connect(transit_as, routers, "edge0", "core0")
@@ -102,14 +162,19 @@ def make_transit_slice(
     ebgp.addPrivatePeering(left_ix, asn, left_stub, PeerRelationship.Provider)
     ebgp.addPrivatePeering(right_ix, asn, right_stub, PeerRelationship.Provider)
 
+    if ibgp_mode == "route-reflector":
+        return route_reflector_summary(asn, resolved_backends, rr_cluster, rr_router, auto_rr)
+    return None
 
-def build_emulator() -> Emulator:
+
+def build_emulator():
     emu = Emulator()
     base = Base()
     ebgp = Ebgp()
+    rr_summaries = []
 
     # AS2: all-router full mesh, BIRD backend.
-    make_transit_slice(
+    summary = make_transit_slice(
         emu, base, ebgp,
         asn=2,
         left_ix=100,
@@ -119,9 +184,11 @@ def build_emulator() -> Emulator:
         backends={},
         ibgp_mode="full-mesh",
     )
+    if summary:
+        rr_summaries.append(summary)
 
     # AS3: all-router full mesh, FRR backend.
-    make_transit_slice(
+    summary = make_transit_slice(
         emu, base, ebgp,
         asn=3,
         left_ix=102,
@@ -131,9 +198,11 @@ def build_emulator() -> Emulator:
         backends={"edge0": "frr", "core0": "frr", "core1": "frr", "edge1": "frr"},
         ibgp_mode="full-mesh",
     )
+    if summary:
+        rr_summaries.append(summary)
 
     # AS4: all-router route reflector, BIRD backend.
-    make_transit_slice(
+    summary = make_transit_slice(
         emu, base, ebgp,
         asn=4,
         left_ix=104,
@@ -145,9 +214,11 @@ def build_emulator() -> Emulator:
         rr_cluster="10.4.0.1",
         rr_router="core0",
     )
+    if summary:
+        rr_summaries.append(summary)
 
     # AS5: all-router route reflector, FRR backend.
-    make_transit_slice(
+    summary = make_transit_slice(
         emu, base, ebgp,
         asn=5,
         left_ix=106,
@@ -159,9 +230,11 @@ def build_emulator() -> Emulator:
         rr_cluster="10.5.0.1",
         rr_router="core0",
     )
+    if summary:
+        rr_summaries.append(summary)
 
     # AS6: auto-completed RR, mixed BIRD/FRR backend.
-    make_transit_slice(
+    summary = make_transit_slice(
         emu, base, ebgp,
         asn=6,
         left_ix=108,
@@ -172,10 +245,12 @@ def build_emulator() -> Emulator:
         ibgp_mode="route-reflector",
         auto_rr=True,
     )
+    if summary:
+        rr_summaries.append(summary)
 
     # AS7: edge-only full mesh, mixed backend. This verifies BGP-free-core
     # control-plane structure without requiring plain-IP forwarding to succeed.
-    make_transit_slice(
+    summary = make_transit_slice(
         emu, base, ebgp,
         asn=7,
         left_ix=110,
@@ -186,22 +261,25 @@ def build_emulator() -> Emulator:
         ibgp_mode="full-mesh",
         bgp_scope="edge-only",
     )
+    if summary:
+        rr_summaries.append(summary)
 
     emu.addLayer(base)
     emu.addLayer(Routing())
     emu.addLayer(ebgp)
     emu.addLayer(Ibgp())
     emu.addLayer(Ospf())
-    return emu
+    return emu, rr_summaries
 
 
 def main() -> int:
     args = parse_args()
-    emu = build_emulator()
+    emu, rr_summaries = build_emulator()
 
     if args.dumpfile:
         emu.dump(args.dumpfile)
         print("Saved routing matrix emulator to {}".format(args.dumpfile))
+        print_route_reflector_summaries(rr_summaries)
         return 0
 
     if args.render:
@@ -210,6 +288,7 @@ def main() -> int:
     output_dir = Path(args.output).resolve()
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     emu.compile(Docker(platform=resolve_platform(args.platform)), str(output_dir), override=args.override)
+    print_route_reflector_summaries(rr_summaries)
     print("Generated routing matrix Docker output in {}".format(output_dir))
     return 0
 
