@@ -11,6 +11,7 @@ from ._bgp_metadata import (
     get_bgp_backend,
     get_bgp_sessions,
     get_ospf_interface_intents,
+    get_ospf_timers,
     has_bgp_connected_export,
     ensure_bird_bgp_base,
     render_frr_community,
@@ -58,13 +59,14 @@ RoutingFileTemplates['bird_ospf_body'] = """
         import all;
         export all;
     }};
+    tick {tick};
     area 0 {{
 {interfaces}
     }};
 """
 
 RoutingFileTemplates['bird_ospf_interface'] = """\
-        interface "{interfaceName}" {{ hello 1; dead count 2; }};
+        interface "{interfaceName}" {{ hello {hello}; dead {dead}; type pointopoint; retransmit 20; }};
 """
 
 RoutingFileTemplates['bird_ospf_stub_interface'] = """\
@@ -136,8 +138,8 @@ route-map {name} permit 10
 FrrFileTemplates["ospf_interface_active"] = """\
 interface {interface}
  ip ospf area 0
- ip ospf hello-interval 1
- ip ospf dead-interval 2
+ ip ospf hello-interval {hello}
+ ip ospf dead-interval {dead}
 !
 """
 
@@ -268,16 +270,22 @@ class Routing(Layer):
         if not intents["active"] and not intents["passive"]:
             return
 
+        timers = get_ospf_timers(rnode)
         ospf_interfaces = ''
         for name in intents["passive"]:
             ospf_interfaces += RoutingFileTemplates['bird_ospf_stub_interface'].format(interfaceName=name)
         for name in intents["active"]:
-            ospf_interfaces += RoutingFileTemplates['bird_ospf_interface'].format(interfaceName=name)
+            ospf_interfaces += RoutingFileTemplates['bird_ospf_interface'].format(
+                interfaceName=name,
+                hello=timers["hello"],
+                dead=timers["dead"],
+            )
 
         if ospf_interfaces != '':
             rnode.addTable('t_ospf')
             rnode.addProtocol('ospf', 'ospf1', RoutingFileTemplates['bird_ospf_body'].format(
-                interfaces=ospf_interfaces
+                interfaces=ospf_interfaces,
+                tick=timers["tick"],
             ))
             rnode.addTablePipe('t_ospf')
 
@@ -380,6 +388,13 @@ class Routing(Layer):
             bgp.append(" neighbor {} remote-as {}".format(session["peer_address"], session["peer_asn"]))
             bgp.append(" neighbor {} update-source {}".format(session["peer_address"], session["local_address"]))
             bgp.append(" neighbor {} description {}".format(session["peer_address"], session["name"]))
+            bgp.append(
+                " neighbor {} timers {} {}".format(
+                    session["peer_address"],
+                    session["keepalive_time"],
+                    session["hold_time"],
+                )
+            )
             if session["passive"]:
                 bgp.append(" neighbor {} passive".format(session["peer_address"]))
         bgp.append(" !")
@@ -418,11 +433,18 @@ class Routing(Layer):
         if not intents["active"] and not intents["passive"]:
             return ""
 
+        timers = get_ospf_timers(router)
         body: List[str] = []
         for name in intents["passive"]:
             body.append(FrrFileTemplates["ospf_interface_passive"].format(interface=name))
         for name in intents["active"]:
-            body.append(FrrFileTemplates["ospf_interface_active"].format(interface=name))
+            body.append(
+                FrrFileTemplates["ospf_interface_active"].format(
+                    interface=name,
+                    hello=timers["hello"],
+                    dead=timers["dead"],
+                )
+            )
         body.append(FrrFileTemplates["ospf_router"].format(router_id=router.getLoopbackAddress()))
         return "".join(body)
 
