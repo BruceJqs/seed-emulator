@@ -66,7 +66,7 @@ RoutingFileTemplates['bird_ospf_body'] = """
 """
 
 RoutingFileTemplates['bird_ospf_interface'] = """\
-        interface "{interfaceName}" {{ hello {hello}; dead {dead}; type pointopoint; retransmit 20; }};
+        interface "{interfaceName}" {{ hello {hello}; dead {dead}; }};
 """
 
 RoutingFileTemplates['bird_ospf_stub_interface'] = """\

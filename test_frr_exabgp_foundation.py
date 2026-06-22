@@ -453,7 +453,7 @@ def test_ospf_router_transit_only_mode_keeps_host_network_passive():
     bird_conf = _file_content(r1, "/etc/bird/bird.conf")
     frr_conf = _file_content(emu.getRegistry().get("2", "rnode", "r2"), "/etc/frr/frr.conf")
     assert "tick 1;" in bird_conf
-    assert 'interface "transit" { hello 1; dead 4; type pointopoint; retransmit 20; }' in bird_conf
+    assert 'interface "transit" { hello 1; dead 4; }' in bird_conf
     assert 'interface "hostnet" { stub; }' in bird_conf
     assert "interface transit\n ip ospf area 0\n ip ospf hello-interval 1\n ip ospf dead-interval 4" in frr_conf
     assert "interface hostnet2\n ip ospf area 0\n ip ospf passive" in frr_conf
@@ -507,7 +507,7 @@ def test_protocol_timer_api_records_intent_and_renders_to_bird_and_frr():
     }
 
     assert "tick 7;" in r1_conf
-    assert 'interface "net0" { hello 11; dead 44; type pointopoint; retransmit 20; }' in r1_conf
+    assert 'interface "net0" { hello 11; dead 44; }' in r1_conf
     assert "hold time 7200;" in r1_conf
     assert "keepalive time 120;" in r1_conf
     assert "hold time 5400;" in r1_conf
