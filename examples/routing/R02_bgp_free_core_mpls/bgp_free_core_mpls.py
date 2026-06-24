@@ -49,7 +49,6 @@ def make_mpls_slice(
     emu: Emulator,
     base: Base,
     ebgp: Ebgp,
-    mpls: Mpls,
     asn: int,
     left_ix: int,
     right_ix: int,
@@ -95,7 +94,6 @@ def make_mpls_slice(
     Makers.makeStubAsWithHosts(emu, base, right_stub, right_ix, 1)
     ebgp.addPrivatePeering(left_ix, asn, left_stub, PeerRelationship.Provider)
     ebgp.addPrivatePeering(right_ix, asn, right_stub, PeerRelationship.Provider)
-    mpls.enableOn(asn)
 
 
 def build_emulator() -> Emulator:
@@ -105,7 +103,7 @@ def build_emulator() -> Emulator:
     mpls = Mpls()
 
     make_mpls_slice(
-        emu, base, ebgp, mpls,
+        emu, base, ebgp,
         asn=8,
         left_ix=112,
         right_ix=113,
@@ -115,7 +113,7 @@ def build_emulator() -> Emulator:
     )
 
     make_mpls_slice(
-        emu, base, ebgp, mpls,
+        emu, base, ebgp,
         asn=9,
         left_ix=114,
         right_ix=115,
