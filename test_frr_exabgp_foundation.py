@@ -6,7 +6,7 @@ import pytest
 
 from seedemu.core import Binding, Emulator, Filter
 from seedemu.layers import Base, Ebgp, Ibgp, Mpls, Ospf, PeerRelationship, Routing
-from seedemu.layers._bgp_metadata import get_bgp_sessions, get_ospf_interface_intents
+from seedemu.layers._bgp_metadata import get_bgp_sessions, get_ospf_interface_intents, get_ospf_timers
 from seedemu.services import ExaBgpService
 
 
@@ -452,10 +452,70 @@ def test_ospf_router_transit_only_mode_keeps_host_network_passive():
 
     bird_conf = _file_content(r1, "/etc/bird/bird.conf")
     frr_conf = _file_content(emu.getRegistry().get("2", "rnode", "r2"), "/etc/frr/frr.conf")
-    assert 'interface "transit" { hello 1; dead count 2; }' in bird_conf
+    assert "tick 1;" in bird_conf
+    assert 'interface "transit" { hello 1; dead 4; }' in bird_conf
     assert 'interface "hostnet" { stub; }' in bird_conf
-    assert "interface transit\n ip ospf area 0" in frr_conf
+    assert "interface transit\n ip ospf area 0\n ip ospf hello-interval 1\n ip ospf dead-interval 4" in frr_conf
     assert "interface hostnet2\n ip ospf area 0\n ip ospf passive" in frr_conf
+
+
+def test_protocol_timer_api_records_intent_and_renders_to_bird_and_frr():
+    emu = Emulator()
+    base = Base()
+    routing = Routing()
+    ospf = Ospf().setTimers(tick=7, hello=11, dead=44)
+    ibgp = Ibgp().setTimers(holdTime=5400, keepaliveTime=90)
+    ebgp = Ebgp().setTimers(holdTime=7200, keepaliveTime=120)
+
+    base.createInternetExchange(100)
+    base.createInternetExchange(101)
+
+    as2 = base.createAutonomousSystem(2)
+    as2.createNetwork("net0")
+    as2.createRouter("r1").joinNetwork("net0").joinNetwork("ix100")
+    as2.createRouter("r2", routingBackend="frr").joinNetwork("net0").joinNetwork("ix101")
+
+    as151 = base.createAutonomousSystem(151)
+    as151.createRouter("router0").joinNetwork("ix100")
+
+    as152 = base.createAutonomousSystem(152)
+    as152.createRouter("router0").joinNetwork("ix101")
+
+    ebgp.addPrivatePeering(100, 2, 151, abRelationship=PeerRelationship.Provider)
+    ebgp.addPrivatePeering(101, 2, 152, abRelationship=PeerRelationship.Provider)
+
+    emu.addLayer(base)
+    emu.addLayer(routing)
+    emu.addLayer(ebgp)
+    emu.addLayer(ibgp)
+    emu.addLayer(ospf)
+    emu.render()
+
+    r1 = emu.getRegistry().get("2", "rnode", "r1")
+    r2 = emu.getRegistry().get("2", "rnode", "r2")
+    r1_conf = _file_content(r1, "/etc/bird/bird.conf")
+    r2_conf = _file_content(r2, "/etc/frr/frr.conf")
+    r1_sessions = get_bgp_sessions(r1)
+
+    assert ospf.getTimers() == {"tick": 7, "hello": 11, "dead": 44}
+    assert ibgp.getTimers() == {"hold_time": 5400, "keepalive_time": 90}
+    assert ebgp.getTimers() == {"hold_time": 7200, "keepalive_time": 120}
+    assert get_ospf_timers(r1) == {"tick": 7, "hello": 11, "dead": 44}
+    assert {session["kind"]: (session["hold_time"], session["keepalive_time"]) for session in r1_sessions} == {
+        "ebgp": (7200, 120),
+        "ibgp": (5400, 90),
+    }
+
+    assert "tick 7;" in r1_conf
+    assert 'interface "net0" { hello 11; dead 44; }' in r1_conf
+    assert "hold time 7200;" in r1_conf
+    assert "keepalive time 120;" in r1_conf
+    assert "hold time 5400;" in r1_conf
+    assert "keepalive time 90;" in r1_conf
+
+    assert "interface net0\n ip ospf area 0\n ip ospf hello-interval 11\n ip ospf dead-interval 44" in r2_conf
+    assert " timers 120 7200" in r2_conf
+    assert " timers 90 5400" in r2_conf
 
 
 def test_ospf_router_transit_only_respects_explicit_stub_and_mask():
