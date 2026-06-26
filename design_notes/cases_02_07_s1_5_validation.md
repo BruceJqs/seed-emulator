@@ -2,7 +2,8 @@
 
 Date: 2026-06-06
 
-This note records the first complete S1.5 live closure for the six post-Meta agent benchmark cases. It is evidence-only: S2 remains guarded/preflight-only, and the input document directories are not modified.
+Evidence-only record for the first complete S1.5 live closure of B52-B57. S2
+remains guarded/preflight-only. Input document directories are not modified.
 
 ## Commands
 
@@ -49,12 +50,13 @@ examples/internet/B56_dyn_authoritative_dns_ddos/test_log/runtime/S1_5/
 examples/internet/B57_google_network_congestion/test_log/runtime/S1_5/
 ```
 
-## Limits
+## Boundaries
 
-B52, B53, B54, and B57 have been upgraded beyond the old shared runtime. B52 has case-local S3 API, index, placement, maintenance-tool, capacity-registry, status-dashboard, and object-shard containers. B53 has case-local config API, validator, compiler, distributor, release manager, edge POPs, and origins. B54 has case-local feature DB, permission rollout, generator, distributor, known-good store, core-proxy POPs, tail services, and origins. B57 has case-local maintenance automation, cluster managers, network-control-plane replicas, config store, route distributor, TE controller, region frontends, workloads, and a real BGP peer disable/enable path for route withdrawal/restoration.
-
-These are still benchmark reproductions, not full commercial service implementations. B52 is not a real S3 storage engine. B53 is not a full CDN cache/runtime. B54 is not a full Cloudflare proxy or Bot Management implementation. B57 models congestion through control/TE state and route reachability, not full packet-level traffic engineering.
-
-B55 and B56 have stronger domain-specific live mechanisms in this round. B55 exercises BGP route propagation and withdrawal. B56 exercises DNS overload without killing `named`, with secondary-DNS contrast and cache-miss recovery validation.
-
-S2 was not run.
+| Case | Included Runtime Mechanism | Boundary |
+|---|---|---|
+| B52 | S3 API, index, placement, maintenance tool, capacity registry, status dashboard, object-shard health contrast | not a real S3 storage engine |
+| B53 | config API, validator, compiler, distributor, release manager, 8 POPs, origins | not a full CDN cache/runtime |
+| B54 | feature DB, permission rollout, generator, distributor, known-good store, core proxy, tail services, origins | not a full Cloudflare proxy or Bot Management implementation |
+| B55 | BGP route propagation, more-specific leak, filtered/unfiltered probes, route collectors, withdrawal recovery | no S2 run |
+| B56 | DNS overload without killing `named`, secondary-DNS contrast, cache-miss recovery validation | no S2 run |
+| B57 | maintenance automation, cluster managers, network-control-plane replicas, config store, route distributor, TE controller, route withdrawal/restoration | congestion is modeled through control/TE state and reachability, not packet-level traffic engineering |

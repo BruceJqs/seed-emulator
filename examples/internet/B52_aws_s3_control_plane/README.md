@@ -1,6 +1,6 @@
 # B52 AWS S3 Control Plane
 
-Independent SEED Agent Benchmark case skeleton for the S3-style control-plane capacity incident.
+Independent SEED Agent Benchmark case for the S3-style control-plane capacity incident.
 
 Commands:
 

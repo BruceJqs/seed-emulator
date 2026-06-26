@@ -1,6 +1,6 @@
 # B57 Google Network Congestion
 
-Independent SEED Agent Benchmark case skeleton for maintenance automation descheduling network control-plane jobs.
+Independent SEED Agent Benchmark case for maintenance automation descheduling network control-plane jobs.
 
 Commands use `b57ctl.sh` with the common runtime surface:
 

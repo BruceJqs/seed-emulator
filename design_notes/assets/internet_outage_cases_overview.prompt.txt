@@ -1,0 +1,19 @@
+Use case: productivity-visual
+Asset type: high-information SEED Emulator presentation infographic
+Primary request: create a polished 16:9 technical infographic for the SEED Internet Outage Benchmark S1.5 showcase.
+Scene/backdrop: dark technical operations display with a subtle world map and network traces, no brand logos.
+Core layout: seven stacked case lanes on the left, one vertical gate/phase spine in the center, validation and run-order panels on the right.
+Required title: "SEED Internet Outage Benchmark"
+Case lanes: each lane must show a large case ID, container count, panel port, mechanism line, and one evidence/recovery line.
+Case facts:
+B51: 225 containers, panel 8510, edge-to-DC fault -> BGP withdrawal, resolver/users/routes/edge health, rollback + canary.
+B52: 182 containers, panel 8520, maintenance removes quorum capacity, API 503, index/placement loss, freeze -> restore -> canary.
+B53: 186 containers, panel 8530, valid config triggers POP runtime bug, POP 5xx, healthy origins, rollback + canary.
+B54: 191 containers, panel 8540, feature file breaks core proxy path, DB rollout, size/hash, origin contrast, known-good + fail-small.
+B55: 177 containers, panel 8550, more-specific leak via Verizon path, filtered/unfiltered probes, collectors, withdraw + converge.
+B56: 178 containers, panel 8560, authoritative DNS path overload, cache-miss fail, named alive, secondary DNS, scrubber + fresh lookup.
+B57: 194 containers, panel 8570, automation drops network control plane, route withdrawal, workload health, reschedule + regional verify.
+Right-side panels: "Validation Surface", "Showcase", "Boundary", "Run Order".
+Right-side facts: Docker live count, route/DNS/control evidence, role ledger, collect artifacts, down, residual cleanup; case-local panel and map where available; S1.5 accepted; S2 preflight only; generate -> up -> normal -> inject fault -> fault -> observe roles -> gated action -> recovery -> collect -> down -> residual check.
+Design intent: information-dense but readable, like a system architecture review slide, not abstract wallpaper.
+Constraints: no tiny pseudo-text, no paragraphs, no extra case labels, no fake company logos, no watermark.

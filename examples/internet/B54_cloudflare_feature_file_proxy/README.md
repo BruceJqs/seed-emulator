@@ -1,6 +1,6 @@
 # B54 Cloudflare Feature File Proxy
 
-Independent SEED Agent Benchmark case skeleton for a bad internally generated feature file propagating into a core proxy path.
+Independent SEED Agent Benchmark case for a bad internally generated feature file propagating into a core proxy path.
 
 Commands use `b54ctl.sh` with the common runtime surface:
 

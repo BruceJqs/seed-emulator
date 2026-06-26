@@ -1,6 +1,6 @@
 # B53 Fastly Edge Config Bug
 
-Independent SEED Agent Benchmark case skeleton for a legal customer config triggering a latent edge runtime bug.
+Independent SEED Agent Benchmark case for a legal customer config triggering a latent edge runtime bug.
 
 Commands use `b53ctl.sh` with the common runtime surface:
 

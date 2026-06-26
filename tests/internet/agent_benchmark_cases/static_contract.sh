@@ -36,6 +36,9 @@ for entry in "${cases[@]}"; do
   done
 done
 
+test -x "$ROOT_DIR/tests/internet/agent_benchmark_cases/doc_links.sh"
+"$ROOT_DIR/tests/internet/agent_benchmark_cases/doc_links.sh" >/dev/null
+
 python3 - "$ROOT_DIR" <<'PY'
 import sys
 from pathlib import Path
