@@ -60,6 +60,29 @@ bash b55ctl.sh panel-runtime S1.5 8550
 | B52-B57 static test | [static_contract.sh](../tests/internet/agent_benchmark_cases/static_contract.sh) | policy denial, ledger gates, doc links |
 | B52-B57 generate smoke | [generate_smoke.sh](../tests/internet/agent_benchmark_cases/generate_smoke.sh) | S0 generation plus panel snapshot |
 
+## Code Walkthrough Order
+
+| Step | Open | What To Show |
+|---|---|---|
+| 1 | case generator | `build_case()` creates provider roles, client/probe roles, control-plane views, and S1.5 expansion |
+| 2 | case controller | normal, fault, recovery, and exercise commands map to live observations and bounded actions |
+| 3 | shared controller | `ab_smoke()` enforces the same incident timeline for B52-B57 |
+| 4 | policy | forbidden actions reject shortcuts before recovery is accepted |
+| 5 | panel | runtime and artifact readers expose generated output, live counts, and exercise evidence |
+| 6 | tests | static contract and generate smoke catch missing files, missing links, shortcut leakage, and panel generation |
+
+## Per-Case Code Entry
+
+| Case | Generator Entry | Controller Entry | Runtime Detail To Show |
+|---|---|---|---|
+| B51 | [meta_style_cascade.py](../examples/internet/B51_meta_style_cascade/meta_style_cascade.py) `build_case()` | [b51ctl.sh](../examples/internet/B51_meta_style_cascade/b51ctl.sh) `fault_check`, `exercise_gate`, `recovery_check` | health gate withdraws and reannounces the DNS/service prefix |
+| B52 | [aws_s3_control_plane.py](../examples/internet/B52_aws_s3_control_plane/aws_s3_control_plane.py) `build_case()` | [b52ctl.sh](../examples/internet/B52_aws_s3_control_plane/b52ctl.sh) | index and placement capacity are restored before canary PUT |
+| B53 | [fastly_edge_config_bug.py](../examples/internet/B53_fastly_edge_config_bug/fastly_edge_config_bug.py) `build_case()` | [b53ctl.sh](../examples/internet/B53_fastly_edge_config_bug/b53ctl.sh) | POP failures are separated from origin health |
+| B54 | [cloudflare_feature_file_proxy.py](../examples/internet/B54_cloudflare_feature_file_proxy/cloudflare_feature_file_proxy.py) `build_case()` | [b54ctl.sh](../examples/internet/B54_cloudflare_feature_file_proxy/b54ctl.sh) | generated feature-file state drives proxy failures |
+| B55 | [verizon_route_leak.py](../examples/internet/B55_verizon_bgp_route_leak/verizon_route_leak.py) `build_case()` | [b55ctl.sh](../examples/internet/B55_verizon_bgp_route_leak/b55ctl.sh) | collectors distinguish leaked more-specific routes from valid aggregate routes |
+| B56 | [dyn_dns_ddos.py](../examples/internet/B56_dyn_authoritative_dns_ddos/dyn_dns_ddos.py) `build_case()` | [b56ctl.sh](../examples/internet/B56_dyn_authoritative_dns_ddos/b56ctl.sh) | overload affects authoritative lookup path while DNS processes remain alive |
+| B57 | [google_network_congestion.py](../examples/internet/B57_google_network_congestion/google_network_congestion.py) `build_case()` | [b57ctl.sh](../examples/internet/B57_google_network_congestion/b57ctl.sh) | automation deschedules control-plane jobs before routes and service recover |
+
 [agent_case_ctl_common.sh](../examples/internet/_agent_benchmark_common/agent_case_ctl_common.sh)
 
 ```bash
@@ -79,10 +102,17 @@ def build_state(case_dir, case_id, tier, project, prefix):
     artifact_dir = case_dir / "test_log" / "runtime" / tier
     return {
         "output": {"compose_exists": (case_dir / "output/docker-compose.yml").exists()},
-        "runtime": {"live_containers": docker_live_count(project),
-                    "artifacts": artifact_summary(artifact_dir)},
+        "runtime": {
+            "compose_live_containers": docker_live_count(project),
+            "prefix_live_containers": docker_prefix_live_count(prefix),
+            "artifacts": artifact_summary(artifact_dir),
+        },
     }
 ```
+
+The panel displays both Docker-derived live counts and recorded
+`runtime_container_count.txt` values so a live demo and a collected snapshot can
+be read the same way.
 
 ## Visual Assets
 
@@ -105,5 +135,6 @@ artifacts.
 ```sh
 tests/internet/agent_benchmark_cases/doc_links.sh
 tests/internet/agent_benchmark_cases/static_contract.sh
+tests/internet/agent_benchmark_cases/generate_smoke.sh
 git diff --check
 ```

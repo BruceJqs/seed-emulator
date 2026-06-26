@@ -159,6 +159,32 @@ Artifact root:
 examples/internet/B51_meta_style_cascade/test_log/runtime/S1_5/
 ```
 
+## During The Live Run, Watch
+
+| Command | Watch For | Meaning |
+|---|---|---|
+| `up-runtime` | S1.5 topology count reaches 225; map uses a separate UI container | the live gate is topology scale, not the optional map |
+| `normal-runtime` | DNS answer `10.20.0.80`, HTTP 200, route `10.20.0.0/24`, health `healthy` | public path, resolver path, BGP view, and edge gate agree |
+| `exercise-observe-runtime public-users` | user view has only user-visible symptoms | the exercise does not reveal root cause too early |
+| `exercise-observe-runtime external-routing` | route view changes after the fault | control-plane evidence is separate from application logs |
+| `exercise-observe-runtime meta-neteng` | edge-to-DC or policy evidence appears | operator can narrow the root cause without editing clients |
+| `fault-runtime` | health `unhealthy`, route missing, DNS/HTTP fail | withdrawal follows the health gate |
+| `exercise-action-runtime rollback-internal-policy` | action result is success | recovery starts at the internal fault |
+| `exercise-action-runtime canary-reannounce` | prefix returns after health verification | no forced unhealthy announcement |
+| `recovery-runtime` | health, route, DNS, and HTTP all pass | external recovery is validated |
+| `down-runtime` | residual container and network checks are empty | demo cleanup is complete |
+
+## Panel Reading Order
+
+| Panel Area | Read First |
+|---|---|
+| runtime | live container count, recorded runtime count, generated tier |
+| flow | normal, fault, recovery sequence for the case |
+| evidence | normal/fault/recovery artifact presence |
+| exercise | phase directories, observation files, action results |
+| policy | allowed observations/actions and forbidden shortcuts |
+| files | generated compose and collected host artifacts |
+
 ## Code Defense Map
 
 | Question | File | Function Or Data |
@@ -171,6 +197,17 @@ examples/internet/B51_meta_style_cascade/test_log/runtime/S1_5/
 | where are common B52-B57 phases enforced | [agent_case_ctl_common.sh](../examples/internet/_agent_benchmark_common/agent_case_ctl_common.sh) | `ab_smoke`, `ab_exercise_gate` |
 | where is the panel state built | [showcase_panel.py](../examples/internet/_agent_benchmark_common/showcase_panel.py) | `build_state()` and `artifact_summary()` |
 | where are policy shortcuts rejected | [agent_policy.json](../examples/internet/B51_meta_style_cascade/agent_policy.json) and [static_contract.sh](../tests/internet/agent_benchmark_cases/static_contract.sh) | forbidden actions |
+
+## If Asked During Code Review
+
+| Question | Direct Answer |
+|---|---|
+| How do we know the topology is live? | controller writes `runtime_container_count.txt`; panel also reads current Docker counts by compose project and service prefix |
+| How do we know the fault is not a DNS kill? | B51 checks health-gated route withdrawal; B56 keeps DNS processes alive and validates cache-miss behavior |
+| How do we know users do not get privileged answers? | observations are role-scoped and stored per role under the exercise directory |
+| How do we know recovery is bounded? | policy files list allowed actions; gates require the staged evidence before recovery validation |
+| How do we know S1.5 is the accepted tier? | validation record lists measured counts and smoke times; S2 remains preflight-only |
+| How do we explain the code quickly? | generator builds roles and scale; controller drives runtime; common shell enforces timeline; panel reads artifacts |
 
 ## Short Code Excerpts
 

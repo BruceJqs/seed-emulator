@@ -1,10 +1,15 @@
 # Internet Outage Benchmark Showcase Materials
 
-## Core Claim
+## Showcase Target
 
-Seven independent outage cases run as live SEED Emulator S1.5 scenarios with
-10^2 Docker containers, role-scoped observations, bounded recovery actions, and
-artifact-backed validation. S2 is guarded and not part of the default showcase.
+| Item | Fact |
+|---|---|
+| case set | B51-B57, independent examples under `examples/internet/` |
+| live tier | S1.5, 177-225 topology containers per case |
+| exercise shape | baseline, impact, user/frontline, provider triage, change audit, mitigation, recovery verification, postmortem |
+| operator boundary | role observations and bounded actions; no client-host edits, oracle edits, root-service kills, or forced unhealthy recovery |
+| UI surfaces | case panel for all cases; Internet Map for B51 |
+| S2 | preflight-only on this host |
 
 ## Material Map
 
@@ -30,13 +35,22 @@ artifact-backed validation. S2 is guarded and not part of the default showcase.
 | B56 DNS DDoS | 178/178 | authoritative path overload, not DNS process kill | fresh Dyn lookups fail, `named` alive, secondary DNS works | scrubber/rate limit, cache-miss lookup, HTTP |
 | B57 control-plane deschedule | 194/194 | automation drops network control-plane jobs | external route withdrawn, curl `000`, workloads local healthy | halt automation, reschedule, distribute config, regional verify |
 
+## How To Use The Images
+
+| Image | Point At | Say | Then Show |
+|---|---|---|---|
+| seven-case overview | seven lanes and S1.5 gates | each case has a distinct outage mechanism and a measured live container gate | case row in [internet_outage_case_implementation.md](internet_outage_case_implementation.md) |
+| macro-to-micro | left-to-right stack | benchmark family becomes a live runtime, role views, gated actions, and collected evidence | `test_log/runtime/S1_5/` artifact tree |
+| B51 topology | AS20 edge, AS30 DC, AS50 resolver/probe, probes, collectors, background ASes | the visible failure is public DNS/service loss; the root cause is internal edge-to-DC reachability | Internet Map at `http://127.0.0.1:8080/pro/home` |
+| B51 sequence | health gate and BGP withdrawal steps | the prefix disappears only after the edge gate detects backend failure | `bash b51ctl.sh fault-runtime S1.5` output and collector artifacts |
+
 ## Macro To Micro
 
 ![Macro to micro benchmark structure](assets/internet_outage_macro_to_micro.png)
 
 Read the image from left to right:
 
-| Layer | Point |
+| Layer | What To Point At |
 |---|---|
 | case family | seven outage mechanisms, one common intervention contract |
 | runtime tier | S1.5 is the live showcase target; S2 is preflight-only |
@@ -68,20 +82,20 @@ Code entry:
 | [case_metadata.json](../examples/internet/B51_meta_style_cascade/case_metadata.json) | domain, prefixes, S1.5 scale, roles, evidence |
 | [agent_policy.json](../examples/internet/B51_meta_style_cascade/agent_policy.json) | allowed observations and forbidden shortcuts |
 
-## Incident Sequence
+## B51 Incident Sequence
 
 ![B51 incident sequence](assets/internet_outage_b51_incident_sequence.png)
 
-| Phase | Presenter Focus |
-|---|---|
-| baseline | public DNS/HTTP, route visibility, edge health all green |
-| inject fault | internal edge-to-DC path or policy fails |
-| gate | health gate marks backend unreachable |
-| withdraw | edge DNS/service prefix disappears from external BGP views |
-| impact | users and resolvers see DNS and service failure |
-| triage | compare users, resolver, route collectors, edge health, backend |
-| mitigation | rollback internal policy; do not force an unhealthy announcement |
-| verification | health recovers, canary reannounces, public probes pass |
+| Phase | Presenter Focus | Runtime Evidence |
+|---|---|---|
+| baseline | public DNS/HTTP, route visibility, edge health all green | DNS answer `10.20.0.80`, HTTP 200, route `10.20.0.0/24`, health `healthy` |
+| inject fault | internal edge-to-DC path or policy fails | action log for `inject-fault` |
+| gate | health gate marks backend unreachable | health observation changes to `unhealthy` |
+| withdraw | edge DNS/service prefix disappears from external BGP views | route collector reports missing `10.20.0.0/24` |
+| impact | users and resolvers see DNS and service failure | public-user DNS/HTTP observations fail |
+| triage | compare users, resolver, route collectors, edge health, backend | role observation files under `exercise/<id>/observations/` |
+| mitigation | rollback internal policy; do not force an unhealthy announcement | action log for `rollback-internal-policy` |
+| verification | health recovers, canary reannounces, public probes pass | `verify-health`, `canary-reannounce`, `validate-recovery`, `recovery-runtime` |
 
 ## Live Screen Order
 
@@ -96,16 +110,17 @@ Code entry:
 | 7 | recovery | `bash b51ctl.sh exercise-action-runtime S1.5 rollback-internal-policy` then recovery checks |
 | 8 | collected proof | `test_log/runtime/S1_5/` |
 
-## Speaker Claims
+## Proof To Show
 
 | Claim | Proof Surface |
 |---|---|
-| not static telemetry | live container gate and `docker-compose` runtime |
-| not a one-host toy | probes, collectors, background ASes, Internet Map |
-| not direct answer replay | staged roles, notes, gates, policy-denied shortcuts |
-| not DNS/process kill | B51 withdraws BGP after health-gate failure; B56 keeps `named` alive |
-| not unbounded recovery | each case uses bounded mitigation and canary or cache-miss verification |
-| not S2 overclaim | S2 remains guarded/preflight-only |
+| live topology, not static telemetry | `runtime_container_count.txt`, `docker ps`, generated `output/docker-compose.yml` |
+| multi-role incident | observation files for users, frontline, provider ops, network/control plane |
+| bounded intervention | `agent_policy.json`, `exercise-gate-runtime`, action result files |
+| B51 mechanism | health-gated BGP withdrawal after edge-to-DC failure |
+| B56 mechanism | fresh lookups fail while `named` stays alive |
+| recovery proof | canary, cache-miss lookup, route convergence, or service validation per case |
+| S2 boundary | `s2-preflight`; no default S2 live run on this host |
 
 ## Demo Timing
 
@@ -120,12 +135,13 @@ Code entry:
 | B56 full smoke | 178 topology containers | `5:30.82` |
 | B57 full smoke | 194 topology containers | `4:45.37` |
 
-## Final Panel
+## Closing Checklist
 
-Use this closing line:
-
-```text
-The benchmark turns SEED Emulator from a teaching topology into a live incident
-exercise platform: topology, control plane, service state, human investigation,
-bounded action, and recovery evidence are all inside the emulation.
-```
+| Show | Done When |
+|---|---|
+| live scale | panel and `runtime_container_count.txt` show the S1.5 gate |
+| normal state | external users and provider views agree on healthy service |
+| fault | user-visible failure appears after the case-specific mechanism |
+| triage | role observations narrow the root cause without privileged shortcuts |
+| recovery | bounded action restores service and external validation passes |
+| cleanup | containers and networks for the compose project are gone |
