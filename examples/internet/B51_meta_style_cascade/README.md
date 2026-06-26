@@ -57,13 +57,13 @@ DNS IP is `10.20.0.53`; the edge service IP is `10.20.0.80`; the resolver IP is
 ```bash
 cd examples/internet/B51_meta_style_cascade
 
-TIER=S0 PLATFORM=arm SEED_PYTHON=../../../.venv/bin/python bash b51ctl.sh generate-runtime
-TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=arm bash b51ctl.sh up-runtime
-TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=arm bash b51ctl.sh normal-runtime
-TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=arm bash b51ctl.sh inject-fault-runtime
-TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=arm bash b51ctl.sh fault-runtime
-TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=arm bash b51ctl.sh collect-runtime
-TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=arm bash b51ctl.sh down-runtime
+TIER=S0 PLATFORM=amd SEED_PYTHON=../../../.venv/bin/python bash b51ctl.sh generate-runtime
+TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=amd bash b51ctl.sh up-runtime
+TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=amd bash b51ctl.sh normal-runtime
+TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=amd bash b51ctl.sh inject-fault-runtime
+TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=amd bash b51ctl.sh fault-runtime
+TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=amd bash b51ctl.sh collect-runtime
+TIER=S0 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 PLATFORM=amd bash b51ctl.sh down-runtime
 ```
 
 S1 and S1.5 use the same commands with `TIER=S1` or `TIER=S1.5` and a unique
@@ -123,7 +123,7 @@ To include the Internet Map in the generated compose output:
 
 ```bash
 TIER=S1.5 \
-  PLATFORM=arm \
+  PLATFORM=amd \
   SEED_PYTHON=../../../.venv/bin/python \
   B51_ENABLE_INTERNET_MAP=1 \
   B51_INTERNET_MAP_PORT=8080 \
@@ -133,13 +133,19 @@ TIER=S1.5 \
 Then open:
 
 ```text
-http://127.0.0.1:8080/map.html
+http://127.0.0.1:8080/pro/home
 ```
 
 The map is an observation aid and adds a UI container named
 `meta-cascade-internet-map` when enabled. It is not part of the BGP/DNS fault
 mechanism; the accepted S1.5 runtime gate remains the 225 SEED network
-containers.
+containers. The map root redirects to `/pro/home`.
+
+Current demo timing on this host, using `PLATFORM=amd` and
+`SEED_PYTHON=../../../.venv/bin/python`: S1.5 generation `0:00.76`, startup
+`2:22.23`, normal check `0:16.23`, fault injection `0:12.13`, fault check
+`0:16.43`, recovery check `0:15.59`, down `1:21.47`. Prewarm before a live
+walkthrough.
 
 During a live S1.5 run, `demo-snapshot-runtime S1.5 PHASE` captures presentation
 snapshots under `test_log/runtime/S1_5/demo/<phase>/`. For the real exercise,
@@ -194,7 +200,7 @@ not prepared and does not create containers or networks.
 cd examples/internet/B51_meta_style_cascade
 
 COMPOSE_PROJECT_NAME=seed_meta_cascade_runtime \
-  PLATFORM=arm \
+  PLATFORM=amd \
   SEED_PYTHON=../../../.venv/bin/python \
   bash b51ctl.sh runtime-ladder-smoke
 ```
@@ -222,7 +228,7 @@ cd examples/internet/B51_meta_style_cascade
 
 B51_RUNTIME_LADDER="S1" \
   COMPOSE_PROJECT_NAME=seed_meta_cascade_s1_intervention \
-  PLATFORM=arm \
+  PLATFORM=amd \
   SEED_PYTHON=../../../.venv/bin/python \
   bash b51ctl.sh runtime-intervention-ladder-smoke
 ```

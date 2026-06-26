@@ -16,8 +16,8 @@ The local first-round smoke used:
 
 ```bash
 COMPOSE_PROJECT_NAME=seed_meta_cascade_s0 \
-  PLATFORM=arm \
-  SEED_PYTHON=.venv/bin/python \
+  PLATFORM=amd \
+  SEED_PYTHON="$PWD/.venv/bin/python" \
   tests/internet/meta_style_cascade/smoke.sh
 ```
 
@@ -42,8 +42,8 @@ Docker topology. It does not use telemetry fixtures as tier acceptance:
 
 ```bash
 COMPOSE_PROJECT_NAME=seed_meta_cascade_runtime \
-  PLATFORM=arm \
-  SEED_PYTHON=.venv/bin/python \
+  PLATFORM=amd \
+  SEED_PYTHON="$PWD/.venv/bin/python" \
   tests/internet/meta_style_cascade/scale_smoke.sh
 ```
 
@@ -51,7 +51,7 @@ COMPOSE_PROJECT_NAME=seed_meta_cascade_runtime \
 
 ```bash
 COMPOSE_PROJECT_NAME=seed_meta_cascade_runtime \
-  PLATFORM=arm \
-  SEED_PYTHON=.venv/bin/python \
+  PLATFORM=amd \
+  SEED_PYTHON="$PWD/.venv/bin/python" \
   tests/internet/meta_style_cascade/full_sequence.sh
 ```

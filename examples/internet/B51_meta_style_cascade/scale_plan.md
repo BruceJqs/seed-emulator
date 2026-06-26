@@ -49,7 +49,7 @@ For every implemented runtime tier, the controller verifies:
 cd examples/internet/B51_meta_style_cascade
 
 COMPOSE_PROJECT_NAME=seed_meta_cascade_runtime \
-  PLATFORM=arm \
+  PLATFORM=amd \
   SEED_PYTHON=../../../.venv/bin/python \
   bash b51ctl.sh runtime-ladder-smoke
 ```
@@ -64,13 +64,13 @@ S1 generate -> up -> normal-check -> inject-fault -> fault-check -> collect -> d
 ## Single Runtime Tier Commands
 
 ```bash
-TIER=S1 PLATFORM=arm SEED_PYTHON=../../../.venv/bin/python bash b51ctl.sh generate-runtime
-TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=arm bash b51ctl.sh up-runtime
-TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=arm bash b51ctl.sh normal-runtime
-TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=arm bash b51ctl.sh inject-fault-runtime
-TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=arm bash b51ctl.sh fault-runtime
-TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=arm bash b51ctl.sh collect-runtime
-TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=arm bash b51ctl.sh down-runtime
+TIER=S1 PLATFORM=amd SEED_PYTHON=../../../.venv/bin/python bash b51ctl.sh generate-runtime
+TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=amd bash b51ctl.sh up-runtime
+TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=amd bash b51ctl.sh normal-runtime
+TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=amd bash b51ctl.sh inject-fault-runtime
+TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=amd bash b51ctl.sh fault-runtime
+TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=amd bash b51ctl.sh collect-runtime
+TIER=S1 COMPOSE_PROJECT_NAME=seed_meta_cascade_s1 PLATFORM=amd bash b51ctl.sh down-runtime
 ```
 
 Use `TIER=S1.5` for the intermediate runtime test. The controller canonicalizes

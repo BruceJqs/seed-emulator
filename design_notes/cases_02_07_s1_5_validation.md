@@ -1,25 +1,22 @@
 # Cases 02-07 S1.5 Live Validation
 
-Date: 2026-06-06
+Date: 2026-06-06, refreshed on 2026-06-26
 
-Evidence-only record for the first complete S1.5 live closure of B52-B57. S2
-remains guarded/preflight-only. Input document directories are not modified.
+Evidence-only record for complete S1.5 live closure of B52-B57. S2 remains
+guarded/preflight-only. Input document directories are not modified.
 
 ## Commands
 
-Each case was run with a unique compose project name:
+Current showcase run used `PLATFORM=amd` and
+`SEED_PYTHON=../../../.venv/bin/python` from each case directory:
 
 ```sh
-COMPOSE_PROJECT_NAME=seed_b52_s1_5_live_check bash b52ctl.sh smoke S1.5
-COMPOSE_PROJECT_NAME=seed_b52_mechanism_s1_5 bash b52ctl.sh smoke S1.5
-COMPOSE_PROJECT_NAME=seed_b53_s1_5_live_check bash b53ctl.sh smoke S1.5
-COMPOSE_PROJECT_NAME=seed_b53_mechanism_s1_5 bash b53ctl.sh smoke S1.5
-COMPOSE_PROJECT_NAME=seed_b54_s1_5_live_check bash b54ctl.sh smoke S1.5
-COMPOSE_PROJECT_NAME=seed_b54_mechanism_s1_5 bash b54ctl.sh smoke S1.5
-COMPOSE_PROJECT_NAME=seed_b55_s1_5_live_check bash b55ctl.sh smoke S1.5
-COMPOSE_PROJECT_NAME=seed_b56_s1_5_live_check bash b56ctl.sh smoke S1.5
-COMPOSE_PROJECT_NAME=seed_b57_s1_5_live_check bash b57ctl.sh smoke S1.5
-COMPOSE_PROJECT_NAME=seed_b57_mechanism_s1_5 bash b57ctl.sh smoke S1.5
+COMPOSE_PROJECT_NAME=seed_b52_showcase B52_EXERCISE_ID=showcase-live-20260626 bash b52ctl.sh smoke S1.5
+COMPOSE_PROJECT_NAME=seed_b53_showcase B53_EXERCISE_ID=showcase-live-20260626 bash b53ctl.sh smoke S1.5
+COMPOSE_PROJECT_NAME=seed_b54_showcase B54_EXERCISE_ID=showcase-live-20260626 bash b54ctl.sh smoke S1.5
+COMPOSE_PROJECT_NAME=seed_b55_showcase B55_EXERCISE_ID=showcase-live-20260626 bash b55ctl.sh smoke S1.5
+COMPOSE_PROJECT_NAME=seed_b56_showcase B56_EXERCISE_ID=showcase-live-20260626 bash b56ctl.sh smoke S1.5
+COMPOSE_PROJECT_NAME=seed_b57_showcase B57_EXERCISE_ID=showcase-live-20260626 bash b57ctl.sh smoke S1.5
 ```
 
 The smoke chain is:
@@ -38,6 +35,20 @@ generate -> up -> normal -> exercise baseline -> inject fault -> impact -> user/
 | B55 Verizon BGP route leak | S1.5 accepted with route-leak control-plane runtime | 177/177 | 8 | 65 unfiltered probes saw `10.55.0.0/25`; filtered probes kept service reachability; collector saw AS path `701 703 702`; recovery withdrew the leak and restored aggregate reachability |
 | B56 Dyn authoritative DNS DDoS | S1.5 accepted with DNS-overload runtime | 178/178 | 8 | 65 client fresh lookups failed under overload while `named` stayed alive; secondary-provider lookup returned `10.56.40.80`; recovery cleared the drop and 65 fresh lookups plus HTTP checks passed |
 | B57 Google network congestion | S1.5 accepted with case-local Google route/control-plane runtime | 194/194 | 8 | 75 normal, 75 fault, and 75 recovery client route/HTTP checks; fault disables the edge BGP transit peer so external collectors/probes lose `10.57.10.0/24` and curl returns `000`, while edge/workload containers stay locally healthy; recovery re-enables the peer and records control-plane rebuild plus region verification |
+
+## 2026-06-26 Showcase Run
+
+| Case | Command Time | Residual Project Containers | Residual Case Containers | Residual Networks |
+|---|---:|---:|---:|---:|
+| B52 | `4:04.28` | 0 | 0 | 0 |
+| B53 | `4:01.87` | 0 | 0 | 0 |
+| B54 | `4:08.73` | 0 | 0 | 0 |
+| B55 | `4:21.13` | 0 | 0 | 0 |
+| B56 | `5:30.82` | 0 | 0 | 0 |
+| B57 | `4:45.37` | 0 | 0 | 0 |
+
+Panel snapshots were generated under each case's
+`test_log/runtime/S1_5/showcase_panel/index.html`.
 
 ## Artifact Roots
 

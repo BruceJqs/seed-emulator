@@ -249,18 +249,23 @@ ab_live_container_count() {
   docker ps --filter "label=com.docker.compose.project=$PROJECT_NAME" --format '{{.Names}}' | wc -l | tr -d ' '
 }
 
+ab_runtime_container_count() {
+  docker ps --format '{{.Names}}' | awk -v prefix="$CONTAINER_PREFIX" 'index($0, prefix) == 1' | wc -l | tr -d ' '
+}
+
 ab_assert_live_scale() {
-  local expected actual
+  local expected actual compose_actual
   expected="$(ab_runtime_min_containers "$TIER")"
-  actual="$(ab_live_container_count)"
+  actual="$(ab_runtime_container_count)"
+  compose_actual="$(ab_live_container_count)"
   mkdir -p "$ARTIFACT_DIR"
-  printf 'case_id=%s\ntier=%s\nproject=%s\nlive_containers=%s\nminimum_required=%s\n' \
-    "$CASE_ID" "$(ab_display_tier "$TIER")" "$PROJECT_NAME" "$actual" "$expected" > "$ARTIFACT_DIR/runtime_container_count.txt"
+  printf 'case_id=%s\ntier=%s\nproject=%s\nruntime_prefix=%s\nruntime_live_containers=%s\ncompose_live_containers=%s\nminimum_required=%s\n' \
+    "$CASE_ID" "$(ab_display_tier "$TIER")" "$PROJECT_NAME" "$CONTAINER_PREFIX" "$actual" "$compose_actual" "$expected" > "$ARTIFACT_DIR/runtime_container_count.txt"
   if [ "$actual" -lt "$expected" ]; then
-    echo "$(ab_display_tier "$TIER") live container check failed for $CASE_ID: $actual < $expected" >&2
+    echo "$(ab_display_tier "$TIER") topology container check failed for $CASE_ID: prefix=$CONTAINER_PREFIX $actual < $expected" >&2
     return 1
   fi
-  ab_log "$(ab_display_tier "$TIER") live container check passed: $actual >= $expected"
+  ab_log "$(ab_display_tier "$TIER") live topology container check passed: $actual >= $expected"
 }
 
 ab_generate() {

@@ -60,9 +60,10 @@ Start with a unique project and exercise id:
 ```sh
 cd examples/internet/B51_meta_style_cascade
 export TIER=S1.5
-export PLATFORM=arm
+export PLATFORM=amd
 export COMPOSE_PROJECT_NAME=seed_meta_cascade_showcase
 export B51_EXERCISE_ID=showcase-run-001
+export SEED_PYTHON=../../../.venv/bin/python
 ```
 
 Generate and start with the Internet Map:
@@ -75,7 +76,7 @@ B51_ENABLE_INTERNET_MAP=1 B51_INTERNET_MAP_PORT=8080 bash b51ctl.sh up-runtime S
 Open:
 
 ```text
-http://127.0.0.1:8080/map.html
+http://127.0.0.1:8080/pro/home
 http://127.0.0.1:8510/
 ```
 

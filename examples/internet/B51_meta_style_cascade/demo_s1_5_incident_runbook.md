@@ -1,10 +1,6 @@
 # S1.5 Incident Demonstration Runbook
 
-This runbook is for a live S1.5 demonstration of the Meta-style cascade. The
-point is not to show a known CVE exploit or a toy teaching outage. The point is
-to show a networked production failure where different actors see different
-partial truths, and the operator must move from symptoms to control-plane and
-dependency evidence before repairing anything.
+This runbook is for a live S1.5 demonstration of the Meta-style cascade.
 
 This file is a facilitator aid. It is not the acceptance path for the S1.5 test.
 For the participatory exercise contract, staged role permissions, ledger gates,
@@ -49,7 +45,7 @@ Generate S1.5 with the Internet Map enabled:
 cd examples/internet/B51_meta_style_cascade
 
 TIER=S1.5 \
-  PLATFORM=arm \
+  PLATFORM=amd \
   SEED_PYTHON=../../../.venv/bin/python \
   B51_ENABLE_INTERNET_MAP=1 \
   B51_INTERNET_MAP_PORT=8080 \
@@ -61,7 +57,7 @@ Then start the runtime:
 ```bash
 TIER=S1.5 \
   COMPOSE_PROJECT_NAME=seed_meta_cascade_s1_5_demo \
-  PLATFORM=arm \
+  PLATFORM=amd \
   B51_ENABLE_INTERNET_MAP=1 \
   B51_INTERNET_MAP_PORT=8080 \
   COMPOSE_PARALLEL_LIMIT=16 \
@@ -71,7 +67,7 @@ TIER=S1.5 \
 Open the Internet Map:
 
 ```text
-http://127.0.0.1:8080/map.html
+http://127.0.0.1:8080/pro/home
 ```
 
 Use the map to point out:
@@ -89,6 +85,18 @@ Use the map to point out:
 The map is an observation aid, not part of the fault mechanism. If map startup
 adds the `meta-cascade-internet-map` UI container, the accepted S1.5 runtime
 gate still refers to the 225 SEED network containers.
+
+Measured demo timing on this host:
+
+| Step | Time |
+|---|---:|
+| generate with map | `0:00.76` |
+| up with map | `2:22.23` |
+| normal check | `0:16.23` |
+| inject fault | `0:12.13` |
+| fault check | `0:16.43` |
+| recovery check | `0:15.59` |
+| down | `1:21.47` |
 
 ## Time-Ordered Scenario
 

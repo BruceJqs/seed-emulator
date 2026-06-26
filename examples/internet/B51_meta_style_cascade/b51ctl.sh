@@ -339,6 +339,10 @@ compose_live_container_count() {
   docker ps --filter "label=com.docker.compose.project=$PROJECT_NAME" --format '{{.Names}}' | wc -l | tr -d ' '
 }
 
+runtime_live_container_count() {
+  docker ps --format '{{.Names}}' | awk -v prefix="$CONTAINER_PREFIX" 'index($0, prefix) == 1' | wc -l | tr -d ' '
+}
+
 start_runtime_containers_serial() {
   local batch_size="${B51_SERIAL_START_BATCH:-25}"
   local batch_sleep="${B51_SERIAL_START_SLEEP:-2}"
@@ -367,19 +371,20 @@ start_runtime_containers_serial() {
 }
 
 assert_runtime_live_scale() {
-  local expected actual
+  local expected actual compose_actual
   TIER="$(canonical_tier "$TIER")"
   require_runtime_tier "$TIER"
   expected="$(runtime_expected_min_containers "$TIER")"
-  actual="$(compose_live_container_count)"
+  actual="$(runtime_live_container_count)"
+  compose_actual="$(compose_live_container_count)"
   mkdir -p "$ARTIFACT_DIR"
-  printf 'tier=%s\nproject=%s\nlive_containers=%s\nminimum_required=%s\n' \
-    "$(display_tier "$TIER")" "$PROJECT_NAME" "$actual" "$expected" > "$ARTIFACT_DIR/runtime_container_count.txt"
+  printf 'tier=%s\nproject=%s\nruntime_prefix=%s\nruntime_live_containers=%s\ncompose_live_containers=%s\nminimum_required=%s\n' \
+    "$(display_tier "$TIER")" "$PROJECT_NAME" "$CONTAINER_PREFIX" "$actual" "$compose_actual" "$expected" > "$ARTIFACT_DIR/runtime_container_count.txt"
   if [ "$actual" -lt "$expected" ]; then
-    echo "$(display_tier "$TIER") runtime scale check failed: live containers=$actual, required>=$expected" >&2
+    echo "$(display_tier "$TIER") runtime scale check failed: prefix=$CONTAINER_PREFIX live containers=$actual, required>=$expected" >&2
     return 1
   fi
-  log "$(display_tier "$TIER") live container check passed: $actual >= $expected"
+  log "$(display_tier "$TIER") live topology container check passed: $actual >= $expected"
 }
 
 router_service_image() {
@@ -1371,6 +1376,7 @@ agent_act() {
       ;;
     verify-health)
       log "agent action: verify internal health"
+      wait_health_status healthy
       docker_exec "$EDGE_ROUTER" sh -lc "printf 'health='; cat /var/run/meta-health-status 2>/dev/null || true; curl -fsS --max-time 2 http://$BACKEND_IP/" > "$ARTIFACT_DIR/agent_action_verify-health.txt" 2>&1
       ;;
     canary-reannounce)

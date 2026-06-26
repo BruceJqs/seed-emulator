@@ -126,6 +126,25 @@ def docker_live_count(project):
     return len([line for line in result.stdout.splitlines() if line.strip()])
 
 
+def docker_prefix_live_count(prefix):
+    if not prefix:
+        return None
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    return len([line for line in result.stdout.splitlines() if line.startswith(prefix)])
+
+
 def artifact_summary(artifact_dir):
     files = list(artifact_dir.rglob("*")) if artifact_dir.exists() else []
     regular = [path for path in files if path.is_file()]
@@ -162,7 +181,8 @@ def build_state(case_dir, case_id, tier, project, prefix):
             "compose_service_count": count_compose_services(output_dir),
         },
         "runtime": {
-            "live_containers": docker_live_count(project),
+            "compose_live_containers": docker_live_count(project),
+            "prefix_live_containers": docker_prefix_live_count(prefix),
             "artifacts": artifact_summary(artifact_dir),
         },
         "readme_excerpt": "\n".join(read_text(case_dir / "README.md", 1200).splitlines()[0:12]),
@@ -189,7 +209,10 @@ def render_html(state):
     recovery_ok = artifacts["recovery_files"] > 0
     exercise_ok = artifacts["exercise_dirs"] > 0
     compose_ok = state["output"]["compose_exists"]
-    live = state["runtime"]["live_containers"]
+    compose_live = state["runtime"]["compose_live_containers"]
+    prefix_live = state["runtime"]["prefix_live_containers"]
+    recorded_runtime_live = runtime_count.get("runtime_live_containers") or runtime_count.get("live_containers")
+    topology_live = recorded_runtime_live or prefix_live
     current_status = metadata.get("current_runtime_status", metadata.get("scope", "No runtime status recorded."))
     command_lines = [f"bash {state['case_id']}ctl.sh {cmd}" for cmd in details.get("default_commands", [])]
     html_commands = "\n".join(command_lines)
@@ -248,8 +271,8 @@ def render_html(state):
         {badge("exercise ledger", exercise_ok)}
       </div>
       <div class="grid">
-        <div class="metric"><span class="muted">Live containers</span><b>{esc(live if live is not None else "unknown")}</b></div>
-        <div class="metric"><span class="muted">Recorded live gate</span><b>{esc(runtime_count.get("live_containers", "missing"))}</b></div>
+        <div class="metric"><span class="muted">Topology containers</span><b>{esc(topology_live if topology_live is not None else "unknown")}</b></div>
+        <div class="metric"><span class="muted">Compose containers</span><b>{esc(runtime_count.get("compose_live_containers", compose_live if compose_live is not None else "unknown"))}</b></div>
         <div class="metric"><span class="muted">Minimum gate</span><b>{esc(runtime_count.get("minimum_required", "missing"))}</b></div>
         <div class="metric"><span class="muted">Artifact files</span><b>{esc(artifacts["file_count"])}</b></div>
       </div>

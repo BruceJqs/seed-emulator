@@ -110,7 +110,7 @@ cd examples/internet/B51_meta_style_cascade
 export TIER=S1.5
 export COMPOSE_PROJECT_NAME=seed_meta_cascade_s1_5_exercise
 export B51_EXERCISE_ID=classroom-run-001
-export PLATFORM=arm
+export PLATFORM=amd
 export SEED_PYTHON=../../../.venv/bin/python
 ```
 

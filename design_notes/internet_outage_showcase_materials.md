@@ -88,7 +88,7 @@ Code entry:
 | Step | Screen | Command Or Path |
 |---|---|---|
 | 1 | case matrix | [internet_outage_case_implementation.md](internet_outage_case_implementation.md) |
-| 2 | B51 map | `http://127.0.0.1:8080/map.html` after map-enabled generation |
+| 2 | B51 map | `http://127.0.0.1:8080/pro/home` after map-enabled generation |
 | 3 | B51 panel | `bash b51ctl.sh panel-runtime S1.5 8510` |
 | 4 | baseline evidence | `bash b51ctl.sh normal-runtime S1.5` |
 | 5 | fault evidence | `bash b51ctl.sh inject-fault-runtime S1.5` then `bash b51ctl.sh fault-runtime S1.5` |
@@ -106,6 +106,19 @@ Code entry:
 | not DNS/process kill | B51 withdraws BGP after health-gate failure; B56 keeps `named` alive |
 | not unbounded recovery | each case uses bounded mitigation and canary or cache-miss verification |
 | not S2 overclaim | S2 remains guarded/preflight-only |
+
+## Demo Timing
+
+| Target | Runtime | Measured Time |
+|---|---:|---:|
+| B51 map-enabled up | 225 topology + 1 map container | `2:22.23` |
+| B51 down | 225 topology + 1 map container | `1:21.47` |
+| B52 full smoke | 182 topology containers | `4:04.28` |
+| B53 full smoke | 186 topology containers | `4:01.87` |
+| B54 full smoke | 191 topology containers | `4:08.73` |
+| B55 full smoke | 177 topology containers | `4:21.13` |
+| B56 full smoke | 178 topology containers | `5:30.82` |
+| B57 full smoke | 194 topology containers | `4:45.37` |
 
 ## Final Panel
 

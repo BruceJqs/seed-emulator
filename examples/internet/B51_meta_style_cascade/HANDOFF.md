@@ -50,8 +50,8 @@ guards. It does not start containers and does not prove runtime behavior.
 
 ```bash
 COMPOSE_PROJECT_NAME=seed_meta_cascade_runtime \
-  PLATFORM=arm \
-  SEED_PYTHON=.venv/bin/python \
+  PLATFORM=amd \
+  SEED_PYTHON="$PWD/.venv/bin/python" \
   tests/internet/meta_style_cascade/full_sequence.sh
 ```
 
@@ -69,7 +69,7 @@ cd examples/internet/B51_meta_style_cascade
 export TIER=S1.5
 export COMPOSE_PROJECT_NAME=seed_meta_cascade_s1_5_exercise
 export B51_EXERCISE_ID=run-001
-export PLATFORM=arm
+export PLATFORM=amd
 export SEED_PYTHON=../../../.venv/bin/python
 
 bash b51ctl.sh generate-runtime S1.5
@@ -90,8 +90,10 @@ Historical evidence is summarized in `progress_s1_s2.md`:
 - S1.5 full intervention runtime passed with 225 live containers, 80 probes,
   and 16 collectors.
 - S2 preflight remains diagnostic-only and blocked on this host.
-- The S1.5 interactive exercise redesign was statically checked but not yet run
-  end to end as a live exercise.
+- The S1.5 interactive exercise was run end to end on 2026-06-26 with
+  `B51_EXERCISE_ID=showcase-live-20260626`, 225 topology containers, one
+  optional map container, normal/fault/recovery checks, staged gates, panel
+  snapshot, collect, down, and zero project residuals.
 
 Generated runtime artifacts and logs are under ignored `output/` and
 `test_log/` paths. They are local evidence, not files intended for commit.
