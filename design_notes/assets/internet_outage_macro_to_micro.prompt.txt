@@ -1,0 +1,9 @@
+Use case: infographic-diagram
+Asset type: SEED Emulator benchmark presentation diagram
+Primary request: create a high-information 16:9 technical infographic showing the internet outage benchmark from macro to micro.
+Scene/backdrop: dark technical operations room display, subtle network map, clean panels, no brand logos.
+Subject: left-to-right layered structure: "Seven Cases" -> "S1.5 Live Runtime" -> "Topology Roles" -> "Incident Exercise" -> "Evidence".
+Required visual content: seven compact case chips labeled B51, B52, B53, B54, B55, B56, B57; one S1.5 live runtime block with 10^2 container scale; role icons for public users, resolver, route collectors, provider ops, control plane; evidence chips for containers, routes, DNS, HTTP, logs, ledger; guarded S2 boundary.
+Composition/framing: wide 16:9, strong hierarchy, clear lanes, architecture review style, enough density for a slide but no paragraphs.
+Text constraints: use only large short labels; avoid tiny pseudo-text; no watermark.
+Style/medium: polished technical infographic, crisp UI-like panels, readable, not decorative wallpaper.

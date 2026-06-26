@@ -1,0 +1,9 @@
+Use case: infographic-diagram
+Asset type: B51 incident event sequence diagram
+Primary request: create a 16:9 event sequence infographic for the B51 S1.5 incident exercise.
+Scene/backdrop: dark incident command timeline board, clean lanes, no brand logos.
+Subject: timeline from normal operation to verified recovery. Use eight large phase columns: Baseline, Internal Fault, Health Gate, BGP Withdraw, User Impact, Triage, Mitigation, Recovery.
+Required visual content: lane for public users, lane for recursive resolver, lane for route collectors, lane for Meta edge, lane for DC backend, lane for operator actions. Show DNS/HTTP green at baseline, edge-to-DC failure, health gate unhealthy, 10.20.0.0/24 withdrawn, users see DNS/HTTP failure, evidence correlation, rollback internal policy, health-gated canary reannounce, recovered DNS/HTTP.
+Composition/framing: left-to-right incident timeline, arrows between phases, red fault segment in the middle, green verification segment at the end, concise evidence chips under each phase.
+Text constraints: large short labels only; no paragraphs; no fake logos; no watermark. Minor generated text artifacts are acceptable only when the adjacent markdown table carries the exact fact.
+Style/medium: polished technical incident timeline, readable from a presentation slide.

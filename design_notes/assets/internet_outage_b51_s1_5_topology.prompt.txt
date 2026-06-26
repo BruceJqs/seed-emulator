@@ -1,0 +1,9 @@
+Use case: infographic-diagram
+Asset type: B51 S1.5 topology construction diagram
+Primary request: create a 16:9 technical topology diagram for the B51 Meta-style cascade S1.5 runtime.
+Scene/backdrop: dark network operations display with Internet exchange rings, route paths, and compact role panels.
+Subject: concrete S1.5 topology with labeled role groups: AS10 transit/route-view, AS20 edge DNS service and health gate, AS30 DC backend, AS50 recursive resolver and external client, AS51-AS99 and AS102-AS132 public probes, AS133-AS148 route collectors, AS31-AS46 and AS149-AS254 background noise, IX100/IX101, optional Internet Map UI.
+Required visual relationships: AS20 advertises 10.20.0.0/24 to transit and collectors; AS20 health gate probes AS30 backend; AS50 resolver/client queries www.meta-bench.test and reaches 10.20.0.80; probes and collectors surround the core; map UI is outside the 225-container gate.
+Composition/framing: core topology centered, scale groups around it, fault path highlighted from AS20 to AS30, BGP visibility path highlighted from AS20 to collectors, compact legend.
+Text constraints: use large labels only; include "225 SEED containers", "80 probes", "16 collectors", "S2 guarded"; no paragraphs; no watermark. Minor generated text artifacts are acceptable only when the adjacent markdown table carries the exact fact.
+Style/medium: polished technical network architecture poster, crisp but not decorative.

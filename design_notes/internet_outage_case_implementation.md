@@ -89,10 +89,13 @@ def build_state(case_dir, case_id, tier, project, prefix):
 | Asset | File | Prompt | Role |
 |---|---|---|---|
 | seven-case overview | [internet_outage_cases_overview.png](assets/internet_outage_cases_overview.png) | [internet_outage_cases_overview.prompt.txt](assets/internet_outage_cases_overview.prompt.txt) | optional opening slide; direct AI infographic with case scale and mechanism |
+| macro-to-micro structure | [internet_outage_macro_to_micro.png](assets/internet_outage_macro_to_micro.png) | [internet_outage_macro_to_micro.prompt.txt](assets/internet_outage_macro_to_micro.prompt.txt) | benchmark family, runtime tier, roles, exercise, evidence |
+| B51 S1.5 topology | [internet_outage_b51_s1_5_topology.png](assets/internet_outage_b51_s1_5_topology.png) | [internet_outage_b51_s1_5_topology.prompt.txt](assets/internet_outage_b51_s1_5_topology.prompt.txt) | concrete Meta cascade topology and scale groups |
+| B51 incident sequence | [internet_outage_b51_incident_sequence.png](assets/internet_outage_b51_incident_sequence.png) | [internet_outage_b51_incident_sequence.prompt.txt](assets/internet_outage_b51_incident_sequence.prompt.txt) | fault and recovery timeline |
 | per-case panel | `test_log/runtime/S1_5/showcase_panel/index.html` | controller-generated | primary demo surface after each run |
 
-Overview image record: Right Code `gpt-image-2`, streaming chat, requested
-`1536x1024`, actual `1672x941`.
+Generated image record: Right Code `gpt-image-2`, streaming chat, requested
+`1536x1024`, actual `1672x941` for each generated image.
 
 Runtime proof comes from controller checks, panel snapshots, and collected
 artifacts.
