@@ -21,3 +21,12 @@ bash b55ctl.sh down-runtime S0
 ```
 
 S1.5 is live accepted with 177 containers and the full incident exercise ledger. S2 is guarded by `s2-preflight` and must not be started on an unprepared host.
+
+Showcase panel:
+
+```sh
+bash b55ctl.sh panel-snapshot-runtime S1.5
+bash b55ctl.sh panel-runtime S1.5 8550
+```
+
+Open `http://127.0.0.1:8550/` for the read-only incident panel. The snapshot is written to `test_log/runtime/S1_5/showcase_panel/index.html`.

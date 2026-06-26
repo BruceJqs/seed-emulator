@@ -21,3 +21,12 @@ bash b56ctl.sh down-runtime S0
 ```
 
 S1.5 is live accepted with 178 containers and the full incident exercise ledger. S2 is guarded by `s2-preflight` and must not be started on an unprepared host.
+
+Showcase panel:
+
+```sh
+bash b56ctl.sh panel-snapshot-runtime S1.5
+bash b56ctl.sh panel-runtime S1.5 8560
+```
+
+Open `http://127.0.0.1:8560/` for the read-only incident panel. The snapshot is written to `test_log/runtime/S1_5/showcase_panel/index.html`.

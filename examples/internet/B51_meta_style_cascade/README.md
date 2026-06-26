@@ -146,6 +146,20 @@ snapshots under `test_log/runtime/S1_5/demo/<phase>/`. For the real exercise,
 prefer `exercise-observe-runtime S1.5 ROLE`, because it keeps observations
 role-scoped and records them in the operator ledger.
 
+## Showcase Panel
+
+B51 also has a read-only showcase panel that summarizes the incident structure,
+runtime evidence, current artifact status, and suggested live sequence. It does
+not change the emulation.
+
+```bash
+bash b51ctl.sh panel-snapshot-runtime S1.5
+bash b51ctl.sh panel-runtime S1.5 8510
+```
+
+Open `http://127.0.0.1:8510/` while `panel-runtime` is running. The static
+snapshot is written to `test_log/runtime/S1_5/showcase_panel/index.html`.
+
 ## S2 Safety
 
 S2 is not part of the default runtime ladder. A local 1023-container prototype

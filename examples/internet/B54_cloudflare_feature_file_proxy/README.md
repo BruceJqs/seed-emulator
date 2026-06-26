@@ -18,3 +18,12 @@ bash b54ctl.sh down-runtime S0
 ```
 
 Current status: S1.5 live accepted with 191 containers, a case-local feature-file control plane, 8 core-proxy POP containers, KV/Access/Turnstile/dashboard tail services, 3 customer origins, policy guard, controlled known-good rollback, and the full exercise ledger. The runtime validates DB permission rollout, runaway feature generation, bad feature count/size/hash, global distribution, core proxy 5xx, origin-health contrast, fail-small rollback, canary, and tail-service validation. It is not a full Cloudflare proxy or Bot Management implementation.
+
+Showcase panel:
+
+```sh
+bash b54ctl.sh panel-snapshot-runtime S1.5
+bash b54ctl.sh panel-runtime S1.5 8540
+```
+
+Open `http://127.0.0.1:8540/` for the read-only incident panel. The snapshot is written to `test_log/runtime/S1_5/showcase_panel/index.html`.

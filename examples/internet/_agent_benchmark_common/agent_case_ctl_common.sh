@@ -345,6 +345,43 @@ ab_collect() {
   fi
 }
 
+ab_panel_default_port() {
+  case "$CASE_ID" in
+    b52) printf '%s\n' 8520 ;;
+    b53) printf '%s\n' 8530 ;;
+    b54) printf '%s\n' 8540 ;;
+    b55) printf '%s\n' 8550 ;;
+    b56) printf '%s\n' 8560 ;;
+    b57) printf '%s\n' 8570 ;;
+    *) printf '%s\n' 8590 ;;
+  esac
+}
+
+ab_panel_snapshot() {
+  local out
+  mkdir -p "$ARTIFACT_DIR/showcase_panel"
+  out="$ARTIFACT_DIR/showcase_panel/index.html"
+  "$PYTHON_BIN" "$ROOT_DIR/examples/internet/_agent_benchmark_common/showcase_panel.py" \
+    --case-dir "$SCRIPT_DIR" \
+    --case-id "$CASE_ID" \
+    --tier "$TIER" \
+    --project "$PROJECT_NAME" \
+    --prefix "$CONTAINER_PREFIX" \
+    --snapshot-out "$out" >/dev/null
+  ab_log "showcase panel snapshot written to $out"
+}
+
+ab_panel_runtime() {
+  local port="${1:-$(ab_panel_default_port)}"
+  "$PYTHON_BIN" "$ROOT_DIR/examples/internet/_agent_benchmark_common/showcase_panel.py" \
+    --case-dir "$SCRIPT_DIR" \
+    --case-id "$CASE_ID" \
+    --tier "$TIER" \
+    --project "$PROJECT_NAME" \
+    --prefix "$CONTAINER_PREFIX" \
+    --port "$port"
+}
+
 ab_safe_token() {
   case "${1:-}" in
     *[!A-Za-z0-9_.-]*|"") return 1 ;;
@@ -777,10 +814,12 @@ ab_main() {
     exercise-observe|exercise-observe-runtime) ab_runtime_command ab_exercise_observe "$@" ;;
     exercise-gate|exercise-gate-runtime) ab_runtime_command ab_exercise_gate "$@" ;;
     exercise-action|exercise-action-runtime) ab_runtime_command ab_exercise_action "$@" ;;
+    panel-snapshot|panel-snapshot-runtime|showcase-snapshot|showcase-snapshot-runtime) ab_runtime_command ab_panel_snapshot "$@" ;;
+    panel|panel-runtime|showcase-panel|showcase-panel-runtime) ab_runtime_command ab_panel_runtime "$@" ;;
     smoke|runtime-smoke) ab_runtime_command ab_smoke "$@" ;;
     s2-preflight) ab_s2_preflight ;;
     *)
-      echo "Usage: $0 {generate-runtime|up-runtime|normal-runtime|inject-fault-runtime|fault-runtime|exercise-init-runtime|exercise-phase-runtime|exercise-observe-runtime|exercise-note-runtime|exercise-gate-runtime|exercise-action-runtime|recovery-runtime|collect-runtime|down-runtime|s2-preflight} [S0|S1|S1.5|S2]" >&2
+      echo "Usage: $0 {generate-runtime|up-runtime|normal-runtime|inject-fault-runtime|fault-runtime|exercise-init-runtime|exercise-phase-runtime|exercise-observe-runtime|exercise-note-runtime|exercise-gate-runtime|exercise-action-runtime|recovery-runtime|collect-runtime|panel-snapshot-runtime|panel-runtime|down-runtime|s2-preflight} [S0|S1|S1.5|S2]" >&2
       return 2
       ;;
   esac

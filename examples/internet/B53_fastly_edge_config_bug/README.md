@@ -18,3 +18,12 @@ bash b53ctl.sh down-runtime S0
 ```
 
 Current status: S1.5 live accepted with 186 containers, a case-local Fastly-style control plane, 8 edge POP containers, 3 customer origins, controlled rollback action, policy guard, and the full exercise ledger. The runtime validates legal trigger config acceptance, validator pass, compiler artifact v43, distributor propagation to 7/8 affected POPs, origin-health contrast, rollback, POP canary, full restore, and hotfix-note evidence. It is not a full CDN cache/runtime implementation.
+
+Showcase panel:
+
+```sh
+bash b53ctl.sh panel-snapshot-runtime S1.5
+bash b53ctl.sh panel-runtime S1.5 8530
+```
+
+Open `http://127.0.0.1:8530/` for the read-only incident panel. The snapshot is written to `test_log/runtime/S1_5/showcase_panel/index.html`.

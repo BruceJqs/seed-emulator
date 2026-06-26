@@ -20,6 +20,9 @@ for entry in "${cases[@]}"; do
   cd "$case_dir"
   bash "$ctl" generate-runtime S0
   test -f output/docker-compose.yml
+  bash "$ctl" panel-snapshot-runtime S0
+  test -s test_log/runtime/S0/showcase_panel/index.html
+  grep -q "Runtime Readiness" test_log/runtime/S0/showcase_panel/index.html
   case "$case_id" in
     b55)
       find output -type f -exec grep -l 'b55-dqe-control.sh' '{}' + | grep -q .

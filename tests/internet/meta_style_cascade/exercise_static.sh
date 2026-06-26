@@ -18,6 +18,9 @@ bash b51ctl.sh exercise-init-runtime S1.5
 bash b51ctl.sh exercise-phase-runtime S1.5 baseline
 bash b51ctl.sh exercise-note-runtime S1.5 facilitator "static ledger note"
 bash b51ctl.sh exercise-status-runtime S1.5 >/dev/null
+bash b51ctl.sh panel-snapshot-runtime S1.5 >/dev/null
+test -s test_log/runtime/S1_5/showcase_panel/index.html
+grep -q "Runtime Readiness" test_log/runtime/S1_5/showcase_panel/index.html
 
 if bash b51ctl.sh exercise-gate-runtime S1.5 baseline >/dev/null 2>&1; then
   echo "baseline gate unexpectedly passed without observations" >&2

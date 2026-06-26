@@ -584,6 +584,31 @@ collect() {
   docker_exec "$CLIENT" sh -lc "curl -fsS --max-time 3 http://$DOMAIN/ 2>&1 || true" > "$ARTIFACT_DIR/client_curl_latest.txt" || true
 }
 
+panel_snapshot() {
+  local out
+  mkdir -p "$ARTIFACT_DIR/showcase_panel"
+  out="$ARTIFACT_DIR/showcase_panel/index.html"
+  "$PYTHON_BIN" "$ROOT_DIR/examples/internet/_agent_benchmark_common/showcase_panel.py" \
+    --case-dir "$SCRIPT_DIR" \
+    --case-id b51 \
+    --tier "$TIER" \
+    --project "$PROJECT_NAME" \
+    --prefix "$CONTAINER_PREFIX" \
+    --snapshot-out "$out" >/dev/null
+  log "showcase panel snapshot written to $out"
+}
+
+panel_runtime() {
+  local port="${1:-${B51_SHOWCASE_PORT:-8510}}"
+  "$PYTHON_BIN" "$ROOT_DIR/examples/internet/_agent_benchmark_common/showcase_panel.py" \
+    --case-dir "$SCRIPT_DIR" \
+    --case-id b51 \
+    --tier "$TIER" \
+    --project "$PROJECT_NAME" \
+    --prefix "$CONTAINER_PREFIX" \
+    --port "$port"
+}
+
 smoke() {
   local rc
   trap 'rc=$?; cleanup_after_failure "$rc"' EXIT
@@ -1622,6 +1647,10 @@ case "$cmd" in
   exercise-action-runtime) runtime_command exercise_action "$@" ;;
   demo-snapshot) demo_snapshot "$@" ;;
   demo-snapshot-runtime) runtime_command demo_snapshot "$@" ;;
+  panel-snapshot|showcase-snapshot) panel_snapshot ;;
+  panel-snapshot-runtime|showcase-snapshot-runtime) runtime_command panel_snapshot "$@" ;;
+  panel|showcase-panel) panel_runtime "$@" ;;
+  panel-runtime|showcase-panel-runtime) runtime_command panel_runtime "$@" ;;
   collect) collect ;;
   collect-runtime) runtime_command collect "$@" ;;
   host-diagnose) host_diagnose "$@" ;;
@@ -1642,7 +1671,7 @@ case "$cmd" in
   logical-scale-smoke) log "deprecated alias: use telemetry-smoke; telemetry is not runtime acceptance"; telemetry_smoke ;;
   full-smoke) full_smoke ;;
   *)
-    echo "Usage: $0 {generate|generate-runtime [S0|S1|S1.5|S2]|up|up-runtime [S0|S1|S1.5|S2]|down|status|normal-check|normal-runtime [S0|S1|S1.5|S2]|inject-fault|fault-check|fault-runtime [S0|S1|S1.5|S2]|agent-observe|agent-act ACTION|agent-act-runtime [S0|S1|S1.5|S2] ACTION|recover|recovery-check|exercise-init|exercise-phase PHASE|exercise-note ROLE TEXT|exercise-status|exercise-gate PHASE|exercise-observe ROLE|exercise-action ACTION|demo-snapshot PHASE|demo-snapshot-runtime [S1.5] PHASE|collect|host-diagnose [LABEL]|s2-preflight|smoke|intervention-smoke|runtime-tier-smoke [S0|S1|S1.5|S2]|runtime-intervention-tier-smoke [S0|S1|S1.5|S2]|runtime-ladder-smoke|runtime-intervention-ladder-smoke|telemetry-generate S1|S2|telemetry-check S1|S2|telemetry-smoke|full-smoke}" >&2
+    echo "Usage: $0 {generate|generate-runtime [S0|S1|S1.5|S2]|up|up-runtime [S0|S1|S1.5|S2]|down|status|normal-check|normal-runtime [S0|S1|S1.5|S2]|inject-fault|fault-check|fault-runtime [S0|S1|S1.5|S2]|agent-observe|agent-act ACTION|agent-act-runtime [S0|S1|S1.5|S2] ACTION|recover|recovery-check|exercise-init|exercise-phase PHASE|exercise-note ROLE TEXT|exercise-status|exercise-gate PHASE|exercise-observe ROLE|exercise-action ACTION|demo-snapshot PHASE|demo-snapshot-runtime [S1.5] PHASE|panel-snapshot-runtime [S0|S1|S1.5|S2]|panel-runtime [S0|S1|S1.5|S2] [PORT]|collect|host-diagnose [LABEL]|s2-preflight|smoke|intervention-smoke|runtime-tier-smoke [S0|S1|S1.5|S2]|runtime-intervention-tier-smoke [S0|S1|S1.5|S2]|runtime-ladder-smoke|runtime-intervention-ladder-smoke|telemetry-generate S1|S2|telemetry-check S1|S2|telemetry-smoke|full-smoke}" >&2
     exit 2
     ;;
 esac
