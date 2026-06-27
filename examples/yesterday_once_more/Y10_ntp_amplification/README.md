@@ -25,6 +25,57 @@ answered by the amplifier itself. The example also enables a lab-only reflection
 simulation command so the attacker can make the amplifiers send their larger
 responses to the victim without using raw source-IP spoofing.
 
+## Visualizing The Attack
+
+The clearest way to see the attack is from the victim's point of view. Y10
+installs a live UDP amplification dashboard on AS151 `host_0`:
+
+```text
+/opt/ntp-like/visualize_attack.py
+```
+
+Start the dashboard on the victim first:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
+  /opt/ntp-like/visualize_attack.py --duration 20 --expected-requests 3
+```
+
+In another terminal, trigger the attack from AS150:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
+  /opt/ntp-like/trigger_attack.sh
+```
+
+The dashboard focuses on byte amplification:
+
+```text
+NTP-LIKE AMPLIFICATION MONITOR
+==============================
+Victim view: UDP responses from lab amplifiers
+
+elapsed seconds           : 4.0
+expected trigger requests : 3
+estimated request bytes   : 108
+UDP packets received      : 3
+total response bytes      : 3600
+unique amplifiers         : 3
+estimated byte amp        : 33.3x
+packets in last window    : 0
+bytes in last window      : 0
+
+Top amplifiers
+--------------
+10.152.0.71          1 packets     1200 bytes
+10.160.0.71          1 packets     1200 bytes
+10.171.0.71          1 packets     1200 bytes
+```
+
+Internet Map can show packet movement through the topology, but this dashboard
+shows the essential effect more directly: small trigger requests cause much
+larger UDP responses to arrive at the victim.
+
 ## Build
 
 From the repository root:
@@ -68,6 +119,13 @@ To inspect victim-side traffic:
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
   tail -n 20 /var/log/ntp-like-victim.log
+```
+
+For a live victim-side dashboard instead of raw logs:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
+  /opt/ntp-like/visualize_attack.py --duration 20 --expected-requests 3
 ```
 
 ## Standard Test Runner

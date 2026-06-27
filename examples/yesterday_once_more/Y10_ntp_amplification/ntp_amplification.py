@@ -91,7 +91,9 @@ def install_victim(node: Node) -> None:
     node.addSoftware("python3")
     prepare_ntp_like_dir(node)
     install_file(node, "udp_sink.py", "udp_sink.py")
+    install_file(node, "visualize_attack.py", "visualize_attack.py")
     node.appendStartCommand(f": > {VICTIM_LOG}")
+    node.appendStartCommand(f"chmod +x {NTP_LIKE_DIR}/visualize_attack.py")
     node.appendStartCommand(
         f"python3 {NTP_LIKE_DIR}/udp_sink.py --port 9000 --log {VICTIM_LOG} "
         ">> /var/log/ntp-like-victim-sink.log 2>&1",
