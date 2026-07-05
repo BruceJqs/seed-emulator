@@ -34,7 +34,9 @@ installs a live UDP amplification dashboard on AS151 `host_0`:
 /opt/ntp-like/visualize_attack.py
 ```
 
-Start the dashboard on the victim first:
+Start the dashboard on the victim first (the `udp_sink.py` is already running 
+on the victim host, and it uses the same port 9000 as the `visualize_attack.py`, 
+so we need to stop `udp_sink.py` first):
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
