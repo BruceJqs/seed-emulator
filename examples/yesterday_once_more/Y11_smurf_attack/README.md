@@ -1,7 +1,8 @@
-# Y11: Smurf Attack
+# Y11: Smurf and Fraggle Attacks
 
 This example recreates the core mechanism of the historical Smurf attack inside
-a controlled SEED Emulator lab.
+a controlled SEED Emulator lab. It also includes the closely related Fraggle
+attack, which uses UDP broadcast replies instead of ICMP echo replies.
 
 The example uses the mini-Internet topology from
 `examples/internet/B00_mini_internet`. It then turns AS152 into a vulnerable
@@ -10,12 +11,18 @@ requests to AS152's directed broadcast address while spoofing the victim's
 source IP address. Hosts on the AS152 LAN respond to the victim, amplifying the
 attacker's traffic.
 
+The Fraggle variant uses the same topology and directed-broadcast behavior, but
+the attacker sends spoofed UDP packets to the AS152 directed broadcast address.
+Each AS152 host runs a bounded UDP chargen-like lab daemon and sends a UDP
+reply to the spoofed victim address.
+
 ## Roles
 
 - AS150 `host_0`: attacker.
 - AS151 `host_0`: victim.
 - AS152 `router0`: vulnerable router with directed broadcast forwarding enabled.
-- AS152 `host_0` ... `host_N`: amplifier hosts that respond to broadcast pings.
+- AS152 `host_0` ... `host_N`: amplifier hosts that respond to broadcast pings
+  and run the UDP Fraggle amplifier daemon.
 
 The default directed broadcast address is:
 
@@ -27,6 +34,18 @@ The default spoofed victim address is:
 
 ```text
 10.151.0.71
+```
+
+The default Fraggle UDP service port is:
+
+```text
+19
+```
+
+The default victim-side UDP reply port is:
+
+```text
+7000
 ```
 
 ## How The Attack Is Enabled
@@ -73,9 +92,20 @@ the AS152 amplifier hosts with:
 sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=0
 ```
 
-When the spoofed packet reaches the AS152 LAN, many AS152 hosts receive the
+For Smurf, when the spoofed packet reaches the AS152 LAN, many AS152 hosts receive the
 same broadcast echo request. Each host sends an ICMP echo reply to the spoofed
 source address, so the replies go to AS151 `host_0`, the victim.
+
+For Fraggle, each AS152 host also runs:
+
+```text
+/opt/smurf-lab/fraggle_amplifier.py
+```
+
+This is a small lab-only UDP daemon. It listens on UDP port `19`, accepts lab
+traffic from `10.*` addresses, and sends a bounded chargen-like response back
+to the packet source. When the attacker spoofs the source address as the
+victim, all amplifier replies go to AS151 `host_0`.
 
 The amplification factor depends mainly on the number of AS152 hosts. If
 `--target-hosts 30` is used, one spoofed broadcast request can produce replies
@@ -89,9 +119,17 @@ The runtime test uses:
 
 on the victim to count ICMP echo replies from the AS152 prefix.
 
+It also uses:
+
+```text
+/opt/smurf-lab/fraggle_monitor.py
+```
+
+to count UDP replies sent by the Fraggle amplifier hosts.
+
 ## Visualizing The Attack
 
-The best way to see the Smurf effect is from the victim's point of view. Y11
+The best way to see the amplification effect is from the victim's point of view. Y11
 installs a live dashboard on AS151 `host_0`:
 
 ```text
@@ -110,6 +148,20 @@ In another terminal, trigger the attack from AS150:
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/smurf-lab/trigger_attack.sh --count 3
+```
+
+For Fraggle, start the UDP dashboard on the victim:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
+  /opt/smurf-lab/visualize_attack.py --mode fraggle --duration 20 --request-count 3
+```
+
+Then trigger the UDP broadcast attack from AS150:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
+  /opt/smurf-lab/trigger_attack.sh --mode fraggle --count 3
 ```
 
 The dashboard shows the attack as amplification:
@@ -168,6 +220,13 @@ docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/smurf-lab/trigger_attack.sh --count 3
 ```
 
+To run the Fraggle variant:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
+  /opt/smurf-lab/trigger_attack.sh --mode fraggle --count 3
+```
+
 To observe victim-side replies, start the monitor on AS151 before triggering the
 attack. For a live dashboard, use:
 
@@ -176,11 +235,25 @@ docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
   /opt/smurf-lab/visualize_attack.py --duration 20 --request-count 3
 ```
 
+For the Fraggle dashboard:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
+  /opt/smurf-lab/visualize_attack.py --mode fraggle --duration 20 --request-count 3
+```
+
 For a compact JSON summary, use:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
   sh -lc 'python3 /opt/smurf-lab/smurf_monitor.py --duration 10'
+```
+
+For the Fraggle JSON summary:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
+  sh -lc 'python3 /opt/smurf-lab/fraggle_monitor.py --duration 10 --port 7000'
 ```
 
 ## Standard Test Runner
@@ -199,8 +272,13 @@ The runtime test verifies:
 - AS152 hosts respond to broadcast ICMP echo requests;
 - the victim receives multiple ICMP echo replies after the attacker sends
   spoofed echo requests to `10.152.0.255`.
+- AS152 hosts run the bounded UDP Fraggle amplifier daemon;
+- the victim receives multiple UDP replies after the attacker sends spoofed UDP
+  requests to `10.152.0.255:19`.
 
 ## Safety
 
 Run this only inside an isolated emulator. The example deliberately recreates an
-unsafe historical router behavior that modern routers normally disable.
+unsafe historical router behavior that modern routers normally disable. The
+Fraggle UDP service is a lab daemon with bounded response size and lab-prefix
+filtering; it is not intended to be exposed outside the emulator.

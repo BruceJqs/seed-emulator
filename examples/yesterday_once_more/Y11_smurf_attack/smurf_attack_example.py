@@ -27,6 +27,7 @@ TARGET_ASN = 152
 TARGET_ROUTER = "router0"
 TARGET_NETWORK = "net0"
 SMURF_DIR = "/opt/smurf-lab"
+FRAGGLE_PORT = 19
 
 
 def parse_args() -> argparse.Namespace:
@@ -96,28 +97,46 @@ def configure_directed_broadcast_router(router: Node) -> None:
 
 
 def configure_target_host(host: Node) -> None:
+    host.addSoftware("python3")
+    prepare_smurf_dir(host)
+    install_file(host, "fraggle_amplifier.py", "fraggle_amplifier.py")
     host.appendStartCommand("sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=0")
     host.appendStartCommand("sysctl -w net.ipv4.conf.all.rp_filter=0")
     host.appendStartCommand("sysctl -w net.ipv4.conf.default.rp_filter=0")
+    host.appendStartCommand(f"chmod +x {SMURF_DIR}/fraggle_amplifier.py")
+    host.appendStartCommand(
+        "python3 {}/fraggle_amplifier.py --port {} --mode chargen --response-size 512 "
+        ">> /var/log/fraggle-amplifier-supervisor.log 2>&1".format(SMURF_DIR, FRAGGLE_PORT),
+        fork=True,
+    )
     host.appendClassName("SmurfAmplifierHost")
+    host.appendClassName("FraggleAmplifierHost")
 
 
 def configure_attacker(host: Node) -> None:
     host.addSoftware("python3")
     prepare_smurf_dir(host)
     install_file(host, "smurf_attack.py", "smurf_attack.py")
+    install_file(host, "fraggle_attack.py", "fraggle_attack.py")
     install_file(host, "trigger_attack.sh", "trigger_attack.sh")
-    host.appendStartCommand(f"chmod +x {SMURF_DIR}/smurf_attack.py {SMURF_DIR}/trigger_attack.sh")
+    host.appendStartCommand(
+        f"chmod +x {SMURF_DIR}/smurf_attack.py {SMURF_DIR}/fraggle_attack.py {SMURF_DIR}/trigger_attack.sh"
+    )
     host.appendClassName("SmurfAttacker")
+    host.appendClassName("FraggleAttacker")
 
 
 def configure_victim(host: Node) -> None:
     host.addSoftware("python3")
     prepare_smurf_dir(host)
     install_file(host, "smurf_monitor.py", "smurf_monitor.py")
+    install_file(host, "fraggle_monitor.py", "fraggle_monitor.py")
     install_file(host, "visualize_attack.py", "visualize_attack.py")
-    host.appendStartCommand(f"chmod +x {SMURF_DIR}/smurf_monitor.py {SMURF_DIR}/visualize_attack.py")
+    host.appendStartCommand(
+        f"chmod +x {SMURF_DIR}/smurf_monitor.py {SMURF_DIR}/fraggle_monitor.py {SMURF_DIR}/visualize_attack.py"
+    )
     host.appendClassName("SmurfVictim")
+    host.appendClassName("FraggleVictim")
 
 
 def customize_b00_for_smurf(emu: Emulator, target_hosts: int, hosts_per_as: int) -> None:

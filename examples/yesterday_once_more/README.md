@@ -9,3 +9,4 @@ We recreate some of the notorious Internet attacks and incidents:
 - Y05_sql_slammer
 - Y10_ntp_amplification
 - Y11_smurf_attack
+- Y12_mitnick_attack

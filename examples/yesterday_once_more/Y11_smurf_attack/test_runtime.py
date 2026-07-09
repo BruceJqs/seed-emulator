@@ -7,6 +7,8 @@ from seedemu.testing import ComposeRuntimeTest
 
 MONITOR_OUTPUT = "/tmp/smurf-monitor.json"
 MONITOR_LOG = "/tmp/smurf-monitor.log"
+FRAGGLE_MONITOR_OUTPUT = "/tmp/fraggle-monitor.json"
+FRAGGLE_MONITOR_LOG = "/tmp/fraggle-monitor.log"
 
 
 def main() -> int:
@@ -37,6 +39,13 @@ def main() -> int:
                 retries=30,
                 interval=3,
             )
+            test.exec_check(
+                "{} runs the UDP Fraggle amplifier daemon".format(service.name),
+                service,
+                "pgrep -f 'fraggle_amplifier.py' >/dev/null",
+                retries=30,
+                interval=3,
+            )
 
     if victim and attacker:
         test.exec_check(
@@ -62,6 +71,33 @@ def main() -> int:
             "python3 -c \"import json; d=json.load(open('{out}')); "
             "assert d['reply_count'] >= 6, d; "
             "assert len(d['unique_reply_sources']) >= 2, d\"".format(out=MONITOR_OUTPUT),
+            retries=1,
+            interval=1,
+        )
+        test.exec_check(
+            "victim starts UDP reply monitor",
+            victim,
+            "rm -f {out} {log}; "
+            "(python3 /opt/smurf-lab/fraggle_monitor.py --duration 8 --port 7000 --output {out} > {log} 2>&1 &) ; "
+            "sleep 1".format(out=FRAGGLE_MONITOR_OUTPUT, log=FRAGGLE_MONITOR_LOG),
+            retries=1,
+            interval=1,
+        )
+        test.exec_check(
+            "attacker sends spoofed UDP requests to AS152 directed broadcast",
+            attacker,
+            "/opt/smurf-lab/trigger_attack.sh --mode fraggle --count 3 --interval 0.2 --source-port 7000",
+            retries=10,
+            interval=2,
+        )
+        test.exec_check(
+            "victim receives multiple reflected UDP replies",
+            victim,
+            "for i in $(seq 1 12); do [ -s {out} ] && break; sleep 1; done; "
+            "python3 -c \"import json; d=json.load(open('{out}')); "
+            "assert d['reply_count'] >= 6, d; "
+            "assert d['reply_bytes'] >= d['reply_count'] * 64, d; "
+            "assert len(d['unique_reply_sources']) >= 2, d\"".format(out=FRAGGLE_MONITOR_OUTPUT),
             retries=1,
             interval=1,
         )

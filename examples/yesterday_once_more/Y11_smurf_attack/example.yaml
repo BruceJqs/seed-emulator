@@ -1,6 +1,6 @@
 id: yesterday-y11-smurf-attack
-name: Smurf Attack
-description: B00 mini-Internet topology with a vulnerable directed-broadcast LAN.
+name: Smurf and Fraggle Attacks
+description: B00 mini-Internet topology with a vulnerable directed-broadcast LAN for ICMP and UDP amplification.
 runner: internet
 script: smurf_attack_example.py
 platform: amd
@@ -9,6 +9,8 @@ features:
   - directed-broadcast
   - icmp-broadcast-reply
   - spoofed-icmp
+  - udp-broadcast-reply
+  - spoofed-udp
 
 compile:
   enabled: true
@@ -57,6 +59,6 @@ probes:
     interval: 5
 
 test_programs:
-  - name: Y11 Smurf attack runtime validation
+  - name: Y11 Smurf and Fraggle runtime validation
     script: test_runtime.py
     timeout: 300
