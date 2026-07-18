@@ -1,7 +1,9 @@
 # Traffic Visualizer
 
-Traffic Visualizer is a small, source-tree tool that counts packets observed by
-`tcpdump` inside an emulated node and displays the count in a web browser.
+Traffic Visualizer is a small, source-tree tool that counts packets and IPv4
+bytes observed by `tcpdump` inside an emulated node and displays the totals in a
+web browser. Byte counts use the IPv4 Total Length field, so they include the IP
+header, transport header, and payload.
 
 The tool is intentionally kept outside the `seedemu` Python package while it is
 being developed. Examples load `traffic_visualizer.py` and `dashboard.html`

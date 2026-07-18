@@ -47,6 +47,8 @@
     <div class="counts">
       <div class="card"><div class="label">Total packets</div><strong class="value" id="total">0</strong></div>
       <div class="card"><div class="label">Packets last second</div><strong class="value" id="rate">0</strong></div>
+      <div class="card"><div class="label">Total IP bytes</div><strong class="value" id="totalBytes">0 B</strong></div>
+      <div class="card"><div class="label">IP bytes last second</div><strong class="value" id="byteRate">0 B</strong></div>
     </div>
     <div class="activity">
       <div class="label">Live packet flow</div>
@@ -65,7 +67,13 @@
     const maximumMarkers = 36;
     let pendingMarkers = [];
 
-    function animatePackets(packetCount) {
+    function formatBytes(value) {
+      if (value < 1024) return `${number.format(value)} B`;
+      if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+      return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function animatePackets(packetCount, averageIpSize) {
       pendingMarkers.forEach(clearTimeout);
       pendingMarkers = [];
       const lane = document.querySelector('#packetLane');
@@ -78,15 +86,18 @@
 
       const markerCount = Math.min(packetCount, maximumMarkers);
       const packetsPerMarker = Math.ceil(packetCount / markerCount);
-      document.querySelector('#scale').textContent = packetsPerMarker === 1
+      const packetScale = packetsPerMarker === 1
         ? `${number.format(markerCount)} packet marker${markerCount === 1 ? '' : 's'}`
         : `Each marker represents about ${number.format(packetsPerMarker)} packets`;
+      document.querySelector('#scale').textContent = `${packetScale} · average IP size ${formatBytes(averageIpSize)}`;
+      const markerWidth = Math.min(38, 14 + Math.sqrt(averageIpSize) / 2);
 
       for (let index = 0; index < markerCount; index += 1) {
         pendingMarkers.push(setTimeout(() => {
           const marker = document.createElement('i');
           marker.className = 'packet';
           marker.style.top = `${8 + (index * 23) % 58}px`;
+          marker.style.width = `${markerWidth}px`;
           marker.style.animationDuration = `${650 + (index % 4) * 90}ms`;
           lane.appendChild(marker);
           marker.addEventListener('animationend', () => marker.remove());
@@ -100,9 +111,11 @@
         const stats = await response.json();
         document.querySelector('#total').textContent = number.format(stats.total_packets);
         document.querySelector('#rate').textContent = number.format(stats.packets_last_second);
+        document.querySelector('#totalBytes').textContent = formatBytes(stats.total_ip_bytes);
+        document.querySelector('#byteRate').textContent = formatBytes(stats.ip_bytes_last_second);
         document.querySelector('#status').textContent = stats.status;
         document.querySelector('#error').textContent = stats.error || '';
-        animatePackets(stats.packets_last_second);
+        animatePackets(stats.packets_last_second, stats.average_ip_packet_size_last_second);
       } catch (error) {
         document.querySelector('#status').textContent = 'disconnected';
         document.querySelector('#error').textContent = error.message;

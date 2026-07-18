@@ -141,8 +141,8 @@ docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/smurf-lab/trigger_attack.sh --mode fraggle --count 3
 ```
 
-The first version intentionally keeps the visualization small: it shows the total number of
-matching packets observed by `tcpdump` and the number observed during the previous second. Its
+The visualization shows matching packet and IP-layer byte totals, values observed during the
+previous second, and an animation whose density and marker size reflect the recent traffic. Its
 API is also available inside the victim container:
 
 ```text

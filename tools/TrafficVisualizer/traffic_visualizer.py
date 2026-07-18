@@ -7,6 +7,7 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import re
 import subprocess
 import threading
 from typing import Any
@@ -14,6 +15,13 @@ from urllib.parse import urlparse
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+IP_TOTAL_LENGTH = re.compile(r"\bIP\s+\(.*?\blength\s+(\d+)\)")
+
+
+def parse_ip_total_length(line: str) -> int | None:
+    """Return tcpdump's decoded IPv4 Total Length value."""
+    match = IP_TOTAL_LENGTH.search(line)
+    return int(match.group(1)) if match is not None else None
 
 
 class PacketCounter:
@@ -22,30 +30,50 @@ class PacketCounter:
         self.total = 0
         self.last_second = 0
         self.current_second = 0
+        self.total_ip_bytes = 0
+        self.ip_bytes_last_second = 0
+        self.current_second_ip_bytes = 0
         self.status = "starting"
         self.error = ""
 
-    def increment(self) -> None:
+    def increment(self, ip_bytes: int) -> None:
         with self.lock:
             self.total += 1
             self.current_second += 1
+            self.total_ip_bytes += ip_bytes
+            self.current_second_ip_bytes += ip_bytes
 
     def finish_second(self) -> None:
         with self.lock:
             self.last_second = self.current_second
+            self.ip_bytes_last_second = self.current_second_ip_bytes
             self.current_second = 0
+            self.current_second_ip_bytes = 0
 
     def reset(self) -> None:
         with self.lock:
             self.total = 0
             self.last_second = 0
             self.current_second = 0
+            self.total_ip_bytes = 0
+            self.ip_bytes_last_second = 0
+            self.current_second_ip_bytes = 0
 
     def snapshot(self) -> dict[str, Any]:
         with self.lock:
             return {
                 "total_packets": self.total,
                 "packets_last_second": self.last_second,
+                "total_ip_bytes": self.total_ip_bytes,
+                "ip_bytes_last_second": self.ip_bytes_last_second,
+                "average_ip_packet_size": (
+                    round(self.total_ip_bytes / self.total) if self.total else 0
+                ),
+                "average_ip_packet_size_last_second": (
+                    round(self.ip_bytes_last_second / self.last_second)
+                    if self.last_second
+                    else 0
+                ),
                 "status": self.status,
                 "error": self.error,
             }
@@ -60,7 +88,9 @@ def capture_packets(config: dict[str, Any], counter: PacketCounter) -> None:
         "in",
         "-n",
         "-l",
-        "-q",
+        "-v",
+        "-s",
+        "96",
         str(config.get("capture_filter", "")),
     ]
 
@@ -80,8 +110,9 @@ def capture_packets(config: dict[str, Any], counter: PacketCounter) -> None:
     counter.status = "running"
     assert process.stdout is not None
     for line in process.stdout:
-        if line.strip():
-            counter.increment()
+        ip_bytes = parse_ip_total_length(line)
+        if ip_bytes is not None:
+            counter.increment(ip_bytes)
 
     counter.status = "error"
     counter.error = f"tcpdump exited with status {process.wait()}"
