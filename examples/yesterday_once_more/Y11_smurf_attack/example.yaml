@@ -2,7 +2,7 @@ id: yesterday-y11-smurf-attack
 name: Smurf and Fraggle Attacks
 description: B00 mini-Internet topology with a vulnerable directed-broadcast LAN for ICMP and UDP amplification.
 runner: internet
-script: smurf_attack_example.py
+script: emulator.py
 platform: amd
 features:
   - mini-internet
