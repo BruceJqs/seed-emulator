@@ -8,23 +8,36 @@
     body {
       margin: 0;
       min-height: 100vh;
-      display: grid;
-      place-items: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 0;
+      box-sizing: border-box;
       font-family: system-ui, sans-serif;
       color: #eaf2ff;
       background: #08111f;
     }
-    main { width: min(680px, calc(100% - 32px)); text-align: center; }
+    main { width: 760px; max-width: calc(100% - 32px); text-align: center; }
     h1 { margin-bottom: 8px; font-size: 36px; }
     .subtitle { color: #91a4ba; }
     .counts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 28px 0; }
     .card { padding: 30px 18px; border: 1px solid #293a50; border-radius: 14px; background: #111e30; }
     .label { color: #91a4ba; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
     .value { display: block; margin-top: 8px; font-size: 46px; }
+    .activity { margin: 0 0 24px; padding: 18px; border: 1px solid #293a50; border-radius: 14px; background: #0d1929; }
+    .flow { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+    .endpoint { width: 68px; flex: none; color: #91a4ba; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    .victim { padding: 10px 6px; border: 1px solid #38bdf8; border-radius: 9px; color: #dff6ff; background: #0c4a6e; }
+    .packet-lane { position: relative; height: 78px; flex: 1; overflow: hidden; border-radius: 10px; background: linear-gradient(90deg, #0a1524, #10243a); }
+    .packet-lane::after { content: ""; position: absolute; top: 50%; right: 0; left: 0; border-top: 1px dashed #36506d; }
+    .packet { position: absolute; z-index: 1; left: -24px; width: 18px; height: 11px; border: 1px solid #bae6fd; border-radius: 3px; background: #38bdf8; box-shadow: 0 0 10px #38bdf8aa; animation: travel 800ms linear forwards; }
+    #scale { min-height: 20px; margin-top: 10px; color: #91a4ba; font-size: 13px; }
+    @keyframes travel { to { left: calc(100% + 6px); } }
     button { padding: 9px 14px; border: 1px solid #526a87; border-radius: 8px; color: #eaf2ff; background: #172a42; cursor: pointer; }
     #status { margin-left: 12px; color: #91a4ba; }
     #error { margin-top: 18px; color: #fca5a5; }
-    @media (max-width: 560px) { .counts { grid-template-columns: 1fr; } }
+    @media (max-width: 560px) { .counts { grid-template-columns: 1fr; } .endpoint { width: 54px; } }
+    @media (prefers-reduced-motion: reduce) { .packet { animation-duration: 1ms; } }
   </style>
 </head>
 <body>
@@ -35,11 +48,51 @@
       <div class="card"><div class="label">Total packets</div><strong class="value" id="total">0</strong></div>
       <div class="card"><div class="label">Packets last second</div><strong class="value" id="rate">0</strong></div>
     </div>
+    <div class="activity">
+      <div class="label">Live packet flow</div>
+      <div class="flow">
+        <div class="endpoint">Network</div>
+        <div class="packet-lane" id="packetLane"></div>
+        <div class="endpoint victim">Victim</div>
+      </div>
+      <div id="scale">Waiting for packets</div>
+    </div>
     <button id="reset">Reset counter</button><span id="status">Connecting</span>
     <div id="error"></div>
   </main>
   <script>
     const number = new Intl.NumberFormat();
+    const maximumMarkers = 36;
+    let pendingMarkers = [];
+
+    function animatePackets(packetCount) {
+      pendingMarkers.forEach(clearTimeout);
+      pendingMarkers = [];
+      const lane = document.querySelector('#packetLane');
+      lane.replaceChildren();
+
+      if (packetCount === 0) {
+        document.querySelector('#scale').textContent = 'No packets observed during the last second';
+        return;
+      }
+
+      const markerCount = Math.min(packetCount, maximumMarkers);
+      const packetsPerMarker = Math.ceil(packetCount / markerCount);
+      document.querySelector('#scale').textContent = packetsPerMarker === 1
+        ? `${number.format(markerCount)} packet marker${markerCount === 1 ? '' : 's'}`
+        : `Each marker represents about ${number.format(packetsPerMarker)} packets`;
+
+      for (let index = 0; index < markerCount; index += 1) {
+        pendingMarkers.push(setTimeout(() => {
+          const marker = document.createElement('i');
+          marker.className = 'packet';
+          marker.style.top = `${8 + (index * 23) % 58}px`;
+          marker.style.animationDuration = `${650 + (index % 4) * 90}ms`;
+          lane.appendChild(marker);
+          marker.addEventListener('animationend', () => marker.remove());
+        }, index * 900 / markerCount));
+      }
+    }
 
     async function refresh() {
       try {
@@ -49,6 +102,7 @@
         document.querySelector('#rate').textContent = number.format(stats.packets_last_second);
         document.querySelector('#status').textContent = stats.status;
         document.querySelector('#error').textContent = stats.error || '';
+        animatePackets(stats.packets_last_second);
       } catch (error) {
         document.querySelector('#status').textContent = 'disconnected';
         document.querySelector('#error').textContent = error.message;
