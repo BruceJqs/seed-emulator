@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Count tcpdump output lines and publish the count over HTTP."""
+"""Reusable tcpdump packet counter with a small HTTP dashboard."""
 
 from __future__ import annotations
 

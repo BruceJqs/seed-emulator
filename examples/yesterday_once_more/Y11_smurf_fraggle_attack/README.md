@@ -116,8 +116,12 @@ On the victim, we run the following program count UDP replies sent by the Fraggl
 ## Visualizing The Attack
 
 The best way to see the amplification effect is from the victim's point of view. Y11 installs the
-Traffic Visualizer web application on AS151 `host_0`. It starts automatically, passively captures
-incoming attack traffic with `tcpdump`, and publishes the dashboard on the host:
+Traffic Visualizer web application on AS151 `host_0`. It starts automatically and passively
+captures incoming attack traffic with `tcpdump`.
+
+The shared server and dashboard are loaded from `tools/TrafficVisualizer`; Y11 keeps only its
+capture filter and port configuration in `traffic_visualizer_config.json`. The dashboard is
+published on the host at:
 
 ```text
 http://localhost:8081

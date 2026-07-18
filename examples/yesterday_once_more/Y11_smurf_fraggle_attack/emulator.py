@@ -11,6 +11,7 @@ import sys
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
 B00_DIR = REPO_ROOT / "examples" / "internet" / "B00_mini_internet"
+TRAFFIC_VISUALIZER_SOURCE_DIR = REPO_ROOT / "tools" / "TrafficVisualizer"
 
 for path in [REPO_ROOT, B00_DIR]:
     if str(path) not in sys.path:
@@ -73,6 +74,11 @@ def get_router(emu: Emulator, asn: int, name: str) -> Node:
 def install_file(node: Node, local_name: str, remote_name: str) -> None:
     content = (SCRIPT_DIR / local_name).read_text(encoding="utf-8")
     node.setFile(f"{SMURF_DIR}/{remote_name}", content)
+
+
+def install_traffic_visualizer_file(node: Node, local_name: str) -> None:
+    content = (TRAFFIC_VISUALIZER_SOURCE_DIR / local_name).read_text(encoding="utf-8")
+    node.setFile(f"{TRAFFIC_VISUALIZER_DIR}/{local_name}", content)
 
 
 def prepare_smurf_dir(node: Node) -> None:
@@ -138,13 +144,9 @@ def configure_victim(host: Node) -> None:
     install_file(host, "smurf_monitor.py", "smurf_monitor.py")
     install_file(host, "fraggle_monitor.py", "fraggle_monitor.py")
     install_file(host, "visualize_attack.py", "visualize_attack.py")
-    install_file(
-        host,
-        "traffic_visualizer/traffic_visualizer.py",
-        "traffic_visualizer/traffic_visualizer.py",
-    )
-    install_file(host, "traffic_visualizer/dashboard.html", "traffic_visualizer/dashboard.html")
-    install_file(host, "traffic_visualizer/config.json", "traffic_visualizer/config.json")
+    install_traffic_visualizer_file(host, "traffic_visualizer.py")
+    install_traffic_visualizer_file(host, "dashboard.html")
+    install_file(host, "traffic_visualizer_config.json", "traffic_visualizer/config.json")
     host.addPortForwarding(TRAFFIC_VISUALIZER_HOST_PORT, TRAFFIC_VISUALIZER_CONTAINER_PORT)
     host.appendStartCommand(f"mkdir -p {TRAFFIC_VISUALIZER_DIR}")
     host.appendStartCommand(

@@ -2,6 +2,12 @@
 
 This folder contains the tools developed for the emulator.
 
+## Traffic Visualizer
+
+[`TrafficVisualizer`](TrafficVisualizer) is a source-tree tool that examples can
+copy into victim containers to count and display packets observed by `tcpdump`.
+Each example provides its own capture filter and web-port configuration.
+
 ## Example Test Helper
 
 `run-example-test.sh` resolves short example codes to `example.yaml` manifests
