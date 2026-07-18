@@ -30,6 +30,66 @@ reply to the spoofed victim address.
 - The default victim-side UDP reply port is `7000`
 
 
+## Generate the Emulator
+
+From the example folder,
+
+```sh
+python ./emulator.py --platform amd
+```
+
+To change the number of amplifier hosts on the AS152 LAN:
+
+```sh
+python ./emualtor.py --platform amd --target-hosts 30
+```
+
+The generated Docker files are placed in the`output` folder. We can go to this folder, build the container images and start the emulator.
+
+
+## Launch and Visualize the Attacks
+
+After building and running the emulator, we can launch the attack and visualize the attack impact.
+The best way to see the attack effect is from the victim's point of view. This example installs the
+Traffic Visualizer web application on the victim container. It starts automatically and passively
+captures incoming attack traffic with `tcpdump`.
+
+The shared server and dashboard are loaded from `tools/TrafficVisualizer`; the example keeps only its
+capture filter and port configuration in `traffic_visualizer_config.json`. The dashboard is
+published on the host at the following URL. Open this address in a browser.
+
+```text
+http://localhost:8081
+```
+
+Trigger the Smurf attack from another terminal with:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
+  /opt/smurf-fraggle-lab/trigger_attack.sh --count 3
+```
+
+Trigger Fraggle with:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
+  /opt/smurf-fraggle-lab/trigger_attack.sh --mode fraggle --count 3
+```
+
+The visualization shows matching packet and IP-layer byte totals, values observed during the
+previous second, and an animation whose density and marker size reflect the recent traffic. Its
+API is also available inside the victim container:
+
+```text
+http://127.0.0.1:8080/api/stats
+```
+
+Internet Map is still useful for seeing packets move through the topology, but
+the victim dashboard makes the key lesson clearer: a small number of spoofed
+requests can cause many hosts to send replies to the victim.
+
+
+
 ## How The Smurf Attack Is Enabled
 
 A Smurf attack needs three technical conditions. Modern networks usually break
@@ -40,7 +100,7 @@ First, the attacker must be able to send an ICMP echo request with a spoofed
 source address. In this example, AS150 runs:
 
 ```text
-/opt/smurf-lab/smurf_attack.py
+/opt/smurf-fraggle-lab/smurf_attack.py
 ```
 
 This script opens a raw socket and builds a packet manually. The packet's
@@ -82,7 +142,7 @@ source address, so the replies go to AS151 `host_0`, the victim.
 On the victim, we run the following program to count ICMP echo replies from the AS152 prefix.
 
 ```text
-/opt/smurf-lab/smurf_monitor.py
+/opt/smurf-fraggle-lab/smurf_monitor.py
 ```
 
 
@@ -93,7 +153,7 @@ on AS152 `router0. We also run the following UDP daemon on each AS152 hosts:
 
 
 ```text
-/opt/smurf-lab/fraggle_amplifier.py
+/opt/smurf-fraggle-lab/fraggle_amplifier.py
 ```
 
 This is a small lab-only UDP daemon. It listens on UDP port `19`, accepts lab
@@ -108,122 +168,30 @@ from many of those 30 hosts.
 On the victim, we run the following program count UDP replies sent by the Fraggle amplifier hosts.
 
 ```text
-/opt/smurf-lab/fraggle_monitor.py
+/opt/smurf-fraggle-lab/fraggle_monitor.py
 ```
 
 
 
-## Visualizing The Attack
-
-The best way to see the amplification effect is from the victim's point of view. Y11 installs the
-Traffic Visualizer web application on AS151 `host_0`. It starts automatically and passively
-captures incoming attack traffic with `tcpdump`.
-
-The shared server and dashboard are loaded from `tools/TrafficVisualizer`; Y11 keeps only its
-capture filter and port configuration in `traffic_visualizer_config.json`. The dashboard is
-published on the host at:
-
-```text
-http://localhost:8081
-```
-
-Open that address in a browser, then trigger Smurf from another terminal:
-
-```sh
-docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/smurf-lab/trigger_attack.sh --count 3
-```
-
-Trigger Fraggle with:
-
-```sh
-docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/smurf-lab/trigger_attack.sh --mode fraggle --count 3
-```
-
-The visualization shows matching packet and IP-layer byte totals, values observed during the
-previous second, and an animation whose density and marker size reflect the recent traffic. Its
-API is also available inside the victim container:
-
-```text
-http://127.0.0.1:8080/api/stats
-```
-
-The previous terminal dashboard remains available at `/opt/smurf-lab/visualize_attack.py` for
-CLI-only demonstrations.
-
-Internet Map is still useful for seeing packets move through the topology, but
-the victim dashboard makes the key lesson clearer: a small number of spoofed
-requests can cause many hosts to send replies to the victim.
 
 
-## Build
 
-From the repository root:
+## Command Line Monitor
 
-```sh
-python examples/yesterday_once_more/Y11_smurf_attack/emulator.py --platform amd
-```
+Instead of using the web application to observe victim-side replies, we can also use the following program to print out the statistics on the terminals. 
 
-To change the number of amplifier hosts on the AS152 LAN:
-
-```sh
-python examples/yesterday_once_more/Y11_smurf_attack/emualtor.py \
-  --platform amd \
-  --target-hosts 30
-```
-
-The generated Docker files are placed in:
-
-```text
-examples/yesterday_once_more/Y11_smurf_attack/output
-```
-
-
-## Manual Attack Trigger
-
-After starting the emulator, run the attack trigger from AS150:
-
-```sh
-docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/smurf-lab/trigger_attack.sh --count 3
-```
-
-To run the Fraggle variant:
-
-```sh
-docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/smurf-lab/trigger_attack.sh --mode fraggle --count 3
-```
-
-To observe victim-side replies, start the monitor on AS151 before triggering the
-attack. For a live dashboard, use:
-
+For the Smurf attack:
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/smurf-lab/visualize_attack.py --duration 20 --request-count 3
+  /opt/smurf-fraggle-lab/visualize_attack.py --duration 20 --request-count 3
 ```
 
-For the Fraggle dashboard:
-
+For the Fraggle attack:
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/smurf-lab/visualize_attack.py --mode fraggle --duration 20 --request-count 3
+  /opt/smurf-fraggle-lab/visualize_attack.py --mode fraggle --duration 20 --request-count 3
 ```
 
-For a compact JSON summary, use:
-
-```sh
-docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  sh -lc 'python3 /opt/smurf-lab/smurf_monitor.py --duration 10'
-```
-
-For the Fraggle JSON summary:
-
-```sh
-docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  sh -lc 'python3 /opt/smurf-lab/fraggle_monitor.py --duration 10 --port 7000'
-```
 
 ## Standard Test Runner
 
