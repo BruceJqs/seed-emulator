@@ -94,6 +94,7 @@ def configure_directed_broadcast_router(router: Node) -> None:
     router.appendStartCommand("sysctl -w net.ipv4.conf.all.rp_filter=0")
     router.appendStartCommand("sysctl -w net.ipv4.conf.default.rp_filter=0")
     router.appendClassName("SmurfDirectedBroadcastRouter")
+    router.setDisplayName("Directed-Broadcast-Router")
 
 
 def configure_target_host(host: Node) -> None:
@@ -124,6 +125,7 @@ def configure_attacker(host: Node) -> None:
     )
     host.appendClassName("SmurfAttacker")
     host.appendClassName("FraggleAttacker")
+    host.setDisplayName("Attacker")
 
 
 def configure_victim(host: Node) -> None:
@@ -137,6 +139,7 @@ def configure_victim(host: Node) -> None:
     )
     host.appendClassName("SmurfVictim")
     host.appendClassName("FraggleVictim")
+    host.setDisplayName("Victim")
 
 
 def customize_b00_for_smurf(emu: Emulator, target_hosts: int, hosts_per_as: int) -> None:
