@@ -198,6 +198,7 @@ The generated Docker files are placed in:
 examples/yesterday_once_more/Y11_smurf_attack/output
 ```
 
+
 ## Manual Attack Trigger
 
 After starting the emulator, run the attack trigger from AS150:
