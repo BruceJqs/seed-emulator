@@ -115,61 +115,38 @@ On the victim, we run the following program count UDP replies sent by the Fraggl
 
 ## Visualizing The Attack
 
-The best way to see the amplification effect is from the victim's point of view. We have installed a live dashboard on AS151 `host_0`:
+The best way to see the amplification effect is from the victim's point of view. Y11 installs the
+Traffic Visualizer web application on AS151 `host_0`. It starts automatically, passively captures
+incoming attack traffic with `tcpdump`, and publishes the dashboard on the host:
 
 ```text
-/opt/smurf-lab/visualize_attack.py
+http://localhost:8081
 ```
 
-
-Start the dashboard on the victim first:
-
-```sh
-docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/smurf-lab/visualize_attack.py --duration 20 --request-count 3
-```
-
-In another terminal, trigger the attack from AS150:
+Open that address in a browser, then trigger Smurf from another terminal:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/smurf-lab/trigger_attack.sh --count 3
 ```
 
-For Fraggle, start the UDP dashboard on the victim:
-
-```sh
-docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/smurf-lab/visualize_attack.py --mode fraggle --duration 20 --request-count 3
-```
-
-Then trigger the UDP broadcast attack from AS150:
+Trigger Fraggle with:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/smurf-lab/trigger_attack.sh --mode fraggle --count 3
 ```
 
-The dashboard shows the attack as amplification:
+The first version intentionally keeps the visualization small: it shows the total number of
+matching packets observed by `tcpdump` and the number observed during the previous second. Its
+API is also available inside the victim container:
 
 ```text
-SMURF ATTACK MONITOR
-====================
-Victim view: ICMP echo replies from 10.152.0.*
-
-elapsed seconds        : 4.0
-spoofed requests       : 3
-ICMP replies received  : 36
-unique amplifier hosts : 12
-estimated amplification: 12.0x
-replies in last window : 0
-
-Top replying hosts
-------------------
-10.152.0.71          3 replies
-10.152.0.72          3 replies
-10.152.0.73          3 replies
+http://127.0.0.1:8080/api/stats
 ```
+
+The previous terminal dashboard remains available at `/opt/smurf-lab/visualize_attack.py` for
+CLI-only demonstrations.
 
 Internet Map is still useful for seeing packets move through the topology, but
 the victim dashboard makes the key lesson clearer: a small number of spoofed

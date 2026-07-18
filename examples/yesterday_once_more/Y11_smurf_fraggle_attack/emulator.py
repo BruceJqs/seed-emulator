@@ -27,6 +27,9 @@ TARGET_ASN = 152
 TARGET_ROUTER = "router0"
 TARGET_NETWORK = "net0"
 SMURF_DIR = "/opt/smurf-lab"
+TRAFFIC_VISUALIZER_DIR = f"{SMURF_DIR}/traffic_visualizer"
+TRAFFIC_VISUALIZER_HOST_PORT = 8081
+TRAFFIC_VISUALIZER_CONTAINER_PORT = 8080
 FRAGGLE_PORT = 19
 
 
@@ -130,15 +133,34 @@ def configure_attacker(host: Node) -> None:
 
 def configure_victim(host: Node) -> None:
     host.addSoftware("python3")
+    host.addSoftware("tcpdump")
     prepare_smurf_dir(host)
     install_file(host, "smurf_monitor.py", "smurf_monitor.py")
     install_file(host, "fraggle_monitor.py", "fraggle_monitor.py")
     install_file(host, "visualize_attack.py", "visualize_attack.py")
+    install_file(
+        host,
+        "traffic_visualizer/traffic_visualizer.py",
+        "traffic_visualizer/traffic_visualizer.py",
+    )
+    install_file(host, "traffic_visualizer/dashboard.html", "traffic_visualizer/dashboard.html")
+    install_file(host, "traffic_visualizer/config.json", "traffic_visualizer/config.json")
+    host.addPortForwarding(TRAFFIC_VISUALIZER_HOST_PORT, TRAFFIC_VISUALIZER_CONTAINER_PORT)
+    host.appendStartCommand(f"mkdir -p {TRAFFIC_VISUALIZER_DIR}")
     host.appendStartCommand(
-        f"chmod +x {SMURF_DIR}/smurf_monitor.py {SMURF_DIR}/fraggle_monitor.py {SMURF_DIR}/visualize_attack.py"
+        f"chmod +x {SMURF_DIR}/smurf_monitor.py {SMURF_DIR}/fraggle_monitor.py "
+        f"{SMURF_DIR}/visualize_attack.py {TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py"
+    )
+    host.appendStartCommand(
+        f"python3 {TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py "
+        f"--config {TRAFFIC_VISUALIZER_DIR}/config.json "
+        f"--dashboard {TRAFFIC_VISUALIZER_DIR}/dashboard.html "
+        ">> /var/log/traffic-visualizer.log 2>&1",
+        fork=True,
     )
     host.appendClassName("SmurfVictim")
     host.appendClassName("FraggleVictim")
+    host.appendClassName("TrafficVisualizer")
     host.setDisplayName("Victim")
 
 

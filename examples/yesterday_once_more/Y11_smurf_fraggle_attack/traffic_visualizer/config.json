@@ -1,0 +1,6 @@
+{
+  "interface": "any",
+  "capture_filter": "src net 10.152.0.0/24 and (icmp or udp)",
+  "web_host": "0.0.0.0",
+  "web_port": 8080
+}
