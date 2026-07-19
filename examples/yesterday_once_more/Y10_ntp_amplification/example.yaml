@@ -31,6 +31,8 @@ runtime:
       services:
         - hnode_150_host_0
         - hnode_151_host_0
+        - hnode_153_host_0
+        - brdnode_151_router0
         - hnode_152_host_0
         - hnode_160_host_0
         - hnode_171_host_0

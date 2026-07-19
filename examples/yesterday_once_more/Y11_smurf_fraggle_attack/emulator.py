@@ -174,13 +174,8 @@ def configure_attacker(host: Node) -> None:
 def configure_victim(host: Node) -> None:
     host.addSoftware("python3")
     host.addSoftware("tcpdump")
-    host.addSoftware("iproute2")
     prepare_smurf_dir(host)
-    install_file(host, "smurf_monitor.py", "smurf_monitor.py")
-    install_file(host, "fraggle_monitor.py", "fraggle_monitor.py")
-    install_file(host, "visualize_attack.py", "visualize_attack.py")
     install_traffic_visualizer_file(host, "victim_http_service.py")
-    install_traffic_visualizer_file(host, "network_control.py")
     install_traffic_visualizer_file(host, "traffic_visualizer.py")
     install_traffic_visualizer_file(host, "dashboard.html")
     install_file(host, "traffic_visualizer_config.json", "traffic_visualizer/config.json")
@@ -197,10 +192,8 @@ def configure_victim(host: Node) -> None:
     host.addPortForwarding(TRAFFIC_VISUALIZER_HOST_PORT, TRAFFIC_VISUALIZER_CONTAINER_PORT)
     host.appendStartCommand(f"mkdir -p {TRAFFIC_VISUALIZER_DIR}")
     host.appendStartCommand(
-        f"chmod +x {SMURF_DIR}/smurf_monitor.py {SMURF_DIR}/fraggle_monitor.py "
-        f"{SMURF_DIR}/visualize_attack.py {TRAFFIC_VISUALIZER_DIR}/victim_http_service.py "
-        f"{TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py "
-        f"{TRAFFIC_VISUALIZER_DIR}/network_control.py"
+        f"chmod +x {TRAFFIC_VISUALIZER_DIR}/victim_http_service.py "
+        f"{TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py"
     )
     host.appendStartCommand(
         f"python3 {TRAFFIC_VISUALIZER_DIR}/victim_http_service.py --port {VICTIM_SERVICE_PORT} "

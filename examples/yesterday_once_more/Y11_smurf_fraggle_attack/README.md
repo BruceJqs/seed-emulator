@@ -40,22 +40,14 @@ From the example folder,
 python ./emulator.py --platform amd
 ```
 
-To change the number of amplifier hosts on the AS152 LAN:
-
-```sh
-python ./emulator.py --platform amd --target-hosts 30
-```
-
-B00's default address assignment range for hosts is `10.152.0.71` through
-`10.152.0.99`. Y11 preserves the addresses of the B00-created hosts, but gives
-every additional amplifier host an explicit address. It allocates addresses
-above the existing B00 hosts first, through `10.152.0.253`, and then uses the
-free range `10.152.0.2` through `10.152.0.70`. Address `10.152.0.1` is reserved,
-and `10.152.0.254` remains reserved for `router0`.
-
+To change the number of amplifier hosts on the AS152 LAN, use the `--target-hosts` option (the default value is quite low, so to see the desired DoS effect, use a large number).
 The existing `10.152.0.0/24` network supports at most 252 amplifier hosts. A
 larger experiment must use a wider subnet rather than assigning more addresses
 inside this `/24`.
+
+```sh
+python ./emulator.py --platform amd --target-hosts 200
+```
 
 The generated Docker files are placed in the`output` folder. We can go to this folder, build the container images and start the emulator.
 
@@ -84,14 +76,14 @@ Trigger the Smurf attack from another terminal with:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/demo/trigger_attack.sh --count 3
+  /opt/demo/trigger_attack.sh --count 100 --payload-size 1200 --interval 0.01
 ```
 
 Trigger Fraggle with:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/demo/trigger_attack.sh --mode fraggle --count 3
+  /opt/demo/trigger_attack.sh --mode fraggle --count 100 --payload-size 1200 --interval 0.01
 ```
 
 The visualization shows matching packet and IP-layer byte totals, values
@@ -112,47 +104,27 @@ enough resources to degrade the HTTP service on a fast host. To experiment with
 service impact, increase `--count` gradually while watching the impact panel.
 Keep the emulator isolated and stop once the intended effect is visible.
 
+
 ### Change capacity at runtime
 
-Y11 installs the shared link controller on both sides of AS151's victim access
-link. Apply the same runtime rate to the router's victim-facing interface and
-the victim's response interface. No limit is enabled by default:
+To see the impact of the DoS attack, let's put a limit on the ingress link. This way,
+the attacker's packets can exhaust the bandwidth of the victim's network.
+No limit is enabled by default. The following command sets the limit on the gateway
+to `15mbit`, essentially limiting the ingress bandwidth of the AS151 network.
 
 ```sh
 docker compose -f output/docker-compose.yml exec brdnode_151_router0 \
   /opt/demo/traffic_visualizer/network_control.py set \
-  --subnet 10.151.0.0/24 --rate 5mbit
-
-docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/demo/traffic_visualizer/network_control.py set \
-  --subnet 10.151.0.0/24 --rate 5mbit
+  --subnet 10.151.0.0/24 --rate 15mbit
 ```
 
-Inspect or remove the limit by replacing `set --rate 5mbit` with `status` or
-`clear`. Since `tc` is an egress controller, applying it at both endpoints
-models the two directions of the access link.
+Inspect or remove the limit by replacing `set --rate 15mbit` with `status` or
+`clear`.
 
-CPU and memory limits are controlled from the Docker host. Resolve the running
-victim container and pass it to the shared host-side tool:
-
-```sh
-VICTIM=$(docker compose -f output/docker-compose.yml ps -q hnode_151_host_0)
-
-python ../../../tools/TrafficVisualizer/container_control.py set \
-  --container "$VICTIM" --cpus 0.5 --memory 256m --memory-swap 256m
-
-python ../../../tools/TrafficVisualizer/container_control.py restore \
-  --container "$VICTIM"
-```
-
-The first `set` saves the original limits in the current directory so they can
-be restored. Network and container capacity values are therefore chosen during
-the experiment rather than compiled into Y11.
 
 Internet Map is still useful for seeing packets move through the topology, but
 the victim dashboard makes the key lesson clearer: a small number of spoofed
 requests can cause many hosts to send replies to the victim.
-
 
 
 ## How The Smurf Attack Is Enabled
@@ -204,13 +176,6 @@ same broadcast echo request. Each host sends an ICMP echo reply to the spoofed
 source address, so the replies go to AS151 `host_0`, the victim.
 
 
-On the victim, we run the following program to count ICMP echo replies from the AS152 prefix.
-
-```text
-/opt/demo/smurf_monitor.py
-```
-
-
 ## How The Fraggle Attack Is Enabled
 
 The Fraggle attack also depends on the directed broadcast, which is already enabled 
@@ -229,34 +194,6 @@ victim, all amplifier replies go to AS151 `host_0`.
 The amplification factor depends mainly on the number of AS152 hosts. If
 `--target-hosts 30` is used, one spoofed broadcast request can produce replies
 from many of those 30 hosts.
-
-On the victim, we run the following program count UDP replies sent by the Fraggle amplifier hosts.
-
-```text
-/opt/demo/fraggle_monitor.py
-```
-
-
-
-
-
-
-## Command Line Monitor
-
-Instead of using the web application to observe victim-side replies, we can also use the following program to print out the statistics on the terminals. 
-
-For the Smurf attack:
-```sh
-docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/demo/visualize_attack.py --duration 20 --request-count 3
-```
-
-For the Fraggle attack:
-```sh
-docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/demo/visualize_attack.py --mode fraggle --duration 20 --request-count 3
-```
-
 
 ## Standard Test Runner
 

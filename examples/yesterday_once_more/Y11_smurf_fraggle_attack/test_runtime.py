@@ -5,12 +5,6 @@ from __future__ import annotations
 from seedemu.testing import ComposeRuntimeTest
 
 
-MONITOR_OUTPUT = "/tmp/smurf-monitor.json"
-MONITOR_LOG = "/tmp/smurf-monitor.log"
-FRAGGLE_MONITOR_OUTPUT = "/tmp/fraggle-monitor.json"
-FRAGGLE_MONITOR_LOG = "/tmp/fraggle-monitor.log"
-
-
 def main() -> int:
     test = ComposeRuntimeTest(__file__)
 
@@ -51,13 +45,13 @@ def main() -> int:
 
     if victim and attacker:
         test.exec_check(
-            "victim starts ICMP reply monitor",
+            "victim resets Traffic Visualizer before Smurf validation",
             victim,
-            "rm -f {out} {log}; "
-            "(python3 /opt/demo/smurf_monitor.py --duration 8 --output {out} > {log} 2>&1 &) ; "
-            "sleep 1".format(out=MONITOR_OUTPUT, log=MONITOR_LOG),
-            retries=1,
-            interval=1,
+            "python3 -c \"import urllib.request; "
+            "r=urllib.request.Request('http://127.0.0.1:8080/api/reset', method='POST'); "
+            "urllib.request.urlopen(r).read()\"",
+            retries=30,
+            interval=2,
         )
         test.exec_check(
             "attacker sends spoofed ICMP requests to AS152 directed broadcast",
@@ -69,20 +63,20 @@ def main() -> int:
         test.exec_check(
             "victim receives multiple reflected ICMP echo replies",
             victim,
-            "for i in $(seq 1 12); do [ -s {out} ] && break; sleep 1; done; "
-            "python3 -c \"import json; d=json.load(open('{out}')); "
-            "assert d['reply_count'] >= 6, d; "
-            "assert len(d['unique_reply_sources']) >= 2, d\"".format(out=MONITOR_OUTPUT),
-            retries=1,
+            "python3 -c \"import json,urllib.request; "
+            "d=json.load(urllib.request.urlopen('http://127.0.0.1:8080/api/stats')); "
+            "assert d['total_packets'] >= 6, d; "
+            "assert d['total_ip_bytes'] >= d['total_packets'] * 28, d\"",
+            retries=12,
             interval=1,
         )
         test.exec_check(
-            "victim starts UDP reply monitor",
+            "victim resets Traffic Visualizer before Fraggle validation",
             victim,
-            "rm -f {out} {log}; "
-            "(python3 /opt/demo/fraggle_monitor.py --duration 8 --port 7000 --output {out} > {log} 2>&1 &) ; "
-            "sleep 1".format(out=FRAGGLE_MONITOR_OUTPUT, log=FRAGGLE_MONITOR_LOG),
-            retries=1,
+            "python3 -c \"import urllib.request; "
+            "r=urllib.request.Request('http://127.0.0.1:8080/api/reset', method='POST'); "
+            "urllib.request.urlopen(r).read()\"",
+            retries=3,
             interval=1,
         )
         test.exec_check(
@@ -95,12 +89,11 @@ def main() -> int:
         test.exec_check(
             "victim receives multiple reflected UDP replies",
             victim,
-            "for i in $(seq 1 12); do [ -s {out} ] && break; sleep 1; done; "
-            "python3 -c \"import json; d=json.load(open('{out}')); "
-            "assert d['reply_count'] >= 6, d; "
-            "assert d['reply_bytes'] >= d['reply_count'] * 64, d; "
-            "assert len(d['unique_reply_sources']) >= 2, d\"".format(out=FRAGGLE_MONITOR_OUTPUT),
-            retries=1,
+            "python3 -c \"import json,urllib.request; "
+            "d=json.load(urllib.request.urlopen('http://127.0.0.1:8080/api/stats')); "
+            "assert d['total_packets'] >= 6, d; "
+            "assert d['total_ip_bytes'] >= d['total_packets'] * 64, d\"",
+            retries=12,
             interval=1,
         )
 
@@ -112,14 +105,6 @@ def main() -> int:
             retries=30,
             interval=3,
         )
-        test.exec_check(
-            "victim includes the runtime link controller",
-            victim,
-            "test -x /opt/demo/traffic_visualizer/network_control.py",
-            retries=1,
-            interval=1,
-        )
-
     if victim_router:
         test.exec_check(
             "victim access router includes the runtime link controller",

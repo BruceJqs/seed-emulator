@@ -16,6 +16,7 @@ The base topology is B00. Y10 adds these roles:
 
 - AS150 `host_0`: attacker host, with `/opt/ntp-like/trigger_attack.py`.
 - AS151 `host_0`: victim host, with a UDP sink on port `9000`.
+- AS153 `host_0`: legitimate client that measures the victim HTTP service.
 - AS152 `host_0`: NTP-like amplifier.
 - AS160 `host_0`: NTP-like amplifier.
 - AS171 `host_0`: NTP-like amplifier.
@@ -56,8 +57,32 @@ animation. Y10's extension compares the fixed 64-byte request IP packet with
 the average response IP packet and displays the resulting IP-layer byte
 amplification as a number and scale. With the default 1,200-byte response
 payload, the response IP packet is 1,228 bytes and the scale is approximately
-19.2x. The extension files live with this example; the capture agent and base
-dashboard remain shared in `tools/TrafficVisualizer`.
+19.2x.
+
+AS151 also runs the shared synthetic HTTP service on port `8000`. AS153 probes
+its latency five times per second and measures HTTP goodput every five seconds.
+The extension shows the service's health, current latency, success rate,
+failures, current and average goodput, and separate latency and goodput
+timelines. This makes it possible to compare the incoming amplified traffic
+with its effect on legitimate users. The extension files remain example-owned;
+the capture agent, HTTP service, probe, runtime controls, and base dashboard are
+shared in `tools/TrafficVisualizer`.
+
+### Change capacity at runtime
+
+Y10 installs the shared link controller on AS151's gateway. No limit is enabled
+by default. For example, limit traffic entering the victim network to 15 Mbps:
+
+```sh
+docker compose -f output/docker-compose.yml exec brdnode_151_router0 \
+  /opt/ntp-like/traffic_visualizer/network_control.py set \
+  --subnet 10.151.0.0/24 --rate 15mbit
+```
+
+Replace `set --rate 15mbit` with `status` to inspect the queue or `clear` to
+remove it. `tc` controls egress from the router's AS151-facing interface, which
+is ingress traffic from the victim network's point of view. Attack responses
+therefore compete with legitimate inbound requests for the limited bandwidth.
 
 ## Build
 
@@ -107,14 +132,6 @@ docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
   tail -n 20 /var/log/ntp-like-victim.log
 ```
 
-The older terminal monitor is still available when a CLI view is useful. Stop
-the UDP sink first because both programs bind port `9000`:
-
-```sh
-docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/ntp-like/visualize_attack.py --duration 20 --expected-requests 3
-```
-
 ## Standard Test Runner
 
 This example follows the `examples/sample` pattern:
@@ -130,7 +147,9 @@ attacker can reach the victim and one amplifier. The custom runtime test checks:
 - the attacker, victim, and amplifier containers exist;
 - the NTP-like daemons are running;
 - direct queries produce amplified responses;
-- the reflection simulation causes the victim UDP sink to receive traffic.
+- the reflection simulation causes the victim UDP sink to receive traffic;
+- the victim service and router-side runtime link controller are installed;
+- the legitimate client reports latency and goodput measurements.
 
 ## Safety
 
