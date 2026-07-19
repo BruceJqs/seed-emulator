@@ -119,7 +119,7 @@ link. Apply the same runtime rate to the router's victim-facing interface and
 the victim's response interface. No limit is enabled by default:
 
 ```sh
-docker compose -f output/docker-compose.yml exec rnode_151_router0 \
+docker compose -f output/docker-compose.yml exec brdnode_151_router0 \
   /opt/demo/traffic_visualizer/network_control.py set \
   --subnet 10.151.0.0/24 --rate 5mbit
 

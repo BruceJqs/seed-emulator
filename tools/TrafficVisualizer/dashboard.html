@@ -9,8 +9,11 @@
     :root { --accent: #38bdf8; }
     body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px 0; box-sizing: border-box; font-family: system-ui, sans-serif; color: #eaf2ff; background: #08111f; }
     main { width: 760px; max-width: calc(100% - 32px); text-align: center; }
+    main.has-extension { width: 1400px; }
     h1 { margin-bottom: 8px; font-size: 36px; }
     .subtitle, #status, #scale { color: #91a4ba; }
+    .dashboard-layout { display: grid; grid-template-columns: minmax(0, 760px); justify-content: center; gap: 24px; align-items: start; }
+    main.has-extension .dashboard-layout { grid-template-columns: repeat(auto-fit, minmax(min(100%, 620px), 760px)); }
     .counts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 28px 0; }
     .card { padding: 30px 18px; border: 1px solid #293a50; border-radius: 14px; background: #111e30; }
     .label { color: #91a4ba; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
@@ -27,7 +30,8 @@
     button { padding: 9px 14px; border: 1px solid #526a87; border-radius: 8px; color: #eaf2ff; background: #172a42; cursor: pointer; }
     #status { margin-left: 12px; }
     #error { margin-top: 18px; color: #fca5a5; }
-    #demo-extension { margin: 0 0 24px; text-align: left; }
+    #demo-extension { margin: 28px 0 24px; text-align: left; }
+    #demo-extension:empty { display: none; }
     .extension-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
     .extension-card { padding: 18px; border: 1px solid #293a50; border-radius: 12px; background: #0d1929; }
     .extension-value { display: block; margin-top: 7px; color: var(--accent); font-size: 24px; font-weight: 700; }
@@ -40,22 +44,26 @@
   <main>
     <h1 id="title">Traffic Visualizer</h1>
     <div class="subtitle" id="subtitle">Packets observed</div>
-    <div class="counts">
-      <div class="card"><div class="label">Total packets</div><strong class="value" id="total">0</strong></div>
-      <div class="card"><div class="label">Packets last second</div><strong class="value" id="rate">0</strong></div>
-      <div class="card"><div class="label">Total IP bytes</div><strong class="value" id="totalBytes">0 B</strong></div>
-      <div class="card"><div class="label">IP bytes last second</div><strong class="value" id="byteRate">0 B</strong></div>
+    <div class="dashboard-layout">
+      <section class="base-dashboard" aria-label="Traffic summary">
+        <div class="counts">
+          <div class="card"><div class="label">Total packets</div><strong class="value" id="total">0</strong></div>
+          <div class="card"><div class="label">Packets last second</div><strong class="value" id="rate">0</strong></div>
+          <div class="card"><div class="label">Total IP bytes</div><strong class="value" id="totalBytes">0 B</strong></div>
+          <div class="card"><div class="label">IP bytes last second</div><strong class="value" id="byteRate">0 B</strong></div>
+        </div>
+        <div class="activity">
+          <div class="label">Live packet flow</div>
+          <div class="flow">
+            <div class="endpoint">Network</div>
+            <div class="packet-lane" id="packetLane"></div>
+            <div class="endpoint victim">Victim</div>
+          </div>
+          <div id="scale">Waiting for packets</div>
+        </div>
+      </section>
+      <section id="demo-extension" aria-label="Example-specific information"></section>
     </div>
-    <div class="activity">
-      <div class="label">Live packet flow</div>
-      <div class="flow">
-        <div class="endpoint">Network</div>
-        <div class="packet-lane" id="packetLane"></div>
-        <div class="endpoint victim">Victim</div>
-      </div>
-      <div id="scale">Waiting for packets</div>
-    </div>
-    <section id="demo-extension" aria-label="Example-specific information"></section>
     <button id="reset">Reset counter</button><span id="status">Connecting</span>
     <div id="error"></div>
   </main>
@@ -169,6 +177,10 @@
           formatBytes,
         };
         invokeExtension('mount', extensionContext);
+        document.querySelector('main').classList.toggle(
+          'has-extension',
+          extensionContext.root.childElementCount > 0,
+        );
       } catch (error) {
         document.querySelector('#error').textContent = error.message;
       }

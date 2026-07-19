@@ -35,6 +35,7 @@ runtime:
         - hnode_151_host_0
         - hnode_152_host_0
         - hnode_152_host_11
+        - brdnode_151_router0
         - brdnode_152_router0
         - brdnode_2_r101
         - brdnode_12_r101
