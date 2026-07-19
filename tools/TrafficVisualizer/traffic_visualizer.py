@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
 from pathlib import Path
 import re
 import subprocess
 import threading
+import time
 from typing import Any
 from urllib.parse import urlparse
 
@@ -79,6 +82,71 @@ class PacketCounter:
             }
 
 
+class ImpactTracker:
+    """Store a short rolling window of externally measured service health."""
+
+    def __init__(self, max_samples: int = 60) -> None:
+        if max_samples < 1:
+            raise ValueError("impact_max_samples must be at least 1")
+        self.lock = threading.Lock()
+        self.samples: deque[dict[str, Any]] = deque(maxlen=max_samples)
+
+    def record(self, payload: dict[str, Any]) -> None:
+        success = payload.get("success")
+        if not isinstance(success, bool):
+            raise ValueError("success must be a boolean")
+
+        latency = payload.get("latency_ms")
+        if success:
+            if (
+                not isinstance(latency, (int, float))
+                or isinstance(latency, bool)
+                or not math.isfinite(latency)
+                or latency < 0
+            ):
+                raise ValueError("a successful probe requires a non-negative latency_ms")
+            latency = round(float(latency), 2)
+        else:
+            latency = None
+
+        sample = {
+            "timestamp_ms": round(time.time() * 1000),
+            "success": success,
+            "latency_ms": latency,
+        }
+        with self.lock:
+            self.samples.append(sample)
+
+    def reset(self) -> None:
+        with self.lock:
+            self.samples.clear()
+
+    def snapshot(self) -> dict[str, Any]:
+        with self.lock:
+            samples = list(self.samples)
+
+        successful = [sample for sample in samples if sample["success"]]
+        latest = samples[-1] if samples else None
+        return {
+            "sample_count": len(samples),
+            "failure_count": len(samples) - len(successful),
+            "success_rate": round(len(successful) * 100 / len(samples), 1) if samples else 0,
+            "latest_success": latest["success"] if latest else None,
+            "latest_latency_ms": latest["latency_ms"] if latest else None,
+            "average_latency_ms": (
+                round(sum(sample["latency_ms"] for sample in successful) / len(successful), 2)
+                if successful
+                else None
+            ),
+            "last_probe_age_seconds": (
+                round(max(0, time.time() - latest["timestamp_ms"] / 1000), 2)
+                if latest
+                else None
+            ),
+            "samples": samples,
+        }
+
+
 def capture_packets(config: dict[str, Any], counter: PacketCounter) -> None:
     command = [
         "tcpdump",
@@ -130,7 +198,10 @@ def make_handler(
     frontend_config: dict[str, Any],
     extension_js: bytes,
     extension_css: bytes,
+    impact_tracker: ImpactTracker | None = None,
 ):
+    impact = impact_tracker or ImpactTracker()
+
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802
             path = urlparse(self.path).path
@@ -143,7 +214,11 @@ def make_handler(
             elif path == "/api/config":
                 self._send_json(200, {"api_version": 1, "frontend": frontend_config})
             elif path == "/api/stats":
-                self._send_json(200, counter.snapshot())
+                stats = counter.snapshot()
+                stats["impact"] = impact.snapshot()
+                self._send_json(200, stats)
+            elif path == "/api/impact":
+                self._send_json(200, impact.snapshot())
             elif path == "/healthz":
                 status = 200 if counter.status != "error" else 503
                 self._send_json(status, {"status": counter.status})
@@ -151,11 +226,21 @@ def make_handler(
                 self._send_json(404, {"error": "not found"})
 
         def do_POST(self) -> None:  # noqa: N802
-            if urlparse(self.path).path != "/api/reset":
-                self._send_json(404, {"error": "not found"})
+            path = urlparse(self.path).path
+            if path == "/api/impact":
+                try:
+                    impact.record(self._read_json())
+                except (ValueError, json.JSONDecodeError) as error:
+                    self._send_json(400, {"error": str(error)})
+                    return
+                self._send_json(200, {"status": "recorded"})
                 return
-            counter.reset()
-            self._send_json(200, {"status": "reset"})
+            if path == "/api/reset":
+                counter.reset()
+                impact.reset()
+                self._send_json(200, {"status": "reset"})
+                return
+            self._send_json(404, {"error": "not found"})
 
         def log_message(self, _format: str, *_args: Any) -> None:
             pass
@@ -163,6 +248,15 @@ def make_handler(
         def _send_json(self, status: int, payload: dict[str, Any]) -> None:
             body = json.dumps(payload).encode("utf-8")
             self._send(status, "application/json; charset=utf-8", body)
+
+        def _read_json(self) -> dict[str, Any]:
+            content_length = int(self.headers.get("Content-Length", "0"))
+            if content_length < 1 or content_length > 4096:
+                raise ValueError("request body must be between 1 and 4096 bytes")
+            payload = json.loads(self.rfile.read(content_length))
+            if not isinstance(payload, dict):
+                raise ValueError("request body must be a JSON object")
+            return payload
 
         def _send(self, status: int, content_type: str, body: bytes) -> None:
             self.send_response(status)
@@ -212,6 +306,7 @@ def main() -> int:
     dashboard = Path(args.dashboard).read_bytes()
     frontend_config, extension_js, extension_css = load_frontend(config, config_path)
     counter = PacketCounter()
+    impact_tracker = ImpactTracker(int(config.get("impact_max_samples", 60)))
 
     threading.Thread(target=capture_packets, args=(config, counter), daemon=True).start()
     threading.Thread(target=sample_each_second, args=(counter,), daemon=True).start()
@@ -219,7 +314,14 @@ def main() -> int:
     address = (str(config.get("web_host", "0.0.0.0")), int(config.get("web_port", 8080)))
     server = ThreadingHTTPServer(
         address,
-        make_handler(counter, dashboard, frontend_config, extension_js, extension_css),
+        make_handler(
+            counter,
+            dashboard,
+            frontend_config,
+            extension_js,
+            extension_css,
+            impact_tracker,
+        ),
     )
     print(f"Traffic Visualizer listening on http://{address[0]}:{address[1]}", flush=True)
     try:

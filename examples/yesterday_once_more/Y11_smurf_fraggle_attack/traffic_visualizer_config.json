@@ -3,6 +3,7 @@
   "capture_filter": "src net 10.152.0.0/24 and (icmp or udp)",
   "web_host": "0.0.0.0",
   "web_port": 8080,
+  "impact_max_samples": 60,
   "frontend": {
     "title": "Smurf and Fraggle Attack",
     "subtitle": "Replies arriving at the victim from the amplifier LAN",
@@ -10,7 +11,10 @@
     "extension_js": "traffic_visualizer_extension.js",
     "extension_css": "traffic_visualizer_extension.css",
     "options": {
-      "amplifier_network": "AS152 · 10.152.0.0/24"
+      "amplifier_network": "AS152 / 10.152.0.0/24",
+      "impact_latency_warning_ms": 150,
+      "impact_stale_seconds": 4,
+      "impact_chart_max_ms": 500
     }
   }
 }

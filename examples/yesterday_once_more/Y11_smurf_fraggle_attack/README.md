@@ -21,6 +21,8 @@ reply to the spoofed victim address.
 
 - Attacker: AS150 `host_0`.
 - Victim: AS151 `host_0`. The default victim's address is: `10.151.0.71`
+- Legitimate client: AS153 `host_0`. It probes the victim's HTTP service once
+  per second and reports latency and failures to Traffic Visualizer.
 - AS152 `router0`: vulnerable router with directed broadcast forwarding enabled.
 - AS152 `host_0` ... `host_N`: amplifier hosts that respond to broadcast pings
   and run the UDP Fraggle amplifier daemon.
@@ -41,7 +43,7 @@ python ./emulator.py --platform amd
 To change the number of amplifier hosts on the AS152 LAN:
 
 ```sh
-python ./emualtor.py --platform amd --target-hosts 30
+python ./emulator.py --platform amd --target-hosts 30
 ```
 
 The generated Docker files are placed in the`output` folder. We can go to this folder, build the container images and start the emulator.
@@ -54,11 +56,13 @@ The best way to see the attack effect is from the victim's point of view. This e
 Traffic Visualizer web application on the victim container. It starts automatically and passively
 captures incoming attack traffic with `tcpdump`.
 
-The shared server and base dashboard are loaded from `tools/TrafficVisualizer`.
-This example owns its capture configuration and a small frontend extension that
-labels the Smurf and Fraggle modes, identifies the amplifier LAN, and shows the
-average observed IP packet size. The dashboard is published on the host at the
-following URL. Open this address in a browser.
+The shared server, base dashboard, synthetic HTTP service, and health probe are
+loaded from `tools/TrafficVisualizer`. This example owns their addresses,
+startup wiring, capture configuration, thresholds, and a frontend extension
+that presents the Smurf/Fraggle-specific results. AS151 runs the independent
+HTTP service on port `8000`. AS153 probes it once per second, then submits the
+observed latency or failure to Traffic Visualizer. The dashboard is published
+on the host at the following URL. Open this address in a browser.
 
 ```text
 http://localhost:8081
@@ -78,13 +82,22 @@ docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/demo/trigger_attack.sh --mode fraggle --count 3
 ```
 
-The visualization shows matching packet and IP-layer byte totals, values observed during the
-previous second, and an animation whose density and marker size reflect the recent traffic. Its
-API is also available inside the victim container:
+The visualization shows matching packet and IP-layer byte totals, values
+observed during the previous second, and an animation whose density and marker
+size reflect the recent traffic. The Victim Impact panel separately shows the
+legitimate service's current latency, recent success rate, failures, and a
+30-sample timeline. A rising cyan bar means a slower response; a red bar means
+the probe failed. Its APIs are also available inside the victim container:
 
 ```text
 http://127.0.0.1:8080/api/stats
+http://127.0.0.1:8080/api/impact
 ```
+
+The default three-packet commands demonstrate amplification but may not consume
+enough resources to degrade the HTTP service on a fast host. To experiment with
+service impact, increase `--count` gradually while watching the impact panel.
+Keep the emulator isolated and stop once the intended effect is visible.
 
 Internet Map is still useful for seeing packets move through the topology, but
 the victim dashboard makes the key lesson clearer: a small number of spoofed
@@ -214,6 +227,8 @@ The runtime test verifies:
 - AS152 hosts run the bounded UDP Fraggle amplifier daemon;
 - the victim receives multiple UDP replies after the attacker sends spoofed UDP
   requests to `10.152.0.255:19`.
+- AS151 runs the legitimate HTTP service and AS153 runs the external probe;
+- Traffic Visualizer receives health measurements from the probe.
 
 ## Safety
 

@@ -24,6 +24,7 @@ from seedemu.core import Emulator, Node
 
 ATTACKER_HOST = (150, "host_0")
 VICTIM_HOST = (151, "host_0")
+LEGITIMATE_CLIENT_HOST = (153, "host_0")
 TARGET_ASN = 152
 TARGET_ROUTER = "router0"
 TARGET_NETWORK = "net0"
@@ -32,6 +33,7 @@ TRAFFIC_VISUALIZER_DIR = f"{SMURF_DIR}/traffic_visualizer"
 TRAFFIC_VISUALIZER_HOST_PORT = 8081
 TRAFFIC_VISUALIZER_CONTAINER_PORT = 8080
 FRAGGLE_PORT = 19
+VICTIM_SERVICE_PORT = 8000
 
 
 def parse_args() -> argparse.Namespace:
@@ -144,6 +146,7 @@ def configure_victim(host: Node) -> None:
     install_file(host, "smurf_monitor.py", "smurf_monitor.py")
     install_file(host, "fraggle_monitor.py", "fraggle_monitor.py")
     install_file(host, "visualize_attack.py", "visualize_attack.py")
+    install_traffic_visualizer_file(host, "victim_http_service.py")
     install_traffic_visualizer_file(host, "traffic_visualizer.py")
     install_traffic_visualizer_file(host, "dashboard.html")
     install_file(host, "traffic_visualizer_config.json", "traffic_visualizer/config.json")
@@ -161,7 +164,13 @@ def configure_victim(host: Node) -> None:
     host.appendStartCommand(f"mkdir -p {TRAFFIC_VISUALIZER_DIR}")
     host.appendStartCommand(
         f"chmod +x {SMURF_DIR}/smurf_monitor.py {SMURF_DIR}/fraggle_monitor.py "
-        f"{SMURF_DIR}/visualize_attack.py {TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py"
+        f"{SMURF_DIR}/visualize_attack.py {TRAFFIC_VISUALIZER_DIR}/victim_http_service.py "
+        f"{TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py"
+    )
+    host.appendStartCommand(
+        f"python3 {TRAFFIC_VISUALIZER_DIR}/victim_http_service.py --port {VICTIM_SERVICE_PORT} "
+        ">> /var/log/victim-http-service.log 2>&1",
+        fork=True,
     )
     host.appendStartCommand(
         f"python3 {TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py "
@@ -173,7 +182,24 @@ def configure_victim(host: Node) -> None:
     host.appendClassName("SmurfVictim")
     host.appendClassName("FraggleVictim")
     host.appendClassName("TrafficVisualizer")
+    host.appendClassName("VictimHttpService")
     host.setDisplayName("Victim")
+
+
+def configure_legitimate_client(host: Node) -> None:
+    host.addSoftware("python3")
+    prepare_smurf_dir(host)
+    install_traffic_visualizer_file(host, "health_probe.py")
+    host.appendStartCommand(f"chmod +x {TRAFFIC_VISUALIZER_DIR}/health_probe.py")
+    host.appendStartCommand(
+        f"python3 {TRAFFIC_VISUALIZER_DIR}/health_probe.py "
+        f"--target http://10.151.0.71:{VICTIM_SERVICE_PORT}/health "
+        f"--report-to http://10.151.0.71:{TRAFFIC_VISUALIZER_CONTAINER_PORT}/api/impact "
+        ">> /var/log/victim-health-probe.log 2>&1",
+        fork=True,
+    )
+    host.appendClassName("LegitimateClient")
+    host.setDisplayName("Legitimate-Client")
 
 
 def customize_b00_for_smurf(emu: Emulator, target_hosts: int, hosts_per_as: int) -> None:
@@ -184,6 +210,7 @@ def customize_b00_for_smurf(emu: Emulator, target_hosts: int, hosts_per_as: int)
     configure_directed_broadcast_router(get_router(emu, TARGET_ASN, TARGET_ROUTER))
     configure_attacker(get_host(emu, *ATTACKER_HOST))
     configure_victim(get_host(emu, *VICTIM_HOST))
+    configure_legitimate_client(get_host(emu, *LEGITIMATE_CLIENT_HOST))
 
     target_as = get_base(emu).getAutonomousSystem(TARGET_ASN)
     for index in range(target_hosts):
