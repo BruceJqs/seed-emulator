@@ -68,14 +68,14 @@ Trigger the Smurf attack from another terminal with:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/smurf-fraggle-lab/trigger_attack.sh --count 3
+  /opt/demo/trigger_attack.sh --count 3
 ```
 
 Trigger Fraggle with:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/smurf-fraggle-lab/trigger_attack.sh --mode fraggle --count 3
+  /opt/demo/trigger_attack.sh --mode fraggle --count 3
 ```
 
 The visualization shows matching packet and IP-layer byte totals, values observed during the
@@ -102,7 +102,7 @@ First, the attacker must be able to send an ICMP echo request with a spoofed
 source address. In this example, AS150 runs:
 
 ```text
-/opt/smurf-fraggle-lab/smurf_attack.py
+/opt/demo/smurf_attack.py
 ```
 
 This script opens a raw socket and builds a packet manually. The packet's
@@ -144,7 +144,7 @@ source address, so the replies go to AS151 `host_0`, the victim.
 On the victim, we run the following program to count ICMP echo replies from the AS152 prefix.
 
 ```text
-/opt/smurf-fraggle-lab/smurf_monitor.py
+/opt/demo/smurf_monitor.py
 ```
 
 
@@ -155,7 +155,7 @@ on AS152 `router0. We also run the following UDP daemon on each AS152 hosts:
 
 
 ```text
-/opt/smurf-fraggle-lab/fraggle_amplifier.py
+/opt/demo/fraggle_amplifier.py
 ```
 
 This is a small lab-only UDP daemon. It listens on UDP port `19`, accepts lab
@@ -170,7 +170,7 @@ from many of those 30 hosts.
 On the victim, we run the following program count UDP replies sent by the Fraggle amplifier hosts.
 
 ```text
-/opt/smurf-fraggle-lab/fraggle_monitor.py
+/opt/demo/fraggle_monitor.py
 ```
 
 
@@ -185,13 +185,13 @@ Instead of using the web application to observe victim-side replies, we can also
 For the Smurf attack:
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/smurf-fraggle-lab/visualize_attack.py --duration 20 --request-count 3
+  /opt/demo/visualize_attack.py --duration 20 --request-count 3
 ```
 
 For the Fraggle attack:
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/smurf-fraggle-lab/visualize_attack.py --mode fraggle --duration 20 --request-count 3
+  /opt/demo/visualize_attack.py --mode fraggle --duration 20 --request-count 3
 ```
 
 

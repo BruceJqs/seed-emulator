@@ -26,10 +26,10 @@ done
 # - vulnerable directed-broadcast LAN: AS152, 10.152.0.255
 case "$MODE" in
     smurf|icmp)
-        python3 /opt/smurf-lab/smurf_attack.py "${ARGS[@]}"
+        python3 /opt/demo/smurf_attack.py "${ARGS[@]}"
         ;;
     fraggle|udp)
-        python3 /opt/smurf-lab/fraggle_attack.py "${ARGS[@]}"
+        python3 /opt/demo/fraggle_attack.py "${ARGS[@]}"
         ;;
     *)
         echo "unknown mode: $MODE" >&2
