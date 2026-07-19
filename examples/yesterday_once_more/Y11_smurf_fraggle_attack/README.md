@@ -46,6 +46,17 @@ To change the number of amplifier hosts on the AS152 LAN:
 python ./emulator.py --platform amd --target-hosts 30
 ```
 
+B00's default address assignment range for hosts is `10.152.0.71` through
+`10.152.0.99`. Y11 preserves the addresses of the B00-created hosts, but gives
+every additional amplifier host an explicit address. It allocates addresses
+above the existing B00 hosts first, through `10.152.0.253`, and then uses the
+free range `10.152.0.1` through `10.152.0.70`. Address `10.152.0.254` remains
+reserved for `router0`.
+
+The existing `10.152.0.0/24` network supports at most 253 amplifier hosts. A
+larger experiment must use a wider subnet rather than assigning more addresses
+inside this `/24`.
+
 The generated Docker files are placed in the`output` folder. We can go to this folder, build the container images and start the emulator.
 
 

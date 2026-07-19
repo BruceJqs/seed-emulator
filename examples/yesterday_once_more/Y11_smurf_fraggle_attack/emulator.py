@@ -28,6 +28,9 @@ LEGITIMATE_CLIENT_HOST = (153, "host_0")
 TARGET_ASN = 152
 TARGET_ROUTER = "router0"
 TARGET_NETWORK = "net0"
+TARGET_NETWORK_PREFIX = "10.152.0"
+AUTO_HOST_START = 71
+LAST_USABLE_HOST = 253
 SMURF_DIR = "/opt/demo"
 TRAFFIC_VISUALIZER_DIR = f"{SMURF_DIR}/traffic_visualizer"
 TRAFFIC_VISUALIZER_HOST_PORT = 8081
@@ -47,7 +50,7 @@ def parse_args() -> argparse.Namespace:
         "--target-hosts",
         type=int,
         default=12,
-        help="number of hosts on the vulnerable AS152 broadcast LAN",
+        help="number of hosts on the vulnerable AS152 broadcast LAN (maximum: 253)",
     )
     parser.add_argument("--override", dest="override", action="store_true", default=True)
     parser.add_argument("--no-override", dest="override", action="store_false")
@@ -88,11 +91,27 @@ def prepare_smurf_dir(node: Node) -> None:
     node.appendStartCommand(f"mkdir -p {SMURF_DIR}")
 
 
+def get_manual_target_addresses(hosts_per_as: int) -> list[str]:
+    """Return free AS152 host addresses in deterministic allocation order."""
+    first_address_after_b00_hosts = AUTO_HOST_START + max(hosts_per_as, 0)
+    offsets = list(range(first_address_after_b00_hosts, LAST_USABLE_HOST + 1))
+    offsets.extend(range(1, AUTO_HOST_START))
+    return [f"{TARGET_NETWORK_PREFIX}.{offset}" for offset in offsets]
+
+
 def add_target_hosts(emu: Emulator, target_hosts: int, hosts_per_as: int) -> None:
     target_as = get_base(emu).getAutonomousSystem(TARGET_ASN)
     existing = max(hosts_per_as, 0)
+    addresses = get_manual_target_addresses(existing)
+    requested_new_hosts = target_hosts - existing
+    if requested_new_hosts > len(addresses):
+        raise ValueError(
+            f"--target-hosts cannot exceed {LAST_USABLE_HOST} on the AS152 /24 network"
+        )
+
     for index in range(existing, target_hosts):
-        target_as.createHost(f"host_{index}").joinNetwork(TARGET_NETWORK)
+        address = addresses[index - existing]
+        target_as.createHost(f"host_{index}").joinNetwork(TARGET_NETWORK, address=address)
 
 
 def configure_directed_broadcast_router(router: Node) -> None:
