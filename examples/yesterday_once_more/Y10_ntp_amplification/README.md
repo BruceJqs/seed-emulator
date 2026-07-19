@@ -43,6 +43,14 @@ docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/ntp-like/trigger_attack.sh
 ```
 
+One round sends one request to each of the three amplifiers. Use `--rounds` to
+repeat the attack; the default is one round:
+
+```sh
+docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
+  /opt/ntp-like/trigger_attack.sh --rounds 10
+```
+
 The generic area displays packet and IP-byte totals, rates, and packet-flow
 animation. Y10's extension compares the fixed 64-byte request IP packet with
 the average response IP packet and displays the resulting IP-layer byte
@@ -73,6 +81,9 @@ After starting the emulator, run the trigger from the attacker container:
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/ntp-like/trigger_attack.sh
 ```
+
+For example, `--rounds 5` sends 15 reflection requests in total: five requests
+to each of the three default amplifiers.
 
 The default victim is `10.151.0.71:9000`. The default amplifiers are:
 
