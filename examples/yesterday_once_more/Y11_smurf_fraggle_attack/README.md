@@ -54,9 +54,11 @@ The best way to see the attack effect is from the victim's point of view. This e
 Traffic Visualizer web application on the victim container. It starts automatically and passively
 captures incoming attack traffic with `tcpdump`.
 
-The shared server and dashboard are loaded from `tools/TrafficVisualizer`; the example keeps only its
-capture filter and port configuration in `traffic_visualizer_config.json`. The dashboard is
-published on the host at the following URL. Open this address in a browser.
+The shared server and base dashboard are loaded from `tools/TrafficVisualizer`.
+This example owns its capture configuration and a small frontend extension that
+labels the Smurf and Fraggle modes, identifies the amplifier LAN, and shows the
+average observed IP packet size. The dashboard is published on the host at the
+following URL. Open this address in a browser.
 
 ```text
 http://localhost:8081

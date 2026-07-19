@@ -9,6 +9,7 @@ import sys
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
 B00_DIR = REPO_ROOT / "examples" / "internet" / "B00_mini_internet"
+TRAFFIC_VISUALIZER_SOURCE_DIR = REPO_ROOT / "tools" / "TrafficVisualizer"
 
 for path in [REPO_ROOT, B00_DIR]:
     if str(path) not in sys.path:
@@ -23,6 +24,9 @@ AMPLIFIER_HOSTS = [(152, "host_0"), (160, "host_0"), (171, "host_0")]
 ATTACKER_HOST = (150, "host_0")
 VICTIM_HOST = (151, "host_0")
 NTP_LIKE_DIR = "/opt/ntp-like"
+TRAFFIC_VISUALIZER_DIR = f"{NTP_LIKE_DIR}/traffic_visualizer"
+TRAFFIC_VISUALIZER_HOST_PORT = 8081
+TRAFFIC_VISUALIZER_CONTAINER_PORT = 8080
 VICTIM_LOG = "/var/log/ntp-like-victim.log"
 
 
@@ -54,6 +58,11 @@ def get_host(emu: Emulator, asn: int, name: str) -> Node:
 def install_file(node: Node, local_name: str, remote_name: str) -> None:
     content = (SCRIPT_DIR / local_name).read_text(encoding="utf-8")
     node.setFile(f"{NTP_LIKE_DIR}/{remote_name}", content)
+
+
+def install_traffic_visualizer_file(node: Node, local_name: str) -> None:
+    content = (TRAFFIC_VISUALIZER_SOURCE_DIR / local_name).read_text(encoding="utf-8")
+    node.setFile(f"{TRAFFIC_VISUALIZER_DIR}/{local_name}", content)
 
 
 def prepare_ntp_like_dir(node: Node) -> None:
@@ -89,17 +98,44 @@ def install_attacker(node: Node) -> None:
 
 def install_victim(node: Node) -> None:
     node.addSoftware("python3")
+    node.addSoftware("tcpdump")
     prepare_ntp_like_dir(node)
     install_file(node, "udp_sink.py", "udp_sink.py")
     install_file(node, "visualize_attack.py", "visualize_attack.py")
+    install_traffic_visualizer_file(node, "traffic_visualizer.py")
+    install_traffic_visualizer_file(node, "dashboard.html")
+    install_file(node, "traffic_visualizer_config.json", "traffic_visualizer/config.json")
+    install_file(
+        node,
+        "traffic_visualizer_extension.js",
+        "traffic_visualizer/traffic_visualizer_extension.js",
+    )
+    install_file(
+        node,
+        "traffic_visualizer_extension.css",
+        "traffic_visualizer/traffic_visualizer_extension.css",
+    )
+    node.addPortForwarding(TRAFFIC_VISUALIZER_HOST_PORT, TRAFFIC_VISUALIZER_CONTAINER_PORT)
     node.appendStartCommand(f": > {VICTIM_LOG}")
-    node.appendStartCommand(f"chmod +x {NTP_LIKE_DIR}/visualize_attack.py")
+    node.appendStartCommand(f"mkdir -p {TRAFFIC_VISUALIZER_DIR}")
+    node.appendStartCommand(
+        f"chmod +x {NTP_LIKE_DIR}/visualize_attack.py "
+        f"{TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py"
+    )
     node.appendStartCommand(
         f"python3 {NTP_LIKE_DIR}/udp_sink.py --port 9000 --log {VICTIM_LOG} "
         ">> /var/log/ntp-like-victim-sink.log 2>&1",
         fork=True,
     )
+    node.appendStartCommand(
+        f"python3 {TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py "
+        f"--config {TRAFFIC_VISUALIZER_DIR}/config.json "
+        f"--dashboard {TRAFFIC_VISUALIZER_DIR}/dashboard.html "
+        ">> /var/log/traffic-visualizer.log 2>&1",
+        fork=True,
+    )
     node.appendClassName("NtpLikeVictim")
+    node.appendClassName("TrafficVisualizer")
 
 
 def customize_b00_for_ntp_amplification(emu: Emulator, response_size: int) -> None:

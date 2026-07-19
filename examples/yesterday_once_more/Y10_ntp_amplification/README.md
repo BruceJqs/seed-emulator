@@ -28,55 +28,26 @@ responses to the victim without using raw source-IP spoofing.
 ## Visualizing The Attack
 
 The clearest way to see the attack is from the victim's point of view. Y10
-installs a live UDP amplification dashboard on AS151 `host_0`:
+installs the shared Traffic Visualizer on AS151 `host_0`. It starts
+automatically, captures only UDP replies to the victim's port `9000`, and is
+published on the host at:
 
 ```text
-/opt/ntp-like/visualize_attack.py
+http://localhost:8081
 ```
 
-Start the dashboard on the victim first (the `udp_sink.py` is already running 
-on the victim host, and it uses the same port 9000 as the `visualize_attack.py`, 
-so we need to stop `udp_sink.py` first):
-
-```sh
-docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
-  /opt/ntp-like/visualize_attack.py --duration 20 --expected-requests 3
-```
-
-In another terminal, trigger the attack from AS150:
+Open that URL and trigger the attack from AS150:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/ntp-like/trigger_attack.sh
 ```
 
-The dashboard focuses on byte amplification:
-
-```text
-NTP-LIKE AMPLIFICATION MONITOR
-==============================
-Victim view: UDP responses from lab amplifiers
-
-elapsed seconds           : 4.0
-expected trigger requests : 3
-estimated request bytes   : 108
-UDP packets received      : 3
-total response bytes      : 3600
-unique amplifiers         : 3
-estimated byte amp        : 33.3x
-packets in last window    : 0
-bytes in last window      : 0
-
-Top amplifiers
---------------
-10.152.0.71          1 packets     1200 bytes
-10.160.0.71          1 packets     1200 bytes
-10.171.0.71          1 packets     1200 bytes
-```
-
-Internet Map can show packet movement through the topology, but this dashboard
-shows the essential effect more directly: small trigger requests cause much
-larger UDP responses to arrive at the victim.
+The generic area displays packet and IP-byte totals, rates, and packet-flow
+animation. Y10 adds a small extension panel describing the request/reply
+pattern, the three amplifier ASes, and average observed IP packet size. The
+extension files live with this example; the capture agent and base dashboard
+remain shared in `tools/TrafficVisualizer`.
 
 ## Build
 
@@ -123,7 +94,8 @@ docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
   tail -n 20 /var/log/ntp-like-victim.log
 ```
 
-For a live victim-side dashboard instead of raw logs:
+The older terminal monitor is still available when a CLI view is useful. Stop
+the UDP sink first because both programs bind port `9000`:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_151_host_0 \

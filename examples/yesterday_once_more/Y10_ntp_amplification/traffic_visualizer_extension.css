@@ -1,0 +1,8 @@
+.ntp-details .extension-card {
+  border-top: 3px solid var(--accent);
+}
+
+.ntp-details .extension-value {
+  font-size: 18px;
+  line-height: 1.35;
+}

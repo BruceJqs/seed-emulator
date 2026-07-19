@@ -124,12 +124,24 @@ def sample_each_second(counter: PacketCounter) -> None:
         counter.finish_second()
 
 
-def make_handler(counter: PacketCounter, dashboard: bytes):
+def make_handler(
+    counter: PacketCounter,
+    dashboard: bytes,
+    frontend_config: dict[str, Any],
+    extension_js: bytes,
+    extension_css: bytes,
+):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802
             path = urlparse(self.path).path
             if path == "/":
                 self._send(200, "text/html; charset=utf-8", dashboard)
+            elif path == "/extension.js":
+                self._send(200, "text/javascript; charset=utf-8", extension_js)
+            elif path == "/extension.css":
+                self._send(200, "text/css; charset=utf-8", extension_css)
+            elif path == "/api/config":
+                self._send_json(200, {"api_version": 1, "frontend": frontend_config})
             elif path == "/api/stats":
                 self._send_json(200, counter.snapshot())
             elif path == "/healthz":
@@ -163,21 +175,52 @@ def make_handler(counter: PacketCounter, dashboard: bytes):
     return Handler
 
 
+def load_frontend(config: dict[str, Any], config_path: Path):
+    configured = config.get("frontend", {})
+    if not isinstance(configured, dict):
+        raise ValueError("frontend configuration must be a JSON object")
+
+    frontend = {
+        "title": str(configured.get("title", "Traffic Visualizer")),
+        "subtitle": str(configured.get("subtitle", "Packets observed")),
+        "accent_color": str(configured.get("accent_color", "#38bdf8")),
+        "options": configured.get("options", {}),
+    }
+    if not isinstance(frontend["options"], dict):
+        raise ValueError("frontend.options must be a JSON object")
+
+    def read_optional(name: str) -> bytes:
+        value = configured.get(name)
+        if not value:
+            return b""
+        path = Path(str(value))
+        if not path.is_absolute():
+            path = config_path.parent / path
+        return path.read_bytes()
+
+    return frontend, read_optional("extension_js"), read_optional("extension_css")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Count packets observed by tcpdump.")
     parser.add_argument("--config", default=str(SCRIPT_DIR / "config.json"))
     parser.add_argument("--dashboard", default=str(SCRIPT_DIR / "dashboard.html"))
     args = parser.parse_args()
 
-    config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    config_path = Path(args.config).resolve()
+    config = json.loads(config_path.read_text(encoding="utf-8"))
     dashboard = Path(args.dashboard).read_bytes()
+    frontend_config, extension_js, extension_css = load_frontend(config, config_path)
     counter = PacketCounter()
 
     threading.Thread(target=capture_packets, args=(config, counter), daemon=True).start()
     threading.Thread(target=sample_each_second, args=(counter,), daemon=True).start()
 
     address = (str(config.get("web_host", "0.0.0.0")), int(config.get("web_port", 8080)))
-    server = ThreadingHTTPServer(address, make_handler(counter, dashboard))
+    server = ThreadingHTTPServer(
+        address,
+        make_handler(counter, dashboard, frontend_config, extension_js, extension_css),
+    )
     print(f"Traffic Visualizer listening on http://{address[0]}:{address[1]}", flush=True)
     try:
         server.serve_forever()

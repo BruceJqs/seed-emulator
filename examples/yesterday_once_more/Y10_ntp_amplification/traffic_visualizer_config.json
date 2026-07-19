@@ -1,0 +1,16 @@
+{
+  "interface": "any",
+  "capture_filter": "udp and dst host 10.151.0.71 and dst port 9000",
+  "web_host": "0.0.0.0",
+  "web_port": 8080,
+  "frontend": {
+    "title": "NTP-Like Amplification",
+    "subtitle": "Amplified UDP responses arriving at the victim",
+    "accent_color": "#c084fc",
+    "extension_js": "traffic_visualizer_extension.js",
+    "extension_css": "traffic_visualizer_extension.css",
+    "options": {
+      "amplifiers": "AS152 · AS160 · AS171"
+    }
+  }
+}

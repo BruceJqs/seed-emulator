@@ -147,6 +147,16 @@ def configure_victim(host: Node) -> None:
     install_traffic_visualizer_file(host, "traffic_visualizer.py")
     install_traffic_visualizer_file(host, "dashboard.html")
     install_file(host, "traffic_visualizer_config.json", "traffic_visualizer/config.json")
+    install_file(
+        host,
+        "traffic_visualizer_extension.js",
+        "traffic_visualizer/traffic_visualizer_extension.js",
+    )
+    install_file(
+        host,
+        "traffic_visualizer_extension.css",
+        "traffic_visualizer/traffic_visualizer_extension.css",
+    )
     host.addPortForwarding(TRAFFIC_VISUALIZER_HOST_PORT, TRAFFIC_VISUALIZER_CONTAINER_PORT)
     host.appendStartCommand(f"mkdir -p {TRAFFIC_VISUALIZER_DIR}")
     host.appendStartCommand(
