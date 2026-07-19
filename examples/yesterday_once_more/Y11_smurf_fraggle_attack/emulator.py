@@ -24,6 +24,7 @@ from seedemu.core import Emulator, Node
 
 ATTACKER_HOST = (150, "host_0")
 VICTIM_HOST = (151, "host_0")
+VICTIM_ROUTER = (151, "router0")
 LEGITIMATE_CLIENT_HOST = (153, "host_0")
 TARGET_ASN = 152
 TARGET_ROUTER = "router0"
@@ -129,6 +130,16 @@ def configure_directed_broadcast_router(router: Node) -> None:
     router.setDisplayName("Directed-Broadcast-Router")
 
 
+def configure_victim_access_router(router: Node) -> None:
+    router.addSoftware("python3")
+    router.addSoftware("iproute2")
+    prepare_smurf_dir(router)
+    install_traffic_visualizer_file(router, "network_control.py")
+    router.appendStartCommand(f"chmod +x {TRAFFIC_VISUALIZER_DIR}/network_control.py")
+    router.appendClassName("VictimAccessLinkController")
+    router.setDisplayName("Victim-Access-Router")
+
+
 def configure_target_host(host: Node) -> None:
     host.addSoftware("python3")
     prepare_smurf_dir(host)
@@ -163,11 +174,13 @@ def configure_attacker(host: Node) -> None:
 def configure_victim(host: Node) -> None:
     host.addSoftware("python3")
     host.addSoftware("tcpdump")
+    host.addSoftware("iproute2")
     prepare_smurf_dir(host)
     install_file(host, "smurf_monitor.py", "smurf_monitor.py")
     install_file(host, "fraggle_monitor.py", "fraggle_monitor.py")
     install_file(host, "visualize_attack.py", "visualize_attack.py")
     install_traffic_visualizer_file(host, "victim_http_service.py")
+    install_traffic_visualizer_file(host, "network_control.py")
     install_traffic_visualizer_file(host, "traffic_visualizer.py")
     install_traffic_visualizer_file(host, "dashboard.html")
     install_file(host, "traffic_visualizer_config.json", "traffic_visualizer/config.json")
@@ -186,7 +199,8 @@ def configure_victim(host: Node) -> None:
     host.appendStartCommand(
         f"chmod +x {SMURF_DIR}/smurf_monitor.py {SMURF_DIR}/fraggle_monitor.py "
         f"{SMURF_DIR}/visualize_attack.py {TRAFFIC_VISUALIZER_DIR}/victim_http_service.py "
-        f"{TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py"
+        f"{TRAFFIC_VISUALIZER_DIR}/traffic_visualizer.py "
+        f"{TRAFFIC_VISUALIZER_DIR}/network_control.py"
     )
     host.appendStartCommand(
         f"python3 {TRAFFIC_VISUALIZER_DIR}/victim_http_service.py --port {VICTIM_SERVICE_PORT} "
@@ -215,6 +229,9 @@ def configure_legitimate_client(host: Node) -> None:
     host.appendStartCommand(
         f"python3 {TRAFFIC_VISUALIZER_DIR}/health_probe.py "
         f"--target http://10.151.0.71:{VICTIM_SERVICE_PORT}/health "
+        f"--bandwidth-url http://10.151.0.71:{VICTIM_SERVICE_PORT}/bandwidth "
+        "--interval 0.2 --timeout 0.5 "
+        "--bandwidth-bytes 262144 --bandwidth-interval 5 --bandwidth-timeout 3 "
         f"--report-to http://10.151.0.71:{TRAFFIC_VISUALIZER_CONTAINER_PORT}/api/impact "
         ">> /var/log/victim-health-probe.log 2>&1",
         fork=True,
@@ -229,6 +246,7 @@ def customize_b00_for_smurf(emu: Emulator, target_hosts: int, hosts_per_as: int)
 
     add_target_hosts(emu, target_hosts=target_hosts, hosts_per_as=hosts_per_as)
     configure_directed_broadcast_router(get_router(emu, TARGET_ASN, TARGET_ROUTER))
+    configure_victim_access_router(get_router(emu, *VICTIM_ROUTER))
     configure_attacker(get_host(emu, *ATTACKER_HOST))
     configure_victim(get_host(emu, *VICTIM_HOST))
     configure_legitimate_client(get_host(emu, *LEGITIMATE_CLIENT_HOST))

@@ -81,13 +81,50 @@ python3 victim_http_service.py --port 8000
 
 python3 health_probe.py \
   --target http://10.151.0.71:8000/health \
+  --bandwidth-url http://10.151.0.71:8000/bandwidth \
   --report-to http://10.151.0.71:8080/api/impact
 ```
+
+The synthetic service's `/bandwidth?bytes=N` endpoint returns a bounded fixed
+payload. When `--bandwidth-url` is configured, the probe periodically measures
+application goodput in Mbps in addition to latency and reachability. Its
+`--bandwidth-bytes`, `--bandwidth-interval`, and `--bandwidth-timeout` options
+control the cost and frequency of that measurement.
 
 The synthetic service is optional. An example with a real HTTP application can
 point `health_probe.py` at that application instead. Target addresses, probe
 intervals, warning thresholds, container placement, and frontend presentation
 remain example-owned configuration.
+
+## Runtime capacity controls
+
+`network_control.py` uses Linux `tc` to apply an explicit egress rate limit at
+runtime. It never applies a limit automatically and supports `set`, `status`,
+and `clear`. An interface can be selected by name or by its subnet:
+
+```sh
+python3 network_control.py set --subnet 10.151.0.0/24 --rate 5mbit
+python3 network_control.py status --subnet 10.151.0.0/24
+python3 network_control.py clear --subnet 10.151.0.0/24
+```
+
+Because `tc` controls egress, a symmetric access-link experiment applies the
+limit on the router interface facing the victim and on the victim's own
+interface. `set` replaces the selected interface's root qdisc; use it only when
+that interface does not contain another link policy that must be preserved.
+
+`container_control.py` runs on the Docker host and changes CPU or memory limits
+with `docker update`. Before the first change it saves the original limits in a
+local JSON file, which `restore` uses later:
+
+```sh
+python3 container_control.py set --container CONTAINER --cpus 0.5 --memory 256m --memory-swap 256m
+python3 container_control.py show --container CONTAINER
+python3 container_control.py restore --container CONTAINER
+```
+
+These privileged operations intentionally remain CLI-only and are not exposed
+through Traffic Visualizer's HTTP API.
 
 ## HTTP endpoints
 
@@ -102,7 +139,13 @@ remain example-owned configuration.
 An external health probe can submit a successful measurement with:
 
 ```json
-{"success": true, "latency_ms": 12.4}
+{
+  "success": true,
+  "latency_ms": 12.4,
+  "bandwidth_success": true,
+  "throughput_mbps": 4.72,
+  "downloaded_bytes": 262144
+}
 ```
 
 For a timeout or connection failure, it submits `{"success": false}`. The

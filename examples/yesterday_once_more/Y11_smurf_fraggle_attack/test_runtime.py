@@ -16,6 +16,7 @@ def main() -> int:
 
     attacker = test.require_service(150, "host_0", "AS150 attacker host is generated")
     victim = test.require_service(151, "host_0", "AS151 victim host is generated")
+    victim_router = test.require_service(151, "router0", "AS151 victim access router is generated")
     legitimate_client = test.require_service(153, "host_0", "AS153 legitimate client is generated")
     amplifier0 = test.require_service(152, "host_0", "AS152 amplifier host_0 is generated")
     amplifier11 = test.require_service(152, "host_11", "AS152 amplifier host_11 is generated")
@@ -111,6 +112,22 @@ def main() -> int:
             retries=30,
             interval=3,
         )
+        test.exec_check(
+            "victim includes the runtime link controller",
+            victim,
+            "test -x /opt/demo/traffic_visualizer/network_control.py",
+            retries=1,
+            interval=1,
+        )
+
+    if victim_router:
+        test.exec_check(
+            "victim access router includes the runtime link controller",
+            victim_router,
+            "test -x /opt/demo/traffic_visualizer/network_control.py",
+            retries=1,
+            interval=1,
+        )
 
     if legitimate_client:
         test.exec_check(
@@ -127,7 +144,9 @@ def main() -> int:
             victim,
             "python3 -c \"import json,urllib.request; "
             "d=json.load(urllib.request.urlopen('http://127.0.0.1:8080/api/impact')); "
-            "assert d['sample_count'] >= 2, d\"",
+            "assert d['sample_count'] >= 2, d; "
+            "assert d['bandwidth_sample_count'] >= 1, d; "
+            "assert d['latest_throughput_mbps'] is not None, d\"",
             retries=30,
             interval=2,
         )

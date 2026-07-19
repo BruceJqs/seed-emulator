@@ -109,10 +109,40 @@ class ImpactTracker:
         else:
             latency = None
 
+        bandwidth_success = payload.get("bandwidth_success")
+        throughput = payload.get("throughput_mbps")
+        downloaded_bytes = payload.get("downloaded_bytes")
+        if bandwidth_success is None:
+            throughput = None
+            downloaded_bytes = None
+        elif not isinstance(bandwidth_success, bool):
+            raise ValueError("bandwidth_success must be a boolean")
+        elif bandwidth_success:
+            if (
+                not isinstance(throughput, (int, float))
+                or isinstance(throughput, bool)
+                or not math.isfinite(throughput)
+                or throughput < 0
+            ):
+                raise ValueError("a successful bandwidth probe requires throughput_mbps")
+            if (
+                not isinstance(downloaded_bytes, int)
+                or isinstance(downloaded_bytes, bool)
+                or downloaded_bytes < 1
+            ):
+                raise ValueError("a successful bandwidth probe requires positive downloaded_bytes")
+            throughput = round(float(throughput), 3)
+        else:
+            throughput = None
+            downloaded_bytes = int(downloaded_bytes or 0)
+
         sample = {
             "timestamp_ms": round(time.time() * 1000),
             "success": success,
             "latency_ms": latency,
+            "bandwidth_success": bandwidth_success,
+            "throughput_mbps": throughput,
+            "downloaded_bytes": downloaded_bytes,
         }
         with self.lock:
             self.samples.append(sample)
@@ -126,7 +156,14 @@ class ImpactTracker:
             samples = list(self.samples)
 
         successful = [sample for sample in samples if sample["success"]]
+        bandwidth_samples = [
+            sample for sample in samples if sample["bandwidth_success"] is not None
+        ]
+        successful_bandwidth = [
+            sample for sample in bandwidth_samples if sample["bandwidth_success"]
+        ]
         latest = samples[-1] if samples else None
+        latest_bandwidth = bandwidth_samples[-1] if bandwidth_samples else None
         return {
             "sample_count": len(samples),
             "failure_count": len(samples) - len(successful),
@@ -141,6 +178,28 @@ class ImpactTracker:
             "last_probe_age_seconds": (
                 round(max(0, time.time() - latest["timestamp_ms"] / 1000), 2)
                 if latest
+                else None
+            ),
+            "bandwidth_sample_count": len(bandwidth_samples),
+            "bandwidth_failure_count": len(bandwidth_samples) - len(successful_bandwidth),
+            "latest_bandwidth_success": (
+                latest_bandwidth["bandwidth_success"] if latest_bandwidth else None
+            ),
+            "latest_throughput_mbps": (
+                latest_bandwidth["throughput_mbps"] if latest_bandwidth else None
+            ),
+            "average_throughput_mbps": (
+                round(
+                    sum(sample["throughput_mbps"] for sample in successful_bandwidth)
+                    / len(successful_bandwidth),
+                    3,
+                )
+                if successful_bandwidth
+                else None
+            ),
+            "last_bandwidth_age_seconds": (
+                round(max(0, time.time() - latest_bandwidth["timestamp_ms"] / 1000), 2)
+                if latest_bandwidth
                 else None
             ),
             "samples": samples,

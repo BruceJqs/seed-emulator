@@ -71,8 +71,9 @@ The shared server, base dashboard, synthetic HTTP service, and health probe are
 loaded from `tools/TrafficVisualizer`. This example owns their addresses,
 startup wiring, capture configuration, thresholds, and a frontend extension
 that presents the Smurf/Fraggle-specific results. AS151 runs the independent
-HTTP service on port `8000`. AS153 probes it once per second, then submits the
-observed latency or failure to Traffic Visualizer. The dashboard is published
+HTTP service on port `8000`. AS153 probes its latency five times per second and
+measures HTTP goodput every five seconds, then submits the results to Traffic
+Visualizer. The dashboard is published
 on the host at the following URL. Open this address in a browser.
 
 ```text
@@ -96,9 +97,10 @@ docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
 The visualization shows matching packet and IP-layer byte totals, values
 observed during the previous second, and an animation whose density and marker
 size reflect the recent traffic. The Victim Impact panel separately shows the
-legitimate service's current latency, recent success rate, failures, and a
-30-sample timeline. A rising cyan bar means a slower response; a red bar means
-the probe failed. Its APIs are also available inside the victim container:
+legitimate service's current latency, recent success rate, failures, current
+and average goodput, and separate latency and goodput timelines. Higher cyan
+latency bars are worse; higher green goodput bars are better; red means a probe
+failed. Its APIs are also available inside the victim container:
 
 ```text
 http://127.0.0.1:8080/api/stats
@@ -109,6 +111,43 @@ The default three-packet commands demonstrate amplification but may not consume
 enough resources to degrade the HTTP service on a fast host. To experiment with
 service impact, increase `--count` gradually while watching the impact panel.
 Keep the emulator isolated and stop once the intended effect is visible.
+
+### Change capacity at runtime
+
+Y11 installs the shared link controller on both sides of AS151's victim access
+link. Apply the same runtime rate to the router's victim-facing interface and
+the victim's response interface. No limit is enabled by default:
+
+```sh
+docker compose -f output/docker-compose.yml exec rnode_151_router0 \
+  /opt/demo/traffic_visualizer/network_control.py set \
+  --subnet 10.151.0.0/24 --rate 5mbit
+
+docker compose -f output/docker-compose.yml exec hnode_151_host_0 \
+  /opt/demo/traffic_visualizer/network_control.py set \
+  --subnet 10.151.0.0/24 --rate 5mbit
+```
+
+Inspect or remove the limit by replacing `set --rate 5mbit` with `status` or
+`clear`. Since `tc` is an egress controller, applying it at both endpoints
+models the two directions of the access link.
+
+CPU and memory limits are controlled from the Docker host. Resolve the running
+victim container and pass it to the shared host-side tool:
+
+```sh
+VICTIM=$(docker compose -f output/docker-compose.yml ps -q hnode_151_host_0)
+
+python ../../../tools/TrafficVisualizer/container_control.py set \
+  --container "$VICTIM" --cpus 0.5 --memory 256m --memory-swap 256m
+
+python ../../../tools/TrafficVisualizer/container_control.py restore \
+  --container "$VICTIM"
+```
+
+The first `set` saves the original limits in the current directory so they can
+be restored. Network and container capacity values are therefore chosen during
+the experiment rather than compiled into Y11.
 
 Internet Map is still useful for seeing packets move through the topology, but
 the victim dashboard makes the key lesson clearer: a small number of spoofed
