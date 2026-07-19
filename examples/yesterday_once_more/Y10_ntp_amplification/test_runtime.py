@@ -24,7 +24,7 @@ def main() -> int:
         test.exec_check(
             "attacker direct queries receive amplified responses",
             attacker,
-            "/opt/ntp-like/trigger_attack.py --json",
+            "/opt/ntp-like/trigger_attack.py --interval 0 --json",
             retries=30,
             interval=3,
         )
@@ -88,7 +88,7 @@ def main() -> int:
         test.exec_check(
             "attacker triggers reflection simulation",
             attacker,
-            "/opt/ntp-like/trigger_attack.py --reflect --rounds 2 --json",
+            "/opt/ntp-like/trigger_attack.py --reflect --rounds 2 --interval 0.05 --json",
             retries=10,
             interval=2,
         )

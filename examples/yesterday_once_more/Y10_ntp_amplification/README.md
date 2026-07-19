@@ -45,11 +45,12 @@ docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
 ```
 
 One round sends one request to each of the three amplifiers. Use `--rounds` to
-repeat the attack; the default is one round:
+repeat the attack and `--interval` to control the delay between individual
+requests. The defaults are one round and 0.2 seconds:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/ntp-like/trigger_attack.sh --rounds 10
+  /opt/ntp-like/trigger_attack.sh --rounds 10 --interval 0.05
 ```
 
 The generic area displays packet and IP-byte totals, rates, and packet-flow
@@ -107,8 +108,8 @@ docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/ntp-like/trigger_attack.sh
 ```
 
-For example, `--rounds 5` sends 15 reflection requests in total: five requests
-to each of the three default amplifiers.
+For example, `--rounds 5 --interval 0.1` sends 15 reflection requests in total,
+one every 0.1 seconds: five requests to each of the three default amplifiers.
 
 The default victim is `10.151.0.71:9000`. The default amplifiers are:
 

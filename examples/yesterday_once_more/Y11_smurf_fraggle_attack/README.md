@@ -72,18 +72,20 @@ on the host at the following URL. Open this address in a browser.
 http://localhost:8081
 ```
 
-Trigger the Smurf attack from another terminal with:
+Trigger the Smurf attack from another terminal with the following commands. Adjust the
+interval value to control the attack speed. Find the value that can congest
+the victim's network, so the attack impact is clearly visible.
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/demo/trigger_attack.sh --count 100 --payload-size 1200 --interval 0.01
+  /opt/demo/trigger_attack.sh --count 100 --payload-size 1200 --interval 0.05
 ```
 
 Trigger Fraggle with:
 
 ```sh
 docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
-  /opt/demo/trigger_attack.sh --mode fraggle --count 100 --payload-size 1200 --interval 0.01
+  /opt/demo/trigger_attack.sh --mode fraggle --count 100 --payload-size 1200 --interval 0.05
 ```
 
 The visualization shows matching packet and IP-layer byte totals, values

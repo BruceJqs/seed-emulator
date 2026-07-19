@@ -28,11 +28,19 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="number of attack rounds; each round contacts every amplifier once",
     )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=0.2,
+        help="seconds between requests",
+    )
     parser.add_argument("--timeout", type=float, default=2.0)
     parser.add_argument("--json", action="store_true", help="print machine-readable results")
     args = parser.parse_args()
     if args.rounds < 1:
         parser.error("--rounds must be at least 1")
+    if args.interval < 0:
+        parser.error("--interval must be zero or greater")
     return args
 
 
@@ -80,6 +88,8 @@ def main() -> int:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     results: List[Dict[str, object]] = []
+    request_count = args.rounds * len(amplifiers)
+    sent_count = 0
     try:
         for round_number in range(1, args.rounds + 1):
             for amplifier in amplifiers:
@@ -89,6 +99,9 @@ def main() -> int:
                     result = send_direct_query(sock, amplifier, args.port, args.trigger, args.timeout)
                 result["round"] = round_number
                 results.append(result)
+                sent_count += 1
+                if sent_count < request_count:
+                    time.sleep(args.interval)
     finally:
         sock.close()
 
@@ -98,6 +111,7 @@ def main() -> int:
                 {
                     "rounds": args.rounds,
                     "amplifiers_per_round": len(amplifiers),
+                    "interval_seconds": args.interval,
                     "results": results,
                 },
                 indent=2,
