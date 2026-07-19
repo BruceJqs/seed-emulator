@@ -35,7 +35,11 @@ def parse_args() -> argparse.Namespace:
         help="seconds between requests",
     )
     parser.add_argument("--timeout", type=float, default=2.0)
-    parser.add_argument("--json", action="store_true", help="print machine-readable results")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print one machine-readable result document after completion",
+    )
     args = parser.parse_args()
     if args.rounds < 1:
         parser.error("--rounds must be at least 1")
@@ -99,6 +103,8 @@ def main() -> int:
                     result = send_direct_query(sock, amplifier, args.port, args.trigger, args.timeout)
                 result["round"] = round_number
                 results.append(result)
+                if not args.json:
+                    print(result, flush=True)
                 sent_count += 1
                 if sent_count < request_count:
                     time.sleep(args.interval)
@@ -118,10 +124,6 @@ def main() -> int:
                 sort_keys=True,
             )
         )
-    else:
-        for item in results:
-            print(item)
-
     return 0 if all(item["status"] in {"response", "sent"} for item in results) else 1
 
 

@@ -53,6 +53,10 @@ docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
   /opt/ntp-like/trigger_attack.sh --rounds 10 --interval 0.05
 ```
 
+The normal output is flushed after every request so progress is visible while
+the attack runs. The `--json` mode instead emits one valid JSON document after
+all requests finish.
+
 The generic area displays packet and IP-byte totals, rates, and packet-flow
 animation. Y10's extension compares the fixed 64-byte request IP packet with
 the average response IP packet and displays the resulting IP-layer byte
