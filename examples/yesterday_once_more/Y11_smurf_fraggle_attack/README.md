@@ -50,10 +50,10 @@ B00's default address assignment range for hosts is `10.152.0.71` through
 `10.152.0.99`. Y11 preserves the addresses of the B00-created hosts, but gives
 every additional amplifier host an explicit address. It allocates addresses
 above the existing B00 hosts first, through `10.152.0.253`, and then uses the
-free range `10.152.0.1` through `10.152.0.70`. Address `10.152.0.254` remains
-reserved for `router0`.
+free range `10.152.0.2` through `10.152.0.70`. Address `10.152.0.1` is reserved,
+and `10.152.0.254` remains reserved for `router0`.
 
-The existing `10.152.0.0/24` network supports at most 253 amplifier hosts. A
+The existing `10.152.0.0/24` network supports at most 252 amplifier hosts. A
 larger experiment must use a wider subnet rather than assigning more addresses
 inside this `/24`.
 
