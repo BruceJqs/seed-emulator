@@ -21,8 +21,8 @@ reply to the spoofed victim address.
 
 - Attacker: AS150 `host_0`.
 - Victim: AS151 `host_0`. The default victim's address is: `10.151.0.71`
-- Legitimate client: AS153 `host_0`. It probes the victim's HTTP service once
-  per second and reports latency and failures to Traffic Visualizer.
+- Legitimate client: AS153 `host_0`. It probes the victim's HTTP service five
+  times per second and serves latency and goodput measurements to the frontend.
 - AS152 `router0`: vulnerable router with directed broadcast forwarding enabled.
 - AS152 `host_0` ... `host_N`: amplifier hosts that respond to broadcast pings
   and run the UDP Fraggle amplifier daemon.
@@ -64,8 +64,9 @@ loaded from `tools/TrafficVisualizer`. This example owns their addresses,
 startup wiring, capture configuration, thresholds, and a frontend extension
 that presents the Smurf/Fraggle-specific results. AS151 runs the independent
 HTTP service on port `8000`. AS153 probes its latency five times per second and
-measures HTTP goodput every five seconds, then submits the results to Traffic
-Visualizer. The dashboard is published
+measures HTTP goodput every five seconds. The probe serves those measurements
+on host port `8082`, and the browser fetches them directly instead of routing
+health data through the victim. The dashboard is published
 on the host at the following URL. Open this address in a browser.
 
 ```text
@@ -94,11 +95,12 @@ size reflect the recent traffic. The Victim Impact panel separately shows the
 legitimate service's current latency, recent success rate, failures, current
 and average goodput, and separate latency and goodput timelines. Higher cyan
 latency bars are worse; higher green goodput bars are better; red means a probe
-failed. Its APIs are also available inside the victim container:
+failed. Packet statistics come from the victim endpoint, while health data
+comes from the host-forwarded probe endpoint:
 
 ```text
 http://127.0.0.1:8080/api/stats
-http://127.0.0.1:8080/api/impact
+http://localhost:8082/api/health
 ```
 
 The default three-packet commands demonstrate amplification but may not consume
@@ -217,7 +219,7 @@ The runtime test verifies:
 - the victim receives multiple UDP replies after the attacker sends spoofed UDP
   requests to `10.152.0.255:19`.
 - AS151 runs the legitimate HTTP service and AS153 runs the external probe;
-- Traffic Visualizer receives health measurements from the probe.
+- the probe API serves latency and goodput measurements directly to the frontend.
 
 ## Safety
 

@@ -4,10 +4,8 @@
 from __future__ import annotations
 
 import argparse
-from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import math
 from pathlib import Path
 import re
 import subprocess
@@ -82,130 +80,6 @@ class PacketCounter:
             }
 
 
-class ImpactTracker:
-    """Store a short rolling window of externally measured service health."""
-
-    def __init__(self, max_samples: int = 60) -> None:
-        if max_samples < 1:
-            raise ValueError("impact_max_samples must be at least 1")
-        self.lock = threading.Lock()
-        self.samples: deque[dict[str, Any]] = deque(maxlen=max_samples)
-
-    def record(self, payload: dict[str, Any]) -> None:
-        success = payload.get("success")
-        if not isinstance(success, bool):
-            raise ValueError("success must be a boolean")
-
-        latency = payload.get("latency_ms")
-        if success:
-            if (
-                not isinstance(latency, (int, float))
-                or isinstance(latency, bool)
-                or not math.isfinite(latency)
-                or latency < 0
-            ):
-                raise ValueError("a successful probe requires a non-negative latency_ms")
-            latency = round(float(latency), 2)
-        else:
-            latency = None
-
-        bandwidth_success = payload.get("bandwidth_success")
-        throughput = payload.get("throughput_mbps")
-        downloaded_bytes = payload.get("downloaded_bytes")
-        if bandwidth_success is None:
-            throughput = None
-            downloaded_bytes = None
-        elif not isinstance(bandwidth_success, bool):
-            raise ValueError("bandwidth_success must be a boolean")
-        elif bandwidth_success:
-            if (
-                not isinstance(throughput, (int, float))
-                or isinstance(throughput, bool)
-                or not math.isfinite(throughput)
-                or throughput < 0
-            ):
-                raise ValueError("a successful bandwidth probe requires throughput_mbps")
-            if (
-                not isinstance(downloaded_bytes, int)
-                or isinstance(downloaded_bytes, bool)
-                or downloaded_bytes < 1
-            ):
-                raise ValueError("a successful bandwidth probe requires positive downloaded_bytes")
-            throughput = round(float(throughput), 3)
-        else:
-            throughput = None
-            downloaded_bytes = int(downloaded_bytes or 0)
-
-        sample = {
-            "timestamp_ms": round(time.time() * 1000),
-            "success": success,
-            "latency_ms": latency,
-            "bandwidth_success": bandwidth_success,
-            "throughput_mbps": throughput,
-            "downloaded_bytes": downloaded_bytes,
-        }
-        with self.lock:
-            self.samples.append(sample)
-
-    def reset(self) -> None:
-        with self.lock:
-            self.samples.clear()
-
-    def snapshot(self) -> dict[str, Any]:
-        with self.lock:
-            samples = list(self.samples)
-
-        successful = [sample for sample in samples if sample["success"]]
-        bandwidth_samples = [
-            sample for sample in samples if sample["bandwidth_success"] is not None
-        ]
-        successful_bandwidth = [
-            sample for sample in bandwidth_samples if sample["bandwidth_success"]
-        ]
-        latest = samples[-1] if samples else None
-        latest_bandwidth = bandwidth_samples[-1] if bandwidth_samples else None
-        return {
-            "sample_count": len(samples),
-            "failure_count": len(samples) - len(successful),
-            "success_rate": round(len(successful) * 100 / len(samples), 1) if samples else 0,
-            "latest_success": latest["success"] if latest else None,
-            "latest_latency_ms": latest["latency_ms"] if latest else None,
-            "average_latency_ms": (
-                round(sum(sample["latency_ms"] for sample in successful) / len(successful), 2)
-                if successful
-                else None
-            ),
-            "last_probe_age_seconds": (
-                round(max(0, time.time() - latest["timestamp_ms"] / 1000), 2)
-                if latest
-                else None
-            ),
-            "bandwidth_sample_count": len(bandwidth_samples),
-            "bandwidth_failure_count": len(bandwidth_samples) - len(successful_bandwidth),
-            "latest_bandwidth_success": (
-                latest_bandwidth["bandwidth_success"] if latest_bandwidth else None
-            ),
-            "latest_throughput_mbps": (
-                latest_bandwidth["throughput_mbps"] if latest_bandwidth else None
-            ),
-            "average_throughput_mbps": (
-                round(
-                    sum(sample["throughput_mbps"] for sample in successful_bandwidth)
-                    / len(successful_bandwidth),
-                    3,
-                )
-                if successful_bandwidth
-                else None
-            ),
-            "last_bandwidth_age_seconds": (
-                round(max(0, time.time() - latest_bandwidth["timestamp_ms"] / 1000), 2)
-                if latest_bandwidth
-                else None
-            ),
-            "samples": samples,
-        }
-
-
 def capture_packets(config: dict[str, Any], counter: PacketCounter) -> None:
     command = [
         "tcpdump",
@@ -257,10 +131,7 @@ def make_handler(
     frontend_config: dict[str, Any],
     extension_js: bytes,
     extension_css: bytes,
-    impact_tracker: ImpactTracker | None = None,
 ):
-    impact = impact_tracker or ImpactTracker()
-
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802
             path = urlparse(self.path).path
@@ -273,11 +144,7 @@ def make_handler(
             elif path == "/api/config":
                 self._send_json(200, {"api_version": 1, "frontend": frontend_config})
             elif path == "/api/stats":
-                stats = counter.snapshot()
-                stats["impact"] = impact.snapshot()
-                self._send_json(200, stats)
-            elif path == "/api/impact":
-                self._send_json(200, impact.snapshot())
+                self._send_json(200, counter.snapshot())
             elif path == "/healthz":
                 status = 200 if counter.status != "error" else 503
                 self._send_json(status, {"status": counter.status})
@@ -286,17 +153,8 @@ def make_handler(
 
         def do_POST(self) -> None:  # noqa: N802
             path = urlparse(self.path).path
-            if path == "/api/impact":
-                try:
-                    impact.record(self._read_json())
-                except (ValueError, json.JSONDecodeError) as error:
-                    self._send_json(400, {"error": str(error)})
-                    return
-                self._send_json(200, {"status": "recorded"})
-                return
             if path == "/api/reset":
                 counter.reset()
-                impact.reset()
                 self._send_json(200, {"status": "reset"})
                 return
             self._send_json(404, {"error": "not found"})
@@ -307,15 +165,6 @@ def make_handler(
         def _send_json(self, status: int, payload: dict[str, Any]) -> None:
             body = json.dumps(payload).encode("utf-8")
             self._send(status, "application/json; charset=utf-8", body)
-
-        def _read_json(self) -> dict[str, Any]:
-            content_length = int(self.headers.get("Content-Length", "0"))
-            if content_length < 1 or content_length > 4096:
-                raise ValueError("request body must be between 1 and 4096 bytes")
-            payload = json.loads(self.rfile.read(content_length))
-            if not isinstance(payload, dict):
-                raise ValueError("request body must be a JSON object")
-            return payload
 
         def _send(self, status: int, content_type: str, body: bytes) -> None:
             self.send_response(status)
@@ -365,7 +214,6 @@ def main() -> int:
     dashboard = Path(args.dashboard).read_bytes()
     frontend_config, extension_js, extension_css = load_frontend(config, config_path)
     counter = PacketCounter()
-    impact_tracker = ImpactTracker(int(config.get("impact_max_samples", 60)))
 
     threading.Thread(target=capture_packets, args=(config, counter), daemon=True).start()
     threading.Thread(target=sample_each_second, args=(counter,), daemon=True).start()
@@ -379,7 +227,6 @@ def main() -> int:
             frontend_config,
             extension_js,
             extension_css,
-            impact_tracker,
         ),
     )
     print(f"Traffic Visualizer listening on http://{address[0]}:{address[1]}", flush=True)

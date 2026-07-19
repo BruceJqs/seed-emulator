@@ -66,12 +66,21 @@ payload, the response IP packet is 1,228 bytes and the scale is approximately
 
 AS151 also runs the shared synthetic HTTP service on port `8000`. AS153 probes
 its latency five times per second and measures HTTP goodput every five seconds.
+The probe serves its measurements on host port `8082`, and the browser fetches
+them directly instead of retrieving them through the victim.
 The extension shows the service's health, current latency, success rate,
 failures, current and average goodput, and separate latency and goodput
 timelines. This makes it possible to compare the incoming amplified traffic
 with its effect on legitimate users. The extension files remain example-owned;
 the capture agent, HTTP service, probe, runtime controls, and base dashboard are
 shared in `tools/TrafficVisualizer`.
+
+The two browser data endpoints are:
+
+```text
+http://localhost:8081/api/stats
+http://localhost:8082/api/health
+```
 
 ### Change capacity at runtime
 

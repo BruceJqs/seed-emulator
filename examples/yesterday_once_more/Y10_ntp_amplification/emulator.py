@@ -31,6 +31,8 @@ TRAFFIC_VISUALIZER_HOST_PORT = 8081
 TRAFFIC_VISUALIZER_CONTAINER_PORT = 8080
 VICTIM_LOG = "/var/log/ntp-like-victim.log"
 VICTIM_SERVICE_PORT = 8000
+HEALTH_PROBE_HOST_PORT = 8082
+HEALTH_PROBE_CONTAINER_PORT = 8080
 
 
 def parse_args() -> argparse.Namespace:
@@ -165,6 +167,7 @@ def install_legitimate_client(node: Node) -> None:
     node.addSoftware("python3")
     prepare_ntp_like_dir(node)
     install_traffic_visualizer_file(node, "health_probe.py")
+    node.addPortForwarding(HEALTH_PROBE_HOST_PORT, HEALTH_PROBE_CONTAINER_PORT)
     node.appendStartCommand(f"chmod +x {TRAFFIC_VISUALIZER_DIR}/health_probe.py")
     node.appendStartCommand(
         f"python3 {TRAFFIC_VISUALIZER_DIR}/health_probe.py "
@@ -172,7 +175,7 @@ def install_legitimate_client(node: Node) -> None:
         f"--bandwidth-url http://10.151.0.71:{VICTIM_SERVICE_PORT}/bandwidth "
         "--interval 0.2 --timeout 0.5 "
         "--bandwidth-bytes 262144 --bandwidth-interval 5 --bandwidth-timeout 3 "
-        f"--report-to http://10.151.0.71:{TRAFFIC_VISUALIZER_CONTAINER_PORT}/api/impact "
+        f"--serve-port {HEALTH_PROBE_CONTAINER_PORT} --cors-origin '*' --max-samples 300 "
         ">> /var/log/victim-health-probe.log 2>&1",
         fork=True,
     )

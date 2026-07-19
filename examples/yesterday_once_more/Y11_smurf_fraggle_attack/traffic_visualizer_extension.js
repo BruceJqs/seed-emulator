@@ -35,6 +35,11 @@
   }
 
   function updateImpact(impact) {
+    if (impact?.probe_api_error) {
+      showWaiting();
+      setStatus('PROBE OFFLINE', 'unreachable');
+      return;
+    }
     if (!impact || !impact.sample_count) {
       showWaiting();
       return;

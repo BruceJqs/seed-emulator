@@ -73,6 +73,8 @@
     let pendingMarkers = [];
     let extension = null;
     let extensionContext = null;
+    let healthApiUrl = '';
+    let healthResetUrl = '';
 
     window.TrafficVisualizer = {
       apiVersion: 1,
@@ -130,10 +132,24 @@
       }
     }
 
+    async function fetchHealth() {
+      if (!healthApiUrl) return null;
+      try {
+        const response = await fetch(healthApiUrl, {cache: 'no-store'});
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        return {probe_api_error: error.message};
+      }
+    }
+
     async function refresh() {
       try {
-        const response = await fetch('/api/stats');
+        const statsRequest = fetch('/api/stats');
+        const healthRequest = fetchHealth();
+        const response = await statsRequest;
         const stats = await response.json();
+        stats.impact = await healthRequest;
         document.querySelector('#total').textContent = number.format(stats.total_packets);
         document.querySelector('#rate').textContent = number.format(stats.packets_last_second);
         document.querySelector('#totalBytes').textContent = formatBytes(stats.total_ip_bytes);
@@ -163,6 +179,15 @@
         const response = await fetch('/api/config');
         const payload = await response.json();
         const frontend = payload.frontend || {};
+        const healthApiPort = Number(frontend.options?.health_api_port);
+        healthApiUrl = frontend.options?.health_api_url || (
+          healthApiPort
+            ? `${window.location.protocol}//${window.location.hostname}:${healthApiPort}/api/health`
+            : ''
+        );
+        healthResetUrl = frontend.options?.health_reset_url || (
+          healthApiUrl ? new URL('/api/reset', healthApiUrl).href : ''
+        );
         document.querySelector('#title').textContent = frontend.title || 'Traffic Visualizer';
         document.querySelector('#subtitle').textContent = frontend.subtitle || 'Packets observed';
         document.title = `${frontend.title || 'Traffic Visualizer'} | SEED`;
@@ -189,7 +214,9 @@
     }
 
     document.querySelector('#reset').addEventListener('click', async () => {
-      await fetch('/api/reset', {method: 'POST'});
+      const resets = [fetch('/api/reset', {method: 'POST'})];
+      if (healthResetUrl) resets.push(fetch(healthResetUrl, {method: 'POST'}));
+      await Promise.allSettled(resets);
       invokeExtension('reset', extensionContext);
       await refresh();
     });

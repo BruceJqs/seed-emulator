@@ -123,12 +123,14 @@ def main() -> int:
             interval=3,
         )
 
-    if victim and legitimate_client:
+    if legitimate_client:
         test.exec_check(
-            "Traffic Visualizer receives legitimate-client health samples",
-            victim,
+            "health probe API serves latency and goodput samples with CORS",
+            legitimate_client,
             "python3 -c \"import json,urllib.request; "
-            "d=json.load(urllib.request.urlopen('http://127.0.0.1:8080/api/impact')); "
+            "r=urllib.request.urlopen('http://127.0.0.1:8080/api/health'); "
+            "assert r.headers['Access-Control-Allow-Origin'] == '*', r.headers; "
+            "d=json.load(r); "
             "assert d['sample_count'] >= 2, d; "
             "assert d['bandwidth_sample_count'] >= 1, d; "
             "assert d['latest_throughput_mbps'] is not None, d\"",

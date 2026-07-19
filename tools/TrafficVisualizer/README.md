@@ -72,7 +72,7 @@ use a service during an attack:
 - `victim_http_service.py` is a small synthetic service for examples that do
   not already have a suitable application to probe.
 - `health_probe.py` runs on a separate legitimate-client node, measures any
-  configured HTTP URL, and submits each result to Traffic Visualizer.
+  configured HTTP URL, stores a rolling history, and serves it to the browser.
 
 For example:
 
@@ -82,7 +82,7 @@ python3 victim_http_service.py --port 8000
 python3 health_probe.py \
   --target http://10.151.0.71:8000/health \
   --bandwidth-url http://10.151.0.71:8000/bandwidth \
-  --report-to http://10.151.0.71:8080/api/impact
+  --serve-port 8080 --cors-origin '*'
 ```
 
 The synthetic service's `/bandwidth?bytes=N` endpoint returns a bounded fixed
@@ -90,6 +90,24 @@ payload. When `--bandwidth-url` is configured, the probe periodically measures
 application goodput in Mbps in addition to latency and reachability. Its
 `--bandwidth-bytes`, `--bandwidth-interval`, and `--bandwidth-timeout` options
 control the cost and frequency of that measurement.
+
+The probe's `/api/health` endpoint returns the rolling measurement snapshot.
+The example should forward the probe port to the Docker host and set
+`frontend.options.health_api_port`. The shared dashboard then fetches packet
+statistics from the victim and health measurements directly from the probe.
+The probe includes CORS headers so those requests can use separate host ports.
+
+```mermaid
+flowchart LR
+    Browser["Browser"]
+    Visualizer["Traffic Visualizer<br/>victim container"]
+    Probe["Health probe API<br/>legitimate-client container"]
+    Service["Victim HTTP service"]
+
+    Browser -->|"GET :8081/api/stats"| Visualizer
+    Browser -->|"GET :8082/api/health"| Probe
+    Probe -->|"Latency and bandwidth probes<br/>through emulated network"| Service
+```
 
 The synthetic service is optional. An example with a real HTTP application can
 point `health_probe.py` at that application instead. Target addresses, probe
@@ -108,10 +126,10 @@ python3 network_control.py status --subnet 10.151.0.0/24
 python3 network_control.py clear --subnet 10.151.0.0/24
 ```
 
-Because `tc` controls egress, a symmetric access-link experiment applies the
-limit on the router interface facing the victim and on the victim's own
-interface. `set` replaces the selected interface's root qdisc; use it only when
-that interface does not contain another link policy that must be preserved.
+Because `tc` controls egress, applying it to the router interface facing the
+victim limits traffic entering the victim network. `set` replaces the selected
+interface's root qdisc; use it only when that interface does not contain
+another link policy that must be preserved.
 
 `container_control.py` runs on the Docker host and changes CPU or memory limits
 with `docker update`. Before the first change it saves the original limits in a
@@ -131,12 +149,17 @@ through Traffic Visualizer's HTTP API.
 - `/` - dashboard
 - `/api/stats` - current packet counters
 - `/api/config` - frontend metadata and extension options
-- `/api/impact` - current legitimate-client health measurements; accepts probe samples with `POST`
 - `/api/reset` - reset counters with an HTTP `POST`
 - `/extension.js` and `/extension.css` - optional example-owned assets
 - `/healthz` - capture process status
 
-An external health probe can submit a successful measurement with:
+The health probe provides these separate endpoints:
+
+- `/api/health` - current legitimate-client health measurements
+- `/api/reset` - reset the health history with an HTTP `POST`
+- `/healthz` - probe API status
+
+A successful health snapshot contains samples such as:
 
 ```json
 {
@@ -148,6 +171,6 @@ An external health probe can submit a successful measurement with:
 }
 ```
 
-For a timeout or connection failure, it submits `{"success": false}`. The
-rolling impact snapshot is included in `/api/stats`, allowing example frontend
-extensions to correlate attack traffic with legitimate-service health.
+For a timeout or connection failure, a sample contains `{"success": false}`.
+The browser combines this probe response with the victim's `/api/stats`
+response before updating the example frontend extension.
