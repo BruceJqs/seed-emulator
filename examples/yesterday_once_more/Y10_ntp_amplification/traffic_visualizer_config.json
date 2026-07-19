@@ -10,7 +10,10 @@
     "extension_js": "traffic_visualizer_extension.js",
     "extension_css": "traffic_visualizer_extension.css",
     "options": {
-      "amplifiers": "AS152 · AS160 · AS171"
+      "amplifiers": "AS152 / AS160 / AS171",
+      "request_payload_bytes": 36,
+      "request_ip_bytes": 64,
+      "gauge_max_amplification": 20
     }
   }
 }

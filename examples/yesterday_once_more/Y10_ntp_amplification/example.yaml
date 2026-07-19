@@ -2,7 +2,7 @@ id: yesterday-y10-ntp-amplification
 name: NTP-Like Amplification
 description: B00 mini-Internet topology with lab-only NTP-like amplifiers and an attack trigger.
 runner: internet
-script: ntp_amplification.py
+script: emulator.py
 platform: amd
 features:
   - mini-internet

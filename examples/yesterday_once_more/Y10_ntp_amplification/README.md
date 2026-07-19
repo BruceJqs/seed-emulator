@@ -44,17 +44,19 @@ docker compose -f output/docker-compose.yml exec hnode_150_host_0 \
 ```
 
 The generic area displays packet and IP-byte totals, rates, and packet-flow
-animation. Y10 adds a small extension panel describing the request/reply
-pattern, the three amplifier ASes, and average observed IP packet size. The
-extension files live with this example; the capture agent and base dashboard
-remain shared in `tools/TrafficVisualizer`.
+animation. Y10's extension compares the fixed 64-byte request IP packet with
+the average response IP packet and displays the resulting IP-layer byte
+amplification as a number and scale. With the default 1,200-byte response
+payload, the response IP packet is 1,228 bytes and the scale is approximately
+19.2x. The extension files live with this example; the capture agent and base
+dashboard remain shared in `tools/TrafficVisualizer`.
 
 ## Build
 
 From the repository root:
 
 ```sh
-python examples/yesterday_once_more/Y10_ntp_amplification/ntp_amplification.py --platform amd
+python examples/yesterday_once_more/Y10_ntp_amplification/emulator.py --platform amd
 ```
 
 The generated Docker files are placed in:
