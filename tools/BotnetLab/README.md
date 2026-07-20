@@ -64,10 +64,12 @@ Start two agents in separate terminals:
 
 ```sh
 python3 agent.py --controller http://127.0.0.1:8080 --token demo-token \
-  --bot-id bot-001 --asn 152 --handler demo=example_handler.py
+  --bot-id bot-001 --address 10.152.0.73 --asn 152 \
+  --handler demo=example_handler.py
 
 python3 agent.py --controller http://127.0.0.1:8080 --token demo-token \
-  --bot-id bot-002 --asn 160 --handler demo=example_handler.py
+  --bot-id bot-002 --address 10.160.0.73 --asn 160 \
+  --handler demo=example_handler.py
 ```
 
 List bots and launch a harmless task:
@@ -81,6 +83,10 @@ python3 botctl.py --token demo-token launch demo \
 python3 botctl.py --token demo-token commands
 python3 botctl.py --token demo-token command COMMAND_ID --watch
 ```
+
+The `bots` table includes each agent's reported ASN and IP address. If an agent
+does not supply `--address`, the controller records the connection's source
+address instead.
 
 The controller schedules the default command two seconds in the future. Agents
 receive the same `start_at` timestamp, which helps distributed traffic handlers

@@ -71,13 +71,17 @@ def load_parameters(args: argparse.Namespace) -> dict[str, Any]:
 
 def print_bots(payload: dict[str, Any]) -> None:
     print(f"bots={payload['bot_count']} online={payload['online_count']}")
-    print(f"{'BOT ID':<24} {'ONLINE':<7} {'STATE':<11} {'ASN':<8} CAPABILITIES")
+    print(
+        f"{'BOT ID':<24} {'ONLINE':<7} {'STATE':<11} "
+        f"{'ASN':<8} {'IP ADDRESS':<39} CAPABILITIES"
+    )
     for bot in payload["bots"]:
         print(
             f"{bot['bot_id']:<24} "
             f"{('yes' if bot['online'] else 'no'):<7} "
             f"{bot['agent_state']:<11} "
             f"{bot['asn']:<8} "
+            f"{bot['address'] or '-':<39} "
             f"{','.join(bot['capabilities']) or '-'}"
         )
 

@@ -154,6 +154,8 @@ class HTTPIntegrationTests(unittest.TestCase):
             {
                 "bot_id": "bot-cli",
                 "hostname": "bot-cli",
+                "address": "10.152.0.73",
+                "asn": "152",
                 "capabilities": ["demo"],
             },
         )
@@ -172,6 +174,8 @@ class HTTPIntegrationTests(unittest.TestCase):
             text=True,
         )
         self.assertIn("bot-cli", listed.stdout)
+        self.assertIn("IP ADDRESS", listed.stdout)
+        self.assertIn("10.152.0.73", listed.stdout)
         launched = subprocess.run(
             base_command
             + [
