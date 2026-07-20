@@ -53,18 +53,13 @@ ten seconds.
 From the repository root:
 
 ```sh
-python examples/yesterday_once_more/Y13_botnet_dos_attack/emulator.py \
-  --platform amd \
-  --output examples/yesterday_once_more/Y13_botnet_dos_attack/output
+# The default value for bot-count is 8
+python emulator.py --bot-count 12
 
-docker compose -f examples/yesterday_once_more/Y13_botnet_dos_attack/output/docker-compose.yml up -d
+# Start the emulator.
+docker compose -f output/docker-compose.yml up
 ```
 
-The default is eight bots. A different count can be selected at compile time:
-
-```sh
-python examples/yesterday_once_more/Y13_botnet_dos_attack/emulator.py --bot-count 12
-```
 
 Bots are assigned round-robin across the candidate ASes. Their addresses are
 assigned explicitly: Y13 first uses addresses after B00's automatically created
@@ -84,9 +79,9 @@ http://localhost:8083/api/bots        measured bot enrollment and state
 http://localhost:8083/api/commands    command progress
 ```
 
-Bot icons are no longer inferred from packet traffic. Each icon represents an
-actual BotnetLab registration. Online bots are visible, running bots animate,
+Each icon represents an actual BotnetLab registration. Online bots are visible, running bots animate,
 and unavailable bots remain dimmed.
+
 
 ## Make network contention visible
 
@@ -120,8 +115,8 @@ The controller container includes a wrapper named `botctl` with the Y13
 controller URL and token already configured:
 
 ```sh
-docker exec hnode_150_bot-controller botctl bots
-docker exec hnode_150_bot-controller botctl commands
+docker compose -f output/docker-compose.yml exec hnode_150_bot-controller botctl bots
+docker compose -f output/docker-compose.yml exec hnode_150_bot-controller botctl commands
 ```
 
 The bot list shows measured online state, current agent state, ASN, and the
@@ -133,14 +128,16 @@ The default workload is 200 packets per second per bot with a 1200-byte UDP
 payload for ten seconds:
 
 ```sh
-docker exec hnode_150_bot-controller botctl launch udp_load \
+docker compose -f output/docker-compose.yml exec hnode_150_bot-controller \
+  botctl launch udp_load \
   --parameters '{"duration_seconds":10,"packets_per_second":200,"udp_payload_bytes":1200}'
 ```
 
 `botctl` prints a command ID. Use it to watch delivery and execution:
 
 ```sh
-docker exec hnode_150_bot-controller botctl command COMMAND_ID --watch
+docker compose -f output/docker-compose.yml exec hnode_150_bot-controller \
+   botctl command COMMAND_ID --watch
 ```
 
 With eight bots, the default command offers approximately 15.72 Mbps at the IP
@@ -151,8 +148,8 @@ dashboard's observed rate comes from IPv4 Total Length values reported by
 Multiple bounded rounds can illustrate degradation and recovery:
 
 ```sh
-docker exec hnode_150_bot-controller botctl launch udp_load \
-  --timeout 60 \
+docker compose -f output/docker-compose.yml exec hnode_150_bot-controller \
+  botctl launch udp_load --timeout 60 \
   --parameters '{"duration_seconds":8,"packets_per_second":200,"udp_payload_bytes":1200,"rounds":3,"round_interval_seconds":5}'
 ```
 
@@ -166,7 +163,7 @@ approximately the same time. During that window, undelivered or delivered
 assignments can be cancelled:
 
 ```sh
-docker exec hnode_150_bot-controller botctl cancel COMMAND_ID
+docker compose -f output/docker-compose.yml exec hnode_150_bot-controller botctl cancel COMMAND_ID
 ```
 
 Cancellation does not terminate a handler that is already running. Y13's
