@@ -43,21 +43,13 @@ rate comes from IPv4 Total Length values reported by `tcpdump` on the victim.
 
 ## Build and start
 
-From the repository root:
+From the repository root, run the following program (the default 
+bot-count is eight bots). 
 
 ```sh
-python examples/yesterday_once_more/Y13_botnet_dos_attack/emulator.py \
-  --platform amd \
-  --output examples/yesterday_once_more/Y13_botnet_dos_attack/output
-
-docker compose -f examples/yesterday_once_more/Y13_botnet_dos_attack/output/docker-compose.yml up -d
+python emulator.py --bot-count 12
 ```
 
-The default is eight bots. A different count can be selected at compile time:
-
-```sh
-python examples/yesterday_once_more/Y13_botnet_dos_attack/emulator.py --bot-count 12
-```
 
 Bots are assigned round-robin across the candidate ASes. Counts greater than
 the number of candidate ASes create multiple bot hosts in some ASes. Y13 checks
@@ -104,7 +96,7 @@ for these router containers.
 Enter the controller and display the prepared instructions:
 
 ```sh
-docker exec -it hnode_150_bot-controller bash
+docker compose -f output/docker-compose.yml exec -it hnode_150_bot-controller bash
 show-attack-command
 start-byob-shell
 ```
@@ -115,7 +107,7 @@ Inside the BYOB shell, first confirm that clients are enrolled:
 sessions
 ```
 
-Then invoke the preinstalled sender on every client:
+Then invoke the pre-installed sender on every client:
 
 ```text
 broadcast python3 /opt/botnet-dos/bot_attack.py --duration 10 --pps 200 --packet-size 1200
