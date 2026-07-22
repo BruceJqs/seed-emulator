@@ -89,7 +89,7 @@ The rate limit is controlled at runtime and is not hardcoded into the topology.
 Apply it to the AS151 border-router interface facing the victim network:
 
 ```sh
-docker exec brdnode_151_router0 \
+docker compose -f output/docker-compose.yml exec brdnode_151_router0 \
   python3 /opt/botnet-dos/traffic_visualizer/network_control.py set \
   --subnet 10.151.0.0/24 --rate 8mbit
 ```
@@ -97,11 +97,11 @@ docker exec brdnode_151_router0 \
 Inspect or remove it with:
 
 ```sh
-docker exec brdnode_151_router0 \
+docker compose -f output/docker-compose.yml exec brdnode_151_router0 \
   python3 /opt/botnet-dos/traffic_visualizer/network_control.py status \
   --subnet 10.151.0.0/24
 
-docker exec brdnode_151_router0 \
+docker compose -f output/docker-compose.yml exec brdnode_151_router0 \
   python3 /opt/botnet-dos/traffic_visualizer/network_control.py clear \
   --subnet 10.151.0.0/24
 ```
