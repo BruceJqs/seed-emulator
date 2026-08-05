@@ -17,6 +17,7 @@ from typing import List, Dict, Set, Tuple, Optional
 from string import ascii_letters
 from random import choice
 from .BaseSystem import BaseSystem
+from .ImageRef import ImageRef
 
 DEFAULT_SOFTWARE: List[str] = ['zsh', 'curl', 'nano', 'vim-nox', 'mtr-tiny', 'iproute2', 'iputils-ping', 'tcpdump', 'termshark', 'dnsutils', 'jq', 'ipcalc', 'netcat-openbsd']
 
@@ -215,6 +216,7 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
 
     __name: str
     __base_system: BaseSystem
+    __base_images: Dict[Optional[str], ImageRef]
     __asn: int
     __scope: str
     __role: NodeRole
@@ -273,6 +275,7 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         self.__ports = []
         self.__privileged = False
         self.__base_system = BaseSystem.DEFAULT
+        self.__base_images = {}
 
         self.__pending_nets = []
         self.__xcs = {}
@@ -501,6 +504,47 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         @returns self, for chaining API calls.
         """
         self.__base_system = base_system
+
+    def setBaseImage(self, image_ref: ImageRef) -> Node:
+        """!
+        @brief Set an explicit compiler-neutral base image requirement.
+
+        A platform-specific reference replaces the existing reference for the
+        same platform. A reference without a platform acts as the fallback.
+
+        @param image_ref image reference to use.
+
+        @returns self, for chaining API calls.
+        """
+        if not isinstance(image_ref, ImageRef):
+            raise TypeError("image_ref must be an ImageRef")
+        self.__base_images[image_ref.platform] = image_ref
+
+        return self
+
+    def getBaseImage(self, platform: Optional[str] = None) -> Optional[ImageRef]:
+        """!
+        @brief Get the explicit base image for a target platform.
+
+        An exact platform match is preferred over the platform-neutral
+        fallback. Without a requested platform, a sole platform-specific image
+        is returned for convenient inspection.
+
+        @param platform target platform, such as ``amd64`` or ``arm64``.
+
+        @returns matching image reference, or None when none is configured.
+        """
+        if platform is not None and platform in self.__base_images:
+            return self.__base_images[platform]
+        if None in self.__base_images:
+            return self.__base_images[None]
+        if platform is None and len(self.__base_images) == 1:
+            return next(iter(self.__base_images.values()))
+        return None
+
+    def getBaseImages(self) -> List[ImageRef]:
+        """! @returns all explicit base image references on this node. """
+        return list(self.__base_images.values())
 
     def getBaseSystem(self) -> BaseSystem:
         """!
@@ -1021,6 +1065,8 @@ class Node(Printable, Registrable, Configurable, Vertex, Customizable):
         # (5) Render Services.
         # copySettings is called in the step (4) and the base system is replaced when in the step (5)
         # if node.getBaseSystem() != None : self.setBaseSystem(node.getClasses())
+
+        for image_ref in node.getBaseImages(): self.setBaseImage(image_ref)
 
         for (h, n, p) in node.getPorts(): self.addPort(h, n, p)
         for v in node.getDockerVolumes(): self.addDockerVolume(v)

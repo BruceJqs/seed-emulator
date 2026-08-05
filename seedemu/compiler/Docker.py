@@ -776,6 +776,29 @@ class Docker(Compiler):
 
             return (image, nodeSoft - image.getSoftware())
 
+        # Use the node's base image for the target platform.
+        image_ref = node.getBaseImage(self.__platform.value)
+        if image_ref is not None:
+            image_name = str(image_ref)
+            if image_name not in self.__images:
+                self.addImage(
+                    DockerImage(name=image_name, software=[], local=False, subset=None),
+                    priority=0,
+                )
+            (image, _) = self.__images[image_name]
+            self._log('node base image configured, using {}'.format(image_name))
+            return (image, nodeSoft - image.getSoftware())
+
+        configured_images = node.getBaseImages()
+        if configured_images:
+            raise ValueError(
+                'node has base images configured, but none matches platform {}. '
+                'Available platforms: {}'.format(
+                    self.__platform.value,
+                    [ref.platform for ref in configured_images],
+                )
+            )
+
         #Maintain a table : Virtual Image Name - Actual Image Name
         image = self.__basesystem_dockerimage_mapping[node.getBaseSystem()]
 
