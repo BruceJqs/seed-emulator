@@ -18,4 +18,6 @@ python seedemu/testing/cli.py all examples/basic/A14_base_image/example.yaml
 
 The full test checks AMD64 output and the running container. Its test program
 also compiles an ARM64 variant, verifies image reference parsing and validation,
-checks the missing-platform error, and confirms the legacy base-system fallback.
+checks the missing-platform error, confirms the legacy base-system fallback, and
+verifies that an external component can register a structured Compose service
+on a generated SeedEmu network.

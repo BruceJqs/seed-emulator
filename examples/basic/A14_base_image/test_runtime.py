@@ -7,11 +7,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import warnings
 
-from seedemu.compiler import Platform
+import yaml
+from seedemu.compiler import Docker, Platform
 from seedemu.core import ImageRef
 from seedemu.testing import ComposeRuntimeTest
 
-from base_image import AMD_IMAGE, ARM_IMAGE, compile_emulator
+from base_image import AMD_IMAGE, ARM_IMAGE, build_emulator, compile_emulator
 
 
 def docker_from_lines(output: Path) -> set[str]:
@@ -35,6 +36,34 @@ def compile_without_resource_warnings(
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ResourceWarning)
             compile_emulator(output, platform, image_refs=image_refs)
+    finally:
+        os.chdir(working_directory)
+
+
+def compile_with_compose_service(output: Path) -> str:
+    working_directory = Path.cwd()
+    try:
+        emulator = build_emulator(())
+        emulator.render()
+        network = (
+            emulator.getLayer("Base")
+            .getAutonomousSystem(150)
+            .getNetwork("net0")
+        )
+        docker = Docker(platform=Platform.AMD64, internetMapEnabled=False)
+        network_name = docker.getComposeNetworkName(network)
+        docker.addComposeService(
+            "extension-probe",
+            {
+                "image": "busybox:1.36",
+                "command": ["sh", "-c", "exit 0"],
+                "networks": {network_name: {}},
+            },
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ResourceWarning)
+            emulator.compile(docker, str(output), override=True)
+        return network_name
     finally:
         os.chdir(working_directory)
 
@@ -141,6 +170,24 @@ def main() -> int:
         test.structural_check(
             "Nodes without ImageRef keep the BaseSystem fallback",
             legacy_fallback_works,
+            message,
+        )
+
+    with TemporaryDirectory() as temporary:
+        output = Path(temporary) / "compose-extension"
+        try:
+            network_name = compile_with_compose_service(output)
+            with (output / "docker-compose.yml").open("r", encoding="utf-8") as handle:
+                compose = yaml.safe_load(handle)
+            service = compose.get("services", {}).get("extension-probe", {})
+            compose_extension_works = network_name in service.get("networks", {})
+            message = "service network={}".format(network_name)
+        except Exception as error:
+            compose_extension_works = False
+            message = str(error)
+        test.structural_check(
+            "External components can add structured Compose services",
+            compose_extension_works,
             message,
         )
 

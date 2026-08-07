@@ -4,7 +4,8 @@ from seedemu.core import Node, Network, Compiler, BaseSystem, BaseOption, Scope,
 from seedemu.core.enums import NodeRole, NetworkType
 from .DockerImage import DockerImage
 from .DockerImageConstant import *
-from typing import Dict, Generator, List, Set, Tuple
+from typing import Any, Dict, Generator, List, Mapping, Set, Tuple
+from copy import deepcopy
 from hashlib import md5
 from functools import cmp_to_key
 from os import mkdir, chdir
@@ -12,7 +13,7 @@ from re import sub
 from ipaddress import IPv4Network, IPv4Address
 from shutil import copyfile
 import json
-from yaml import dump
+from yaml import dump, safe_dump
 
 SEEDEMU_INTERNET_MAP_IMAGE='handsonsecurity/seedemu-internetmap:2.0'
 
@@ -467,6 +468,7 @@ class Docker(Compiler):
 
     __services: str
     __custom_services: str
+    __compose_services: Dict[str, Dict[str, Any]]
 
     __networks: str
     __naming_scheme: str
@@ -543,6 +545,7 @@ class Docker(Compiler):
         self.__networks = ""
         self.__services = ""
         self.__custom_services = ""
+        self.__compose_services = {}
         self.__naming_scheme = namingScheme
         self.__self_managed_network = selfManagedNetwork
         self.__dummy_network_pool = IPv4Network(dummyNetworksPool).subnets(new_prefix = dummyNetworksMask)
@@ -1554,6 +1557,7 @@ class Docker(Compiler):
 
         # Add custom entries (typically added through Docker::attachCustomContainer APIs)
         self.__services += self.__custom_services
+        self.__services += self._renderComposeServices()
 
         local_images = ''
         for (image, _) in self.__images.values():
@@ -1574,6 +1578,53 @@ class Docker(Compiler):
         ), file=open('docker-compose.yml', 'w'))
 
         self.generateEnvFile(Scope(ScopeTier.Global),'')
+
+    def _renderComposeServices(self) -> str:
+        if not self.__compose_services:
+            return ''
+
+        rendered = safe_dump(
+            self.__compose_services,
+            sort_keys=False,
+            default_flow_style=False,
+        ).rstrip()
+        return ''.join('    {}\n'.format(line) for line in rendered.splitlines())
+
+    def addComposeService(self, name: str, service: Mapping[str, Any]) -> Docker:
+        """!
+        @brief Add a Docker Compose service to the compiled deployment.
+
+        This API is intended for external components that need auxiliary
+        containers without depending on Docker compiler internals.
+
+        @param name Docker Compose service name.
+        @param service Docker Compose service definition.
+
+        @returns self, for chaining API calls.
+        """
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError('compose service name must be a non-empty string')
+        if name != name.strip():
+            raise ValueError('compose service name must not contain surrounding whitespace')
+        if not isinstance(service, Mapping):
+            raise TypeError('compose service definition must be a mapping')
+        if name in self.__compose_services:
+            raise ValueError('compose service {} is already registered'.format(name))
+
+        self.__compose_services[name] = deepcopy(dict(service))
+        return self
+
+    def getComposeNetworkName(self, network: Network) -> str:
+        """!
+        @brief Get a network name as emitted in docker-compose.yml.
+
+        @param network rendered SeedEmu network.
+
+        @returns Docker Compose network name.
+        """
+        if not isinstance(network, Network):
+            raise TypeError('network must be a Network')
+        return self._getRealNetName(network)
 
     def _computeComposeTopLvlVolumes(self) -> str:
         """!@brief render the 'volumes:' section of the docker-compose.yml file
