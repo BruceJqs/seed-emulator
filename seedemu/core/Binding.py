@@ -71,6 +71,8 @@ class Binding(Printable):
             node_profile == server_profile
             or node_profile == BaseSystem.DEFAULT
             or server_profile == BaseSystem.DEFAULT
+            or node_profile.contains(server_profile)
+            or server_profile.contains(node_profile)
         )
 
     def __applyBaseSystem(self, vnode: str, node: Node, emulator: Emulator) -> None:
@@ -82,6 +84,10 @@ class Binding(Printable):
         if node_profile == BaseSystem.DEFAULT and server_profile != BaseSystem.DEFAULT:
             node.setBaseSystem(server_profile)
         elif server_profile == BaseSystem.DEFAULT and node_profile != BaseSystem.DEFAULT:
+            server.setBaseSystem(node_profile)
+        elif server_profile.contains(node_profile):
+            node.setBaseSystem(server_profile)
+        elif node_profile.contains(server_profile):
             server.setBaseSystem(node_profile)
 
     def __create(self, emulator: Emulator) -> Node:

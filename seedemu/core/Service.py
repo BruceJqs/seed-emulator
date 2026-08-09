@@ -176,6 +176,10 @@ class Service(Layer):#TODO: add availableOptions()
             node.setBaseSystem(server_profile)
         elif server_profile == BaseSystem.DEFAULT and node_profile != BaseSystem.DEFAULT:
             server.setBaseSystem(node_profile)
+        elif server_profile.contains(node_profile):
+            node.setBaseSystem(server_profile)
+        elif node_profile.contains(server_profile):
+            server.setBaseSystem(node_profile)
         else:
             assert node_profile == server_profile, (
                 "node profile {} conflicts with server profile {}".format(
