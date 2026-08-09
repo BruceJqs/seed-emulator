@@ -22,7 +22,7 @@ from .RemoteAccessProvider import RemoteAccessProvider
 from .ExternalConnectivityProvider import ExternalConnectivityProvider
 from .Compiler import Compiler, OptionHandling
 from .BaseSystem import BaseSystem
-from .ImageRef import ImageRef
+from .SystemProfile import SystemProfile
 from .Scope import *
 from .Option import BaseOption, OptionMode, Option, BaseComponent, BaseOptionGroup, AutoRegister, OptionGroupMeta
 from .OptionRegistry import OptionRegistry

@@ -1,11 +1,10 @@
 from __future__ import annotations
 from seedemu.core.Emulator import Emulator
-from seedemu.core import Node, Network, Compiler, BaseSystem, BaseOption, Scope, ScopeType, ScopeTier, OptionHandling, BaseVolume, OptionMode
+from seedemu.core import Node, Network, Compiler, BaseSystem, SystemProfile, BaseOption, Scope, ScopeType, ScopeTier, OptionHandling, BaseVolume, OptionMode
 from seedemu.core.enums import NodeRole, NetworkType
 from .DockerImage import DockerImage
 from .DockerImageConstant import *
 from typing import Any, Dict, Generator, List, Mapping, Set, Tuple
-from copy import deepcopy
 from hashlib import md5
 from functools import cmp_to_key
 from os import mkdir, chdir
@@ -468,7 +467,6 @@ class Docker(Compiler):
 
     __services: str
     __custom_services: str
-    __compose_services: Dict[str, Dict[str, Any]]
 
     __networks: str
     __naming_scheme: str
@@ -545,7 +543,6 @@ class Docker(Compiler):
         self.__networks = ""
         self.__services = ""
         self.__custom_services = ""
-        self.__compose_services = {}
         self.__naming_scheme = namingScheme
         self.__self_managed_network = selfManagedNetwork
         self.__dummy_network_pool = IPv4Network(dummyNetworksPool).subnets(new_prefix = dummyNetworksMask)
@@ -573,13 +570,25 @@ class Docker(Compiler):
 
         self.__platform = platform
 
-        self.__basesystem_dockerimage_mapping = BASESYSTEM_DOCKERIMAGE_MAPPING_PER_PLATFORM[self.__platform]
+        self.__basesystem_dockerimage_mapping = self._getSystemImageCatalog(self.__platform)
 
-        for name, image in self.__basesystem_dockerimage_mapping.items():
+        registered_images = {}
+        for profile, image in self.__basesystem_dockerimage_mapping.items():
+            image_name = image.getName()
+            if image_name in registered_images:
+                self.__basesystem_dockerimage_mapping[profile] = registered_images[image_name]
+                continue
+            registered_images[image_name] = image
             priority = 0
-            if name == BaseSystem.DEFAULT:
+            if profile == BaseSystem.DEFAULT:
                 priority = 1
             self.addImage(image, priority=priority)
+
+    def _getSystemImageCatalog(
+        self, platform: Platform
+    ) -> Dict[SystemProfile, DockerImage]:
+        """Return the system-profile image catalog for a target platform."""
+        return dict(BASESYSTEM_DOCKERIMAGE_MAPPING_PER_PLATFORM[platform])
 
     def _addVolume(self, vol: BaseVolume):
         """! @brief add a docker volume/bind mount/or tmpfs
@@ -779,31 +788,15 @@ class Docker(Compiler):
 
             return (image, nodeSoft - image.getSoftware())
 
-        # Use the node's base image for the target platform.
-        image_ref = node.getBaseImage(self.__platform.value)
-        if image_ref is not None:
-            image_name = str(image_ref)
-            if image_name not in self.__images:
-                self.addImage(
-                    DockerImage(name=image_name, software=[], local=False, subset=None),
-                    priority=0,
-                )
-            (image, _) = self.__images[image_name]
-            self._log('node base image configured, using {}'.format(image_name))
-            return (image, nodeSoft - image.getSoftware())
-
-        configured_images = node.getBaseImages()
-        if configured_images:
-            raise ValueError(
-                'node has base images configured, but none matches platform {}. '
-                'Available platforms: {}'.format(
-                    self.__platform.value,
-                    [ref.platform for ref in configured_images],
+        # Maintain a table: system profile - Docker image.
+        profile = node.getBaseSystem()
+        if profile not in self.__basesystem_dockerimage_mapping:
+            raise KeyError(
+                "{} does not support system profile {} on platform {}".format(
+                    self.getName(), profile, self.__platform.value
                 )
             )
-
-        #Maintain a table : Virtual Image Name - Actual Image Name
-        image = self.__basesystem_dockerimage_mapping[node.getBaseSystem()]
+        image = self.__basesystem_dockerimage_mapping[profile]
 
         return (image, nodeSoft - image.getSoftware())
 
@@ -1557,7 +1550,7 @@ class Docker(Compiler):
 
         # Add custom entries (typically added through Docker::attachCustomContainer APIs)
         self.__services += self.__custom_services
-        self.__services += self._renderComposeServices()
+        self.__services += self._renderAdditionalComposeServices(emulator)
 
         local_images = ''
         for (image, _) in self.__images.values():
@@ -1579,52 +1572,38 @@ class Docker(Compiler):
 
         self.generateEnvFile(Scope(ScopeTier.Global),'')
 
-    def _renderComposeServices(self) -> str:
-        if not self.__compose_services:
-            return ''
+    def _getAdditionalComposeServices(
+        self, emulator: Emulator
+    ) -> Mapping[str, Mapping[str, Any]]:
+        """Return auxiliary Compose services supplied by a compiler subclass."""
+        return {}
+
+    def _renderAdditionalComposeServices(self, emulator: Emulator) -> str:
+        services = self._getAdditionalComposeServices(emulator)
+        if not isinstance(services, Mapping):
+            raise TypeError("additional Compose services must be a mapping")
+        if not services:
+            return ""
+
+        for name, service in services.items():
+            if (
+                not isinstance(name, str)
+                or not name.strip()
+                or name != name.strip()
+            ):
+                raise ValueError(
+                    "Compose service names must be non-empty strings "
+                    "without surrounding whitespace"
+                )
+            if not isinstance(service, Mapping):
+                raise TypeError("Compose service definitions must be mappings")
 
         rendered = safe_dump(
-            self.__compose_services,
+            dict(services),
             sort_keys=False,
             default_flow_style=False,
         ).rstrip()
-        return ''.join('    {}\n'.format(line) for line in rendered.splitlines())
-
-    def addComposeService(self, name: str, service: Mapping[str, Any]) -> Docker:
-        """!
-        @brief Add a Docker Compose service to the compiled deployment.
-
-        This API is intended for external components that need auxiliary
-        containers without depending on Docker compiler internals.
-
-        @param name Docker Compose service name.
-        @param service Docker Compose service definition.
-
-        @returns self, for chaining API calls.
-        """
-        if not isinstance(name, str) or not name.strip():
-            raise ValueError('compose service name must be a non-empty string')
-        if name != name.strip():
-            raise ValueError('compose service name must not contain surrounding whitespace')
-        if not isinstance(service, Mapping):
-            raise TypeError('compose service definition must be a mapping')
-        if name in self.__compose_services:
-            raise ValueError('compose service {} is already registered'.format(name))
-
-        self.__compose_services[name] = deepcopy(dict(service))
-        return self
-
-    def getComposeNetworkName(self, network: Network) -> str:
-        """!
-        @brief Get a network name as emitted in docker-compose.yml.
-
-        @param network rendered SeedEmu network.
-
-        @returns Docker Compose network name.
-        """
-        if not isinstance(network, Network):
-            raise TypeError('network must be a Network')
-        return self._getRealNetName(network)
+        return "".join("    {}\n".format(line) for line in rendered.splitlines())
 
     def _computeComposeTopLvlVolumes(self) -> str:
         """!@brief render the 'volumes:' section of the docker-compose.yml file
