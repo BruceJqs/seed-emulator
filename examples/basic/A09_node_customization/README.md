@@ -34,13 +34,10 @@ ubuntu20.04
           └── seedemu-router
 ```
 
-The relationship can be queried through the compatibility API:
+The relationship can be queried directly through `SystemProfile.contains()`:
 
 ```python
-BaseSystem.doesAContainB(
-    BaseSystem.SEEDEMU_ROUTER,
-    BaseSystem.SEEDEMU_BASE,
-)
+BaseSystem.SEEDEMU_ROUTER.contains(BaseSystem.SEEDEMU_BASE)
 ```
 
 This returns `True`. Binding and service configuration use the relationship to

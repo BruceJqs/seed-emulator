@@ -22,10 +22,3 @@ class BaseSystem:
     )
     SEEDEMU_CHAINLINK = SystemProfile("seedemu-chainlink", subset=SEEDEMU_BASE)
     DEFAULT = SEEDEMU_BASE
-
-    @staticmethod
-    def doesAContainB(A: SystemProfile, B: SystemProfile) -> bool:
-        """Return whether system profile A transitively contains B."""
-        if not isinstance(A, SystemProfile) or not isinstance(B, SystemProfile):
-            raise TypeError("A and B must be SystemProfile values")
-        return A.contains(B)

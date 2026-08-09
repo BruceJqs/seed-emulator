@@ -34,12 +34,8 @@ def main() -> None:
     node.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
     assert node.getBaseSystem() == BaseSystem.SEEDEMU_ROUTER
 
-    assert BaseSystem.doesAContainB(
-        BaseSystem.SEEDEMU_ROUTER, BaseSystem.SEEDEMU_BASE
-    )
-    assert BaseSystem.doesAContainB(
-        BaseSystem.SEEDEMU_BASE, BaseSystem.UBUNTU_20_04
-    )
+    assert BaseSystem.SEEDEMU_ROUTER.contains(BaseSystem.SEEDEMU_BASE)
+    assert BaseSystem.SEEDEMU_BASE.contains(BaseSystem.UBUNTU_20_04)
 
     # Dockerfile: RUN apt-get update && apt-get install -y
     #                     --no-install-recommends python3

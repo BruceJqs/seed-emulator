@@ -255,7 +255,7 @@ class Routing(Layer):
         base = node.getBaseSystem()
         if (
             base != BaseSystem.SEEDEMU_ROUTER
-            and not BaseSystem.doesAContainB(base, BaseSystem.SEEDEMU_ROUTER)
+            and not base.contains(BaseSystem.SEEDEMU_ROUTER)
         ):
             node.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
 
