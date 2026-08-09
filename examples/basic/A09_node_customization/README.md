@@ -19,20 +19,19 @@ Use `setBaseSystem()` when a node explicitly requires a different runtime
 system:
 
 ```python
-node.setBaseSystem(BaseSystem.UBUNTU_24_04)
+node.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
 ```
 
-`Node` stores only the compiler-neutral profile. During compilation, `Docker`
-maps the exact profile to the corresponding image; in this example it selects
-`ubuntu:24.04`.
+`Node` stores only the compiler-neutral profile. The selected compiler decides
+how to realize that profile for its target platform.
 
-Profiles may contain a less specialized profile according to the runtime image
+Profiles may contain a less specialized profile according to the runtime
 inheritance chain:
 
 ```text
-ubuntu:24.04
-    └── seedemu-base:2.0
-          └── seedemu-router:2.0
+ubuntu20.04
+    └── seedemu-base
+          └── seedemu-router
 ```
 
 The relationship can be queried through the compatibility API:
@@ -45,13 +44,11 @@ BaseSystem.doesAContainB(
 ```
 
 This returns `True`. Binding and service configuration use the relationship to
-keep the more specialized compatible profile. Image selection remains exact:
-`seedemu-router` still maps to the router image rather than falling back to the
-base image.
+keep the more specialized compatible profile.
 
 Extensions define their own `SystemProfile` values and may set `subset` to a
 profile supplied by SeedEmu. SeedEmu does not need to contain the extension
-profile or its Docker image mapping.
+profile or know how another compiler realizes it.
 
 ## Running the example
 
@@ -64,6 +61,3 @@ For ARM64:
 ```bash
 python node_customization.py --platform arm --output output
 ```
-
-The compile step also checks that the customized host generated a Dockerfile
-starting with `FROM ubuntu:24.04`.

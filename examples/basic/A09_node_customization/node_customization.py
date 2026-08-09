@@ -30,16 +30,15 @@ def main() -> None:
     as152 = base.getAutonomousSystem(152)
     node = as152.getHost("host0")
 
-    # Select the runtime system required by this node. Docker maps this exact
-    # profile to ubuntu:24.04. More specialized profiles can declare this
-    # profile as their subset.
-    node.setBaseSystem(BaseSystem.UBUNTU_24_04)
+    # Select a runtime profile; the compiler decides how to realize it.
+    node.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
+    assert node.getBaseSystem() == BaseSystem.SEEDEMU_ROUTER
 
     assert BaseSystem.doesAContainB(
-        BaseSystem.SEEDEMU_BASE, BaseSystem.UBUNTU_24_04
+        BaseSystem.SEEDEMU_ROUTER, BaseSystem.SEEDEMU_BASE
     )
     assert BaseSystem.doesAContainB(
-        BaseSystem.SEEDEMU_ROUTER, BaseSystem.SEEDEMU_BASE
+        BaseSystem.SEEDEMU_BASE, BaseSystem.UBUNTU_20_04
     )
 
     # Dockerfile: RUN apt-get update && apt-get install -y
@@ -66,14 +65,6 @@ def main() -> None:
 
     emu.render()
     emu.compile(Docker(platform=platform), str(output), override=True)
-
-    dockerfiles = [
-        path.read_text()
-        for path in (output / "dummies").glob("*")
-    ]
-    assert any(
-        content.startswith("FROM ubuntu:24.04\n") for content in dockerfiles
-    ), "setBaseSystem did not select the ubuntu:24.04 image"
 
 
 if __name__ == "__main__":

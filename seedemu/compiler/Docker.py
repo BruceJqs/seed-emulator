@@ -775,7 +775,7 @@ class Docker(Compiler):
         # Should we keep this feature?
         if self.__disable_images:
             self._log('disable-imaged configured, using base image.')
-            (image, _) = self.__images['ubuntu:24.04']
+            (image, _) = self.__images['ubuntu:20.04']
             return (image, nodeSoft - image.getSoftware())
 
         # Set Default Image for All Nodes
