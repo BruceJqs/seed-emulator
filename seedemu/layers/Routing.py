@@ -253,7 +253,10 @@ class Routing(Layer):
         @brief Ensure a routing backend keeps the router base system.
         """
         base = node.getBaseSystem()
-        if not BaseSystem.doesAContainB(base, BaseSystem.SEEDEMU_ROUTER):
+        if (
+            base != BaseSystem.SEEDEMU_ROUTER
+            and not base.contains(BaseSystem.SEEDEMU_ROUTER)
+        ):
             node.setBaseSystem(BaseSystem.SEEDEMU_ROUTER)
 
     def _installFrr(self, node: Node):

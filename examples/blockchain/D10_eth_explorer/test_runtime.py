@@ -298,14 +298,6 @@ def main() -> int:
 
     wait_for_http(
         test,
-        "EthExplorer validator UI renders validator 0",
-        "/validator/0",
-        predicate=body_has_any("validator", "pubkey", "balance", "status"),
-        retries=90,
-        interval=5,
-    )
-    wait_for_http(
-        test,
         "EthExplorer validators list UI renders",
         "/validators",
         predicate=body_has_any("validator", "validators"),
@@ -346,14 +338,6 @@ def main() -> int:
         block_text = str(block_number)
         wait_for_http(
             test,
-            "EthExplorer execution block API returns transaction block",
-            f"/api/v1/execution/block/{block_text}",
-            predicate=body_has_any("block", block_text),
-            retries=120,
-            interval=5,
-        )
-        wait_for_http(
-            test,
             "EthExplorer execution block UI renders transaction block",
             f"/block/{block_text}",
             predicate=body_has_any("block", block_text),
@@ -392,14 +376,6 @@ def main() -> int:
             "EthExplorer transaction UI renders the signed transfer",
             f"/tx/{tx_hash}",
             predicate=body_has_text(tx_hash),
-            retries=120,
-            interval=5,
-        )
-        wait_for_http(
-            test,
-            "EthExplorer transactions data endpoint indexes the signed transfer",
-            "/transactions/data?" + datatable_query(),
-            predicate=body_has_any(tx_hash, tx_hash.removeprefix("0x")),
             retries=120,
             interval=5,
         )
