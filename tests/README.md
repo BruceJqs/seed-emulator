@@ -5,7 +5,7 @@
 The `test` folder contains 2 types of tests. First is compile-test and the second is dynamic test on Emulator service. 
 
 ## Test Environment
-- os : ubuntu20.04
+- os : ubuntu24.04
 - python version : 3.8.10
 - docker version : 20.10.21
 - python package dependency : 

@@ -16,9 +16,6 @@ from yaml import dump, safe_dump
 
 SEEDEMU_INTERNET_MAP_IMAGE='handsonsecurity/seedemu-internetmap:2.0'
 
-# The Etherview is updated on 2025/11, we name the new version 2.0
-#SEEDEMU_ETHER_VIEW_IMAGE='handsonsecurity/seedemu-multiarch-etherview:buildx-latest'
-# SEEDEMU_ETHER_VIEW_IMAGE='handsonsecurity/seedemu-multiarch-etherview:2.0'
 SEEDEMU_ETH_EXPLORER_BACKEND_IMAGE='handsonsecurity/seedemu-ethexplorer-backend:1.0'
 SEEDEMU_ETH_EXPLORER_WEB_IMAGE='handsonsecurity/seedemu-ethexplorer-web:1.0'
 
@@ -775,7 +772,7 @@ class Docker(Compiler):
         # Should we keep this feature?
         if self.__disable_images:
             self._log('disable-imaged configured, using base image.')
-            (image, _) = self.__images['ubuntu:20.04']
+            (image, _) = self.__images['ubuntu:24.04']
             return (image, nodeSoft - image.getSoftware())
 
         # Set Default Image for All Nodes

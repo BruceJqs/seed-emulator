@@ -17,7 +17,7 @@ diagram as below.
 
 ![](pics/BYOI-single-wifi.jpg)
 - **Environment Requirements**
-  - OS : Ubuntu 20.04
+  - OS : Ubuntu 24.04
   - USB to Ethernet Adapter (Optional); It is needed when Ubuntu running on a virtual machine.
   - WiFi Access Point 
     - Model : UniFi AP-AC-Lite
@@ -87,7 +87,7 @@ This command will show you network interfaces name without `veth` or `br`.
 ![](pics/BYOI-multiple-wifis.jpg)
 
 - **Environment Requirements**
-  - OS : Ubuntu 20.04
+  - OS : Ubuntu 24.04
   - USB to Ethernet Adapter (Optional); It is needed when Ubuntu running on a virtual machine.
   - WiFi Access Point 
     - Model : UniFi AP-AC-Lite
@@ -167,7 +167,7 @@ https://github.com/wonkr/seed-emulator/blob/development/docs/user_manual/bgp_pee
 ![](pics/BYOI-switch.png)
 
 - **Environment Requirements**
-  - OS : Ubuntu 20.04
+  - OS : Ubuntu 24.04
   - 4 USB to Ethernet Adapters
   - Switch
     - Model : TL-SG108E

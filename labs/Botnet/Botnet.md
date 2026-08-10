@@ -81,7 +81,7 @@ sim.compile(Docker(), './Task1-2')
 
 ### Task1.C: How it works
 
-Now we run ```python3 botnet-in-mini-internet.py```, our emulator will generate a folder named ```botnet-in-mini-internet```. Enter this folder, and we can bring up our custom botnet docker container cluster. In the following, we list some of the commonly used commands related to Docker and Compose. Since we are going to use these commands very frequently, we have created aliases for them in the .bashrc file (in our provided SEEDUbuntu 20.04 VM).
+Now we run ```python3 botnet-in-mini-internet.py```, our emulator will generate a folder named ```botnet-in-mini-internet```. Enter this folder, and we can bring up our custom botnet docker container cluster. In the following, we list some of the commonly used commands related to Docker and Compose. Since we are going to use these commands very frequently, we have created aliases for them in the .bashrc file (in our provided SEEDUbuntu 24.04 VM).
 
 ```
 $ docker-compose build # Build the container image

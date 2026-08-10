@@ -29,7 +29,7 @@ Profiles may contain a less specialized profile according to the runtime
 inheritance chain:
 
 ```text
-ubuntu20.04
+ubuntu24.04
     └── seedemu-base
           └── seedemu-router
 ```

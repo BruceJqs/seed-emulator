@@ -5,7 +5,7 @@ RUN npm install -g pnpm
 RUN pnpm i
 RUN pnpm run build-test
 
-FROM handsonsecurity/seedemu-multiarch-base:buildx-latest
+FROM handsonsecurity/seedemu-base:2.0
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /
 RUN apt-get update && apt-get install -y python3 python3-pip mysql-server

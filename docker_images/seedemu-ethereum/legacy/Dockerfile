@@ -15,10 +15,10 @@ RUN make install
 RUN make install-lcli
 WORKDIR /
 
-FROM handsonsecurity/seedemu-base
+FROM handsonsecurity/seedemu-base:2.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common python3 python3-pip
-RUN pip install web3
+RUN python3 -m pip install --break-system-packages web3
 
 COPY --from=builder1 /go-ethereum/build/bin/geth	/usr/bin
 COPY --from=builder1 /go-ethereum/build/bin/bootnode /usr/bin

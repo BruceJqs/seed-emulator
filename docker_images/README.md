@@ -1,17 +1,29 @@
-# Instructions for building your docker images locally
+# Building Docker images
 
-Since sometimes pulling docker images from remote docker hub is pretty slow while pulling from local docker hub is much faster, we recommend you to build your docker images locally.
+The maintained image sources live directly under `docker_images/`. The base,
+router, and Ethereum POS 2.0 images support both `linux/amd64` and
+`linux/arm64`; separate architecture directories are not required.
 
-We have provided all the necessary Dockerfile and docker-compose files to build your docker images locally.
+## Local builds
 
-Please enter the corrosponding folder and use command line to build your docker images.
-
-For instance, if you want to build the docker image for the multiarch base image in our emulator, please enter the folder `docker_images/multiarch/seedemu-base` and use command line:
+Build the base image before images that use it:
 
 ```bash
-docker build -t handsonsecurity/seedemu-multiarch-base:buildx-latest .
+docker build -t handsonsecurity/seedemu-base:2.0 docker_images/seedemu-base
+docker build -t handsonsecurity/seedemu-router:2.0 docker_images/seedemu-router
 ```
 
-This will build the docker image for the multiarch base image in your local docker hub, which will first be accessed instead of the remote docker hub when we pull the image `handsonsecurity/seedemu-multiarch-base:buildx-latest`.
+Docker automatically selects the current host architecture for these builds.
 
-According to our test, you can just build two images, `handsonsecurity/seedemu-multiarch-base:buildx-latest` and `handsonsecurity/seedemu-multiarch-router:buildx-latest`.
+## Publishing multiarch images
+
+Use a buildx builder to publish both supported platforms under one tag:
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 --push -t handsonsecurity/seedemu-base:2.0 docker_images/seedemu-base
+docker buildx build --platform linux/amd64,linux/arm64 --push -t handsonsecurity/seedemu-router:2.0 docker_images/seedemu-router
+docker buildx build --platform linux/amd64,linux/arm64 --push -t handsonsecurity/seedemu-ethereum:pos2.0 docker_images/seedemu-ethereum/pos2.0
+```
+
+Other image directories may have their own version or platform requirements;
+check their Dockerfiles before publishing them as multiarch images.

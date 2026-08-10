@@ -271,7 +271,7 @@ class DockerImage(object):
 
 DefaultImages: List[DockerImage] = []
 
-DefaultImages.append(DockerImage('ubuntu:20.04', []))
+DefaultImages.append(DockerImage('ubuntu:24.04', []))
 
 class Docker(Compiler):
     """!
@@ -511,7 +511,7 @@ class Docker(Compiler):
 
         if self.__disable_images:
             self._log('disable-imaged configured, using base image.')
-            (image, _) = self.__images['ubuntu:20.04']
+            (image, _) = self.__images['ubuntu:24.04']
             return (image, nodeSoft - image.getSoftware())
 
         if self.__forced_image != None:

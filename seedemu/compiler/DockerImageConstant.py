@@ -41,46 +41,26 @@ CHAINLINK_IMAGE = DockerImage(name='amanvelani/chainlink-develop:amd64',
                                 software=[],
                                 subset=None)
 
-UBUNTU_IMAGE_ARM64   = DockerImage(name='ubuntu:20.04',
-                                software=[],
-                                subset=None)
-
-BASE_IMAGE_ARM64     = DockerImage(name='handsonsecurity/seedemu-base:2.0',
-                                software=['zsh', 'curl', 'nano', 'vim-nox', 'mtr-tiny', 'iproute2',
-                                        'iputils-ping', 'tcpdump', 'termshark', 'dnsutils', 'jq', 'ipcalc', 'netcat-openbsd'],
-                                subset=UBUNTU_IMAGE_ARM64)
-
-ROUTER_IMAGE_ARM64   = DockerImage(name='handsonsecurity/seedemu-router:2.0',
-                                software=['bird2'],
-                                subset=BASE_IMAGE_ARM64)
-
 ETHEREUM_IMAGE_ARM64 = DockerImage(name='handsonsecurity/seedemu-ethereum-arm64',
                                 software=['software-properties-common', 'python3', 'python3-pip'],
-                                subset=BASE_IMAGE_ARM64)
+                                subset=BASE_IMAGE)
 
 ETHEREUM_IMAGE_ARM64_LEGACY = DockerImage(name='handsonsecurity/seedemu-ethereum-arm64:legacy',
                                 software=['software-properties-common', 'python3', 'python3-pip'],
-                                subset=BASE_IMAGE_ARM64)
+                                subset=BASE_IMAGE)
 
-ETHEREUM_IMAGE_ARM64_POS = DockerImage(name='handsonsecurity/seedemu-ethereum:pos2.0',
-                                software=['software-properties-common', 'python3', 'python3-pip'],
-                                subset=BASE_IMAGE_ARM64)
+MONERO_IMAGE_ARM64 = DockerImage(name='handsonsecurity/seedemu-monero:latest', software=[], subset=BASE_IMAGE)
 
-MONERO_IMAGE_ARM64 = DockerImage(name='handsonsecurity/seedemu-monero:latest', software=[], subset=BASE_IMAGE_ARM64)
+OP_STACK_IMAGE_ARM64 = DockerImage(name='huagluck/seedemu-op-stack', software=[], subset=BASE_IMAGE)
 
-# The same multiarch Solana image is used for arm64.
-SOLANA_IMAGE_ARM64 = DockerImage(name='handsonsecurity/seedemu-solana:1.0', software=[], local=False, subset=BASE_IMAGE_ARM64)
-
-OP_STACK_IMAGE_ARM64 = DockerImage(name='huagluck/seedemu-op-stack', software=[], subset=BASE_IMAGE_ARM64)
-
-SC_DEPLOYER_IMAGE_ARM64 = DockerImage(name='huagluck/seedemu-sc-deployer', software=[], subset=BASE_IMAGE_ARM64)
+SC_DEPLOYER_IMAGE_ARM64 = DockerImage(name='huagluck/seedemu-sc-deployer', software=[], subset=BASE_IMAGE)
 
 CHAINLINK_IMAGE_ARM64 = DockerImage(name='amanvelani/chainlink-develop:arm64',
                                 software=[],
                                 subset=None)
 
 BASESYSTEM_DOCKERIMAGE_MAPPING = {
-        BaseSystem.UBUNTU_20_04:           UBUNTU_IMAGE,
+        BaseSystem.UBUNTU_24_04:           UBUNTU_IMAGE,
         BaseSystem.SEEDEMU_BASE:           BASE_IMAGE,
         BaseSystem.SEEDEMU_ROUTER:         ROUTER_IMAGE,
          BaseSystem.SEEDEMU_ETHEREUM:       ETHEREUM_IMAGE,
@@ -94,14 +74,14 @@ BASESYSTEM_DOCKERIMAGE_MAPPING = {
 }
 
 BASESYSTEM_ARM64_DOCKERIMAGE_MAPPING = {
-        BaseSystem.UBUNTU_20_04:        UBUNTU_IMAGE_ARM64,
-        BaseSystem.SEEDEMU_BASE:        BASE_IMAGE_ARM64,
-        BaseSystem.SEEDEMU_ROUTER:      ROUTER_IMAGE_ARM64,
+        BaseSystem.UBUNTU_24_04:        UBUNTU_IMAGE,
+        BaseSystem.SEEDEMU_BASE:        BASE_IMAGE,
+        BaseSystem.SEEDEMU_ROUTER:      ROUTER_IMAGE,
         BaseSystem.SEEDEMU_ETHEREUM:    ETHEREUM_IMAGE_ARM64,
         BaseSystem.SEEDEMU_ETHEREUM_LEGACY:       ETHEREUM_IMAGE_ARM64_LEGACY,
-        BaseSystem.SEEDEMU_ETHEREUM_POS:       ETHEREUM_IMAGE_ARM64_POS,
+        BaseSystem.SEEDEMU_ETHEREUM_POS:       ETHEREUM_IMAGE_POS,
         BaseSystem.SEEDEMU_MONERO:        MONERO_IMAGE_ARM64,
-        BaseSystem.SEEDEMU_SOLANA:        SOLANA_IMAGE_ARM64,
+        BaseSystem.SEEDEMU_SOLANA:        SOLANA_IMAGE,
         BaseSystem.SEEDEMU_OP_STACK:    OP_STACK_IMAGE_ARM64,
         BaseSystem.SEEDEMU_SC_DEPLOYER: SC_DEPLOYER_IMAGE_ARM64,
         BaseSystem.SEEDEMU_CHAINLINK:   CHAINLINK_IMAGE_ARM64

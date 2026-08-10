@@ -35,7 +35,7 @@ def main() -> None:
     assert node.getBaseSystem() == BaseSystem.SEEDEMU_ROUTER
 
     assert BaseSystem.SEEDEMU_ROUTER.contains(BaseSystem.SEEDEMU_BASE)
-    assert BaseSystem.SEEDEMU_BASE.contains(BaseSystem.UBUNTU_20_04)
+    assert BaseSystem.SEEDEMU_BASE.contains(BaseSystem.UBUNTU_24_04)
 
     # Dockerfile: RUN apt-get update && apt-get install -y
     #                     --no-install-recommends python3
