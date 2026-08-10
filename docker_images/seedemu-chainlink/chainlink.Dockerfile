@@ -18,7 +18,7 @@ COPY . .
 RUN make install-chainlink
 
 # Final image: ubuntu with chainlink binary
-FROM ubuntu:24.04
+FROM ubuntu:20.04
 
 ARG CHAINLINK_USER=root
 ENV DEBIAN_FRONTEND noninteractive

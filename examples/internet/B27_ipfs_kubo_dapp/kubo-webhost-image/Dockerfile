@@ -1,4 +1,4 @@
-FROM handsonsecurity/seedemu-base:2.0
+FROM handsonsecurity/seedemu-multiarch-base:buildx-latest
 RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip
 RUN curl -fsSL https://deb.nodesource.com/setup_21.x | bash - && apt update -y && apt install -y nodejs
 RUN npm install -g serve

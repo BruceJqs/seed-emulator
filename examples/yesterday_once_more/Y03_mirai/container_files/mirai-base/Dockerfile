@@ -1,4 +1,4 @@
-FROM handsonsecurity/seedemu-base:2.0
+FROM handsonsecurity/seedemu-multiarch-base:buildx-latest
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
