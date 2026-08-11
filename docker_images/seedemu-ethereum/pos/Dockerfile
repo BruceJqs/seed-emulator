@@ -1,4 +1,4 @@
-FROM ubuntu:24.04 AS builder1
+FROM ubuntu:20.04 AS builder1
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV GOLANG_VERSION=1.24.0
